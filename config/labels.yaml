@@ -1,0 +1,11 @@
+# Registre des libellés : clé logique (stable, utilisée par le code et les agents)
+# -> libellé physique Gmail (changeant).
+# Renommage : éditer ce fichier uniquement, aucune migration de code.
+classification:
+  a-repondre:  "Agent/a-repondre"
+  information:  "Agent/information"
+  notification: "Agent/notification"
+suivi:
+  traite:       "Agent/traité"
+  doublon:     "Agent/doublon"
+  valide-spam: "Agent/valide-spam"
