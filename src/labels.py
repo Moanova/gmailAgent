@@ -1,9 +1,9 @@
-from collections.abc import Iterator
-from enum import StrEnum
 from typing import Protocol, TypedDict
 
 from config import RegistreLibelles
 from journalisation import obtenir_logger
+
+CleLogique = str
 
 
 class LibelleGmail(TypedDict):
@@ -17,33 +17,8 @@ class ClientGmail(Protocol):
     def create_label(self, name: str) -> LibelleGmail: ...
 
 
-class CleLogique(StrEnum):
-    A_REPONDRE = "classification.a-repondre"
-    INFORMATION = "classification.information"
-    NOTIFICATION = "classification.notification"
-    TRAITE = "suivi.traite"
-    DOUBLON = "suivi.doublon"
-    VALIDE_SPAM = "suivi.valide-spam"
-
-
 class LibelleIrresolubleError(RuntimeError):
     pass
-
-
-def _libelle_physique(registre: RegistreLibelles, cle: CleLogique) -> str:
-    return {
-        CleLogique.A_REPONDRE: registre.classification.a_repondre,
-        CleLogique.INFORMATION: registre.classification.information,
-        CleLogique.NOTIFICATION: registre.classification.notification,
-        CleLogique.TRAITE: registre.suivi.traite,
-        CleLogique.DOUBLON: registre.suivi.doublon,
-        CleLogique.VALIDE_SPAM: registre.suivi.valide_spam,
-    }[cle]
-
-
-def iter_cles(registre: RegistreLibelles) -> Iterator[tuple[CleLogique, str]]:
-    for cle in CleLogique:
-        yield cle, _libelle_physique(registre, cle)
 
 
 class ResolveurLibelles:
@@ -73,17 +48,17 @@ class ResolveurLibelles:
             return
         self._labels_vus = True
         existants = {libelle["name"]: libelle["id"] for libelle in self._client.list_labels()}
-        for cle, nom in iter_cles(self._registre):
+        for cle, nom in self._registre.iter_cles():
             if nom in existants:
                 self._cache[cle] = existants[nom]
 
     def _creer(self, cle: CleLogique) -> str:
-        nom = _libelle_physique(self._registre, cle)
+        nom = self._registre.libelle(cle)
         if self._dry_run:
             placeholder = f"DRYRUN:{nom}"
             self._log.warning(
                 "dry-run : création de libellé journalisée, non exécutée",
-                cle=cle.value,
+                cle=cle,
                 libelle=nom,
                 action="create_label",
                 dry_run=True,
@@ -94,8 +69,8 @@ class ResolveurLibelles:
             cree = self._client.create_label(nom)
         except Exception as erreur:
             raise LibelleIrresolubleError(
-                f"création du libellé {nom!r} (clé {cle.value}) impossible : {erreur}"
+                f"création du libellé {nom!r} (clé {cle}) impossible : {erreur}"
             ) from erreur
-        self._log.info("libellé créé", cle=cle.value, libelle=nom, labelId=cree["id"])
+        self._log.info("libellé créé", cle=cle, libelle=nom, labelId=cree["id"])
         self._cache[cle] = cree["id"]
         return cree["id"]

@@ -13,6 +13,8 @@ dependencies = [
     "httpx",
     "structlog",
     "pyyaml",
+    "google-auth",
+    "google-auth-oauthlib",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +23,7 @@ dev = [
     "ruff",
     "mypy",
     "types-pyyaml",
+    "types-requests",
 ]
 
 [tool.setuptools]
@@ -40,7 +43,11 @@ select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["src"]
-exclude = '(?x)(^|[/\\])agent0\d[a-c]?\.py$'
+exclude = '(?x)(^|[/\\])(agent0\d[a-c]?\.py|scripts/)$'
+
+[[tool.mypy.overrides]]
+module = ["google_auth_oauthlib.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

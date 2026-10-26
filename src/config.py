@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import yaml
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, ValidationError
 
 PREFIXE_LIBELLE = "Agent/"
 
@@ -21,27 +21,54 @@ def _valide_libelle(valeur: str) -> str:
 
 
 Libelle = Annotated[str, AfterValidator(_valide_libelle)]
+GroupeLibelles = dict[str, Libelle]
 
 
-class ClassificationLibelles(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    a_repondre: Libelle = Field(alias="a-repondre")
-    information: Libelle
-    notification: Libelle
+def _valide_groupe(valeur: GroupeLibelles) -> GroupeLibelles:
+    if not valeur:
+        raise ValueError("groupe de libellés vide")
+    return valeur
 
 
-class SuiviLibelles(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    traite: Libelle
-    doublon: Libelle
-    valide_spam: Libelle = Field(alias="valide-spam")
+Groupe = Annotated[GroupeLibelles, AfterValidator(_valide_groupe)]
 
 
 class RegistreLibelles(BaseModel):
-    classification: ClassificationLibelles
-    suivi: SuiviLibelles
+    """Registre des libellés : groupe -> clé logique -> libellé physique.
+
+    Le fichier `config/labels.yaml` est la seule source de vérité : toute
+    clé ajoutée au YAML devient immédiatement résoluble, sans modification
+    de code (décision D4).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    groupes: dict[str, Groupe]
+
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs: Any) -> "RegistreLibelles":
+        if not isinstance(obj, dict):
+            raise ValidationError.from_exception_data(
+                "RegistreLibelles", [{"type": "dict", "loc": (), "input": obj}]
+            )
+        return super().model_validate({"groupes": obj}, **kwargs)
+
+    def cle(self, groupe: str, cle: str) -> str:
+        return f"{groupe}.{cle}"
+
+    def libelle(self, cle: str) -> str:
+        groupe, _, nom = cle.partition(".")
+        try:
+            return self.groupes[groupe][nom]
+        except KeyError:
+            raise RegistreInvalideError(f"clé logique inconnue : {cle!r}") from None
+
+    def iter_cles(self) -> list[tuple[str, str]]:
+        return [
+            (self.cle(groupe, nom), libelle)
+            for groupe, cles in self.groupes.items()
+            for nom, libelle in cles.items()
+        ]
 
 
 def _chemin_par_defaut() -> Path:
