@@ -53,3 +53,37 @@ Aucun.
 - Livrables documentaires : `docs/design/conception.md`, `docs/design/workflow.md`, `docs/projet/plan-macro.md`, `docs/projet/kanban.md` (phase 1 découpée), `AGENTS.md`, `SESSIONS.md`.
 - Kanban : 6 tâches en « À faire » (T1.1–T1.6), aucune en cours.
 - Prochaines étapes pressenties : découpage de la phase 2 (Contrats) en tâches T2.x, puis implémentation de T1.1.
+
+---
+
+## Séance du 26/10/2026
+
+### Contexte
+Reprise du projet **gmailAgent** après la séance du 23/10/2026. Objectif de la séance : poursuivre l'initialisation du kanban à partir du [plan macro](docs/projet/plan-macro.md). La phase 1 (Fondations) était déjà découpée en T1.1–T1.6 ; il restait à découper la **phase 2 (Contrats)** — c'était la prochaine étape pressentie en fin de séance précédente.
+
+### Actions réalisées
+
+1. **Reprise de contexte** : passage sur la branche `dev` (à jour sur origin, dernier commit `9807970`), lecture de `AGENTS.md`, `docs/design/conception.md`, `docs/design/workflow.md`, `docs/projet/plan-macro.md`, `docs/projet/kanban.md` et `SESSIONS.md`.
+2. **Découpage de la phase 2 (Contrats)** du plan macro en 4 tâches, ajoutées en « À faire » dans `docs/projet/kanban.md` :
+   - **T2.1** — modèles Pydantic (`MessageClasse`, `SyntheseEtape`, `RapportFinal`) et enveloppe `meta` dans `src/contracts.py` ;
+   - **T2.2** — schémas JSON stricts des 3 agents, `enum` construits dynamiquement depuis le registre de libellés (jamais de nom de libellé physique en dur) ;
+   - **T2.3** — `src/validation.py` : `collecter_ids_reels`, `valider_synthese`, `extraire_json` (fonctions reprises des scripts de référence) ;
+   - **T2.4** — tests unitaires des contrats et de la validation dans `tests/unit/`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D9 | Phase 2 découpée en 4 tâches T2.1–T2.4 | La sortie de phase (« tout échange inter-étapes typé et testé ») se traduit en : modèles + enveloppe, schémas JSON dynamiques, validation programmatique, tests unitaires. |
+| D10 | Les schémas JSON dynamiques restent dans `src/contracts.py` | Conformément à l'arborescence du plan macro (« pydantic + schémas JSON dynamiques ») ; `src/prompts.py` se chargera des textes de prompts dans une phase ultérieure. |
+| D11 | T2.4 (tests des contrats) en phase 2, pas en phase 9 | Le critère de sortie de la phase 2 exige des contrats testés ; la phase 9 (Tests) portera sur l'ensemble du pipeline (fixtures de conversations mockées, mode dry-run, CI). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` à jour sur origin (dernier commit : `9807970`) ; modifications locales dans `docs/projet/kanban.md` et `SESSIONS.md` (commit/push sur demande explicite, règle C de AGENTS.md).
+- Kanban : 10 tâches en « À faire » (T1.1–T1.6, T2.1–T2.4), aucune en cours.
+- Prochaines étapes pressenties : implémentation de T1.1 (initialisation du projet), puis T1.2–T1.6, puis T2.1–T2.4.
