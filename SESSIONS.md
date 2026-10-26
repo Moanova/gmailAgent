@@ -69,6 +69,12 @@ Reprise du projet **gmailAgent** après la séance du 23/10/2026. Objectif de la
    - **T2.2** — schémas JSON stricts des 3 agents, `enum` construits dynamiquement depuis le registre de libellés (jamais de nom de libellé physique en dur) ;
    - **T2.3** — `src/validation.py` : `collecter_ids_reels`, `valider_synthese`, `extraire_json` (fonctions reprises des scripts de référence) ;
    - **T2.4** — tests unitaires des contrats et de la validation dans `tests/unit/`.
+3. **Implémentation de la tâche T1.1** (Fondations : Initialisation du projet) :
+   - création de l'arborescence (`src/`, `tests/unit/`, `tests/integration/`, `config/`, `docs/tasks/` avec `.gitkeep`) ;
+   - création de `pyproject.toml` (setuptools, dépendances runtime + extra `dev`, src plat via `py-modules`, config ruff/mypy/pytest) ;
+   - vérification : `pip install -e ".[dev]"` OK, `ruff check src tests` OK, `mypy src` et `pytest tests/unit` sans erreur (aucun module/test à ce stade, comme attendu) ;
+   - kanban : T1.1 déplacée en « En cours » puis « En revue » (validation agent effectuée, en attente de validation utilisateur) ;
+   - fichier de suivi : `docs/tasks/T1.1_initialisation_projet.md`.
 
 ### Décisions clés
 
@@ -84,6 +90,6 @@ Aucun.
 
 ### État en fin de séance
 
-- Branche `dev` à jour sur origin (dernier commit : `9807970`) ; modifications locales dans `docs/projet/kanban.md` et `SESSIONS.md` (commit/push sur demande explicite, règle C de AGENTS.md).
-- Kanban : 10 tâches en « À faire » (T1.1–T1.6, T2.1–T2.4), aucune en cours.
-- Prochaines étapes pressenties : implémentation de T1.1 (initialisation du projet), puis T1.2–T1.6, puis T2.1–T2.4.
+- Branche `dev` à jour sur origin (dernier commit : `665dc97` poussé en début de séance) ; modifications locales non commitées : `pyproject.toml`, arborescence (`src/`, `tests/`, `config/`, `docs/tasks/`), `docs/tasks/T1.1_initialisation_projet.md`, `docs/projet/kanban.md`, `SESSIONS.md` (commit/push sur demande explicite, règle C de AGENTS.md).
+- Kanban : T1.1 en « En revue » (validation agent effectuée) ; 9 tâches en « À faire » (T1.2–T1.6, T2.1–T2.4).
+- Prochaines étapes pressenties : validation utilisateur de T1.1 (rapatriement, test de `pip install -e ".[dev]"` sur le poste, puis déplacement en « Terminé » et commit/push sur demande), puis implémentation de T1.2.
