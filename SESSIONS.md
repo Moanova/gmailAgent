@@ -75,7 +75,12 @@ Reprise du projet **gmailAgent** après la séance du 23/10/2026. Objectif de la
    - vérification : `pip install -e ".[dev]"` OK, `ruff check src tests` OK, `mypy src` et `pytest tests/unit` sans erreur (aucun module/test à ce stade, comme attendu) ;
    - kanban : T1.1 déplacée en « En cours » puis « En revue » (validation agent effectuée, en attente de validation utilisateur) ;
    - fichier de suivi : `docs/tasks/T1.1_initialisation_projet.md`.
-
+4. **Itération sur T1.1 lors de la validation utilisateur** : `mypy src` échouait
+   sur le poste local (124 erreurs) car mypy analyse les scripts de référence
+   (`src/agent0*.py`) présents sur le disque, bien qu'ils soient ignorés par git
+   (ruff respecte `.gitignore`, mypy non). Correction : ajout d'un `exclude`
+   dans `[tool.mypy]` (`agent0\d[a-c]?\.py`). Revérifié : mypy propre avec ou
+   sans les scripts présents localement.
 ### Décisions clés
 
 | # | Décision | Justification |
@@ -90,6 +95,7 @@ Aucun.
 
 ### État en fin de séance
 
-- Branche `dev` à jour sur origin (dernier commit : `665dc97` poussé en début de séance) ; modifications locales non commitées : `pyproject.toml`, arborescence (`src/`, `tests/`, `config/`, `docs/tasks/`), `docs/tasks/T1.1_initialisation_projet.md`, `docs/projet/kanban.md`, `SESSIONS.md` (commit/push sur demande explicite, règle C de AGENTS.md).
-- Kanban : T1.1 en « En revue » (validation agent effectuée) ; 9 tâches en « À faire » (T1.2–T1.6, T2.1–T2.4).
-- Prochaines étapes pressenties : validation utilisateur de T1.1 (rapatriement, test de `pip install -e ".[dev]"` sur le poste, puis déplacement en « Terminé » et commit/push sur demande), puis implémentation de T1.2.
+- Branche `dev` : dernier commit poussé `fb59864` (T1.1) ; itération mypy (exclude des scripts de référence) et mises à jour documentaires en local, en attente de commit/push sur demande explicite (règle C de AGENTS.md).
+- Kanban : **T1.1 validée par l'utilisateur et déplacée en « Terminé »** ; **T1.2 implémentée et déplacée en « En revue »** ; 8 tâches en « À faire » (T1.3–T1.6, T2.1–T2.4).
+- L'itération mypy de T1.1 (exclude des scripts de référence) reste en local, non commitée (décision utilisateur : « inutile de faire un commit pour si peu ») ; elle sera embarquée dans le prochain commit demandé.
+- Prochaines étapes pressenties : validation utilisateur de T1.2 (rapatriement, test), puis implémentation de T1.3 (journalisation structurée).

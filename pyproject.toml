@@ -25,7 +25,7 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = []
+py-modules = ["env"]
 
 [tool.ruff]
 line-length = 100
@@ -39,6 +39,7 @@ select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["src"]
+exclude = '(?x)(^|[/\\])agent0\d[a-c]?\.py$'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
