@@ -29,7 +29,7 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels"]
+py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation"]
 
 [tool.ruff]
 line-length = 100
