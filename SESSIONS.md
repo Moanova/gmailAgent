@@ -99,3 +99,215 @@ Aucun.
 - Kanban : **T1.1 validée par l'utilisateur et déplacée en « Terminé »** ; **T1.2 validée par l'utilisateur et déplacée en « Terminé »** ; **T1.3 validée par l'utilisateur et déplacée en « Terminé »** ; **T1.4 validée par l'utilisateur et déplacée en « Terminé »** ; **T1.5 validée par l'utilisateur et déplacée en « Terminé »** (validation groupée au rapatriement du projet sur le poste) ; **T1.6 implémentée et poussée (commit `52eedf1`)** ; **T1.7 ajoutée en « À faire »** (pré-requis OAuth Gmail — configuration côté Google Cloud, câblage en phase 3) ; 5 tâches en « À faire » (T1.7, T2.1–T2.4).
 - L'itération mypy de T1.1 (exclude des scripts de référence) reste en local, non commitée (décision utilisateur : « inutile de faire un commit pour si peu ») ; elle sera embarquée dans le prochain commit demandé.
 - **Investigation mistralai 3.5.0** (suite au doute utilisateur, résolu) : le wheel 3.x de PyPI (3.0.0 à 3.5.0, généré par hatchling) ne contient **pas** de `mistralai/__init__.py` racine — le package est un **namespace package** (`__file__ = None`), donc `from mistralai import Mistral` échoue en environnement pur. La 1.9.11 (générée par Speakeasy) contient bien ce fichier. **Découverte clé** : le poste de l'utilisateur (projet openDataAgent, Python 3.14) échoue aussi sur `mistralai.client` à cause d'un **masquage stdlib** (`mistralai/client/types/__init__.py` masque le module `types` → `ImportError: cannot import name 'GenericAlias' from 'types'`). openDataAgent contourne les deux problèmes par un **import tolérant** (`try: from mistralai import Mistral / except ImportError: from mistralai.client import Mistral`) — ce n'est pas un lazy import, c'est un fallback. **Décision pour gmailAgent** : pas de pattern tolérant (il casse `mypy --strict` : `Module "mistralai" has no attribute "Mistral"` [attr-defined], testé) ; import direct via `from mistralai.client import Mistral` et `from mistralai.client.errors import SDKError` — chemin présent et fonctionnel dans les deux familles de versions, mypy-propre et runtime-vérifié sur 3.5.0. Dépendance : `mistralai>=3.5` (rétabli après épinglage temporaire à 1.9.11). **Attention environnement** : le dossier `mistralai/client/types/` peut masquer le module stdlib `types` si le venv est mal isolé — à surveiller sur le poste Windows (Python 3.14).
+
+---
+
+## Séance du 27/10/2026
+
+### Contexte
+Reprise du projet **gmailAgent**. L'utilisateur confirme que T1.7 (pré-requis OAuth Gmail) n'est pas un pré-requis de la phase 2 — il relève de la phase 3 (câblage Gmail). Décision de commencer directement par **T2.1 (Contrats : modèles Pydantic et enveloppe)**.
+
+### Actions réalisées
+
+1. **Reprise de contexte** : branche `dev` à jour (`63025a2`), lecture de `AGENTS.md`, `docs/design/conception.md`, `docs/design/workflow.md`, `docs/projet/plan-macro.md`, `docs/projet/kanban.md`, `SESSIONS.md`, et des modules existants (`src/config.py`, `src/labels.py`, `src/journalisation.py`, `src/client.py`, `src/env.py`).
+2. **T2.1 déplacée en « En cours »** dans le kanban ; fichier de suivi `docs/tasks/T2.1_contrats_pydantic.md` créé avec le plan détaillé.
+3. **Implémentation de T2.1** :
+   - `src/contracts.py` créé : `Meta` (enveloppe commune : `run_id: UUID`, `etape`, `agent`, `timestamp` UTC par défaut), `MessageLu`, `MessageClasse` (+ `categorie` pattern clé logique, `urgence` Literal, `message_id_rfc` normalisé, `empreinte` SHA-256 hexa), `SyntheseClassification` / `SyntheseSpam` / `SyntheseSuppression` (statut Literal par agent, `erreur: str | None`, `meta`), `SyntheseEtape` (union), `RapportFinal`. `extra="forbid"` sur tous les modèles (aligné avec `additionalProperties: false` des schémas stricts de T2.2).
+   - `pyproject.toml` : `py-modules += "contracts"`.
+   - Itération ruff : UP017 corrigé (`datetime.UTC` au lieu de `timezone.utc`).
+   - Règles de non-contradiction (cohérence statut/messages/erreur) volontairement hors des modèles → `valider_synthese` (T2.3).
+4. **Vérification (étape 4 de AGENTS.md)** :
+   - `ruff check src tests` : OK.
+   - `mypy src` : OK (`Success: no issues found in 6 source files`, strict).
+   - `python -m pytest tests/unit -v` : 0 test collecté (attendu — tests en T2.4, décision D11).
+   - Smoke : round-trip JSON (`model_dump(mode="json")` → `model_validate`) sur les 3 synthèses + `RapportFinal` ; rejets conformes (champ interdit, `urgence="critique"`, `empreinte` hors pattern, `statut` hors enum). Note : le premier smoke a échoué sur un artefact du test (`model_copy(update=...)` ne revalide pas en Pydantic v2) ; corrigé via `model_validate` — les modèles étaient corrects.
+5. **T2.1 déplacée en « En revue »** (validation agent effectuée, en attente de validation utilisateur). Fichier de suivi mis à jour. **Aucun commit** (règle C de AGENTS.md).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D12 | T2.1 lancée avant T1.7 | T1.7 (OAuth Gmail) est un pré-requis de la phase 3 (câblage `googleapiclient`), pas de la phase 2 (Contrats). |
+| D13 | `categorie` typée `str` avec pattern clé logique en T2.1 | L'enum dynamique sera construit en T2.2 depuis `config/labels.yaml` ; jamais de libellé physique en dur dans les contrats. |
+| D14 | Non-contradiction hors des modèles Pydantic | Cohérence sémantique (statut/messages/erreur) → `valider_synthese` (T2.3), pas contrainte de schéma. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications non commitées (`src/contracts.py`, `pyproject.toml`, `docs/projet/kanban.md`, `docs/tasks/T2.1_contrats_pydantic.md`, `SESSIONS.md`) — en attente de commit/push sur demande explicite (règle C).
+- Kanban : **T2.1 en « En revue »** ; **T1.6 en « En revue »** (en attente de validation utilisateur) ; 4 tâches en « À faire » (T1.7, T2.2, T2.3, T2.4).
+- Prochaine étape pressentie : validation utilisateur de T2.1 (et T1.6), puis **T2.2** (schémas JSON dynamiques des agents).
+
+---
+
+## Séance du 27/10/2026 (suite) — T2.2
+
+### Contexte
+Poursuite de la phase 2 (Contrats) après T2.1. Implémentation de **T2.2 (schémas JSON dynamiques des agents)**.
+
+### Actions réalisées
+
+1. **Recherche technique préalable** : inspection du SDK `mistralai` 3.5 installé
+   (`ResponseFormat`/`JSONSchema` : forme `{"type": "json_schema", "json_schema": {"name", "schema", "strict"}}`,
+   passage via `completion_args.response_format` dans les conversations éphémères) ;
+   lecture de `mistralai.extra.utils._pydantic_helper.rec_strict_json_schema`
+   (force `additionalProperties: false` sur tous les objets) ; consultation de la
+   doc Mistral (Custom Structured Outputs) et de retours communautaires
+   (pydantic-ai#4762, client-python#633). Décision : **ne pas utiliser** le helper
+   SDK `response_format_from_pydantic_model` (pas de contrôle sur les enums
+   dynamiques ni l'exclusion de `meta`) — construction manuelle des schémas.
+2. **T2.2 déplacée en « En cours »** ; fichier de suivi
+   `docs/tasks/T2.2_schemas_json_dynamiques.md` créé avec le plan détaillé.
+3. **Implémentation dans `src/contracts.py`** :
+   - Constantes `AGENT_*`, `_MODELES_PAR_AGENT`, `_ENUM_URGENCES`, `_ENUM_STATUTS` ;
+     `AgentInconnuError`.
+   - `_schema_payload(cls, exclure=("meta",))` : deep-copy du schéma Pydantic,
+     retrait de `meta`, nettoyage des `$defs` orphelins.
+   - `_enum_categories(registre)` + `_injecter_enums_agent` : injection des enums
+     dynamiques (`statut` par agent, `categorie` depuis le registre, `urgence`
+     fixe) — navigation via le `$ref` de `messages.items` pour la classification.
+   - `schema_agent(agent, registre=None)` (registre par défaut via `charger_registre()`).
+   - `response_format_agent(agent, registre=None)` : enveloppe SDK prête pour
+     `completion_args.response_format`.
+4. **Vérification** :
+   - `ruff check src tests` : OK. `mypy src` : OK (strict, 6 fichiers).
+   - `pytest tests/unit` : 0 test (attendu — T2.4).
+   - Smoke 7 groupes : structure (`additionalProperties: false` partout, `meta`
+     exclu, `$ref` résolus, `$defs` sans orphelins), enums dynamiques, aucun
+     libellé physique en dur, forme SDK, round-trip Pydantic (payload + `meta`
+     injecté), rejet libellé physique par le pattern, `AgentInconnuError`.
+     Tous OK. (Première version du smoke échouait sur une confusion clé logique
+     vs libellé physique dans l'assertion — le code était correct.)
+5. **T2.2 déplacée en « En revue »**. Aucun commit (règle C).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D15 | Schéma agent = payload sans `meta` ; `meta` injecté par l'orchestrateur | Le LLM ne connaît pas `run_id`/`timestamp` ; l'enveloppe complète (conception §2.4.2) est reconstituée côté orchestrateur avant validation Pydantic. |
+| D16 | Construction manuelle des schémas (pas le helper SDK `response_format_from_pydantic_model`) | Le helper applique `rec_strict_json_schema` sans contrôle sur les enums dynamiques ni l'exclusion de `meta`. |
+| D17 | `erreur` dans `required` avec `anyOf [string, null]` | Émulation du nullable (pattern Pydantic `Optional[str]`) ; le LLM produit explicitement `"erreur": null`. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications non commitées (T2.1 + T2.2 + doc) — en attente de commit/push sur demande explicite.
+- Kanban : **T2.1 et T2.2 en « En revue »** ; **T1.6 en « En revue »** ; 3 tâches en « À faire » (T1.7, T2.3, T2.4).
+- Prochaine étape pressentie : validation utilisateur de T2.1/T2.2, puis **T2.3** (validation programmatique : `collecter_ids_reels`, `valider_synthese`, `extraire_json`).
+
+---
+
+## Séance du 27/10/2026 (suite) — T2.3
+
+### Contexte
+Poursuite de la phase 2 (Contrats). Implémentation de **T2.3 (validation programmatique)**.
+
+### Actions réalisées
+
+1. **Vérification SDK** : `ToolExecutionEntry.arguments` est `str` (JSON),
+   `FunctionCallEntry.arguments` est `dict`, `entry.type` ∈ `{"tool.execution",
+   "function.call", "message.output", ...}` — confirmé par construction de
+   fixtures avec les vrais modèles SDK.
+2. **T2.3 déplacée en « En cours »** ; fichier de suivi
+   `docs/tasks/T2.3_validation_programmatique.md` créé.
+3. **Implémentation de `src/validation.py`** :
+   - `extraire_json` : extraction robuste du premier objet JSON bien formé
+     (accolades imbriquées, chaînes échappées).
+   - `collecter_ids_reels` : parcours des entrées `tool.execution` /
+     `function.call`, parse des arguments, collecte des champs d'IDs
+     (`threadId`, `thread_id`, `messageId`, `message_id`, `id`).
+   - `valider_synthese` : 6 contrôles (C1 non-contradiction statut/messages,
+     C2 aucun_message cohérent, C3 complétude, C4 authenticité des IDs,
+     C5 cohérence count/ids, C6 empreintes présentes) — rejet avec motif
+     explicite via `SyntheseInvalideError`.
+   - `construire_synthese` (bonus) : sélection du modèle par agent + injection
+     de `meta` + `model_validate` (pont orchestrateur entre le payload LLM et
+     les contrats T2.1/T2.2).
+   - `pyproject.toml` : `py-modules += "validation"`.
+   - Itération ruff : I001 (tri des imports).
+4. **Vérification** :
+   - `ruff check src tests` : OK. `mypy src` : OK (strict, 7 fichiers).
+   - `pytest tests/unit` : 0 test (attendu — T2.4).
+   - Smoke 6 groupes (avec vrais modèles SDK) : `extraire_json` (noyé,
+     imbriqué, échappé, rejets), `collecter_ids_reels` (str + dict, str/list,
+     entrées ignorées, arguments tronqués), 5 cas valides, 10 cas de rejet
+     C1–C5, agent inconnu, champ interdit (Pydantic). Tous OK.
+   - Note : première exécution du smoke a échoué sur une erreur du script de
+     test lui-même (argument `label` manquant dans `rejet_attendu`) — le code
+     était correct.
+5. **T2.3 déplacée en « En revue »**. Aucun commit (règle C).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D18 | `construire_synthese` ajouté à T2.3 (hors périmètre initial du kanban) | Pont nécessaire entre le payload LLM (schéma T2.2) et les modèles Pydantic (T2.1) ; sans lui, l'orchestrateur devrait réimplémenter la sélection du modèle + injection de `meta`. |
+| D19 | `_CHAMPS_IDS` en constante module (allow-list configurable) | Les noms exacts de champs d'arguments Gmail (`threadId` vs `id`, `messageId` vs `message_id`) seront confirmés au premier appel réel (phase 3+) ; la liste couvre les variantes usuelles. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications non commitées (T2.1 + T2.2 + T2.3 + doc).
+- Kanban : **T2.1, T2.2, T2.3 en « En revue »** ; **T1.6 en « En revue »** ; 2 tâches en « À faire » (T1.7, T2.4).
+- **Phase 2 (Contrats) : T2.1–T2.3 terminées côté agent, T2.4 (tests unitaires) reste** — c'est le critère de sortie de la phase (« tout échange inter-étapes typé et testé »).
+- Prochaine étape : **T2.4** (tests unitaires `test_contracts.py` + `test_validation.py`) pour clôturer la phase 2.
+
+---
+
+## Séance du 27/10/2026 (suite) — T2.4 et clôture de la phase 2
+
+### Contexte
+Dernière tâche de la **phase 2 (Contrats)** : **T2.4 (tests unitaires)** couvrant T2.1 (modèles), T2.2 (schémas dynamiques) et T2.3 (validation). L'utilisateur demande ensuite un commit et un push sur `dev`.
+
+### Actions réalisées
+
+1. **T2.4 déplacée en « En cours »** ; fichier de suivi `docs/tasks/T2.4_tests_unitaires.md` créé.
+2. **Implémentation des tests unitaires** :
+   - `tests/unit/conftest.py` : fixtures communes (`meta`, `meta_fixe`, `registre`,
+     `message_lu`, `message_classe`).
+   - `tests/unit/test_contracts.py` (52 tests) : modèles T2.1 (Meta, MessageLu,
+     MessageClasse, 3 synthèses, RapportFinal — champs requis, patterns, enums,
+     round-trip JSON, rejets) + schémas T2.2 (`additionalProperties: false`
+     partout, `meta` exclu, `$ref` résolus, enums dynamiques, aucun libellé
+     physique en dur, forme SDK `response_format_agent`).
+   - `tests/unit/test_validation.py` (39 tests) : `extraire_json` (6),
+     `collecter_ids_reels` (11, avec vrais modèles SDK `ToolExecutionEntry` /
+     `FunctionCallEntry` / `MessageOutputEntry`), `valider_synthese` cas valides
+     (5) + rejets C1–C6 (12, C6 via `model_construct`), `construire_synthese`
+     (4), test cross-module (1).
+   - Itération ruff : F401 (imports `AGENT_SPAM`/`AGENT_SUPPRESSION` inutilisés).
+3. **Vérification** :
+   - `ruff check src tests` : OK. `mypy src` : OK (strict, 7 fichiers).
+   - `python -m pytest tests/unit -v` : **91 passed in 0.53s**
+     (test_contracts : 52, test_validation : 39).
+4. **T2.4 déplacée en « En revue »** ; fichiers de suivi et SESSIONS.md mis à jour.
+5. **Commit et push sur `dev`** (demande explicite utilisateur, règle C levée) :
+   - `feat(T2.1-T2.4): contrats, schémas dynamiques, validation et tests unitaires (phase 2)`
+   - `docs(projet): kanban, suivi de tâches T2.1-T2.4 et journal de séance`
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D20 | T2.4 couvre T2.1 + T2.2 + T2.3 en deux fichiers de tests | Le critère de sortie de la phase 2 est « tout échange inter-étapes typé et testé » (D11) ; les tests unitaires sont regroupés par module testé. |
+| D21 | C6 testé via `model_construct` (bypass Pydantic) | Le validateur défensif `_valider_empreintes` ne peut pas être atteint avec un modèle validé normalement (le pattern Pydantic rejette d'abord) ; `model_construct` permet de tester la couche de validation indépendamment. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- **Phase 2 (Contrats) clôturée côté agent** : T2.1–T2.4 en « En revue » (critère de sortie : tout échange inter-étapes typé et testé — 91 TU passent).
+- Branche `dev` : commits poussés (voir `git log`).
+- Kanban : 4 tâches en « En revue » (T1.6, T2.1, T2.2, T2.3, T2.4 — en attente de validation utilisateur) ; 1 tâche en « À faire » (T1.7).
+- Prochaine étape pressentie : validation utilisateur des tâches en revue, puis **phase 3 (Orchestrateur squelette)** ou **T1.7 (pré-requis OAuth Gmail)** selon la priorité de l'utilisateur.

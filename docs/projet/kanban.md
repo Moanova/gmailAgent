@@ -15,15 +15,15 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 
 ## À faire
 T1.7
-T2.1
-T2.2
-T2.3
-T2.4
 
 ## En cours
 
 ## En revue
 T1.6
+T2.1
+T2.2
+T2.3
+T2.4
 
 
 ## Terminé
