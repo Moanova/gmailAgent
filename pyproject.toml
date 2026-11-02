@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml",
     "google-auth",
     "google-auth-oauthlib",
+    "google-api-python-client",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation"]
+py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail"]
 
 [tool.ruff]
 line-length = 100
@@ -47,6 +48,10 @@ exclude = '(?x)(^|[/\\])(agent0\d[a-c]?\.py|scripts/)$'
 
 [[tool.mypy.overrides]]
 module = ["google_auth_oauthlib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["googleapiclient", "googleapiclient.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
