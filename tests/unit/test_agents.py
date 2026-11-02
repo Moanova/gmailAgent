@@ -257,7 +257,7 @@ class TestLancerConversation:
         assert synthese.statut == "synthese"
         assert len(executions) == 3
         assert all(e.type == "function.call" for e in executions)
-        assert service.appels == ["threads.list", "threads.get"]
+        assert service.appels == ["threads.list", "threads.get", "messages.get"]
 
     def test_agent_sans_prompt(self, registre: RegistreLibelles, meta: Meta) -> None:
         mistral = _FauxMistral([])
