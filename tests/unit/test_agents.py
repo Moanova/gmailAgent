@@ -471,3 +471,41 @@ class TestCompletudeMessages:
             registre=registre,
         )
         assert len(synthese.messages) == 2
+
+
+class TestLimiteTentativesSynthese:
+    def test_abandon_apres_3_refus(self, registre: RegistreLibelles, meta: Meta) -> None:
+        """Le modèle produit indéfiniment une synthèse incomplète -> abandon propre
+        après MAX_TENTATIVES_SYNTHESE refus (pas de boucle infinie)."""
+        from agents import MAX_TENTATIVES_SYNTHESE
+
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_thread", {"threadId": "t1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                        _appel("get_message", {"messageId": "m1"}),
+                        _appel("get_message", {"messageId": "m-t2"}),
+                    ]
+                )
+            ),
+        ]
+        scenario += [
+            _Reponse(_Msg(content=_payload_classification([_msg_classifie("m1")])))
+            for _ in range(MAX_TENTATIVES_SYNTHESE + 2)
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService(threads=["t1", "t2"])
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="abandon du run"):
+            lancer_conversation(
+                AGENT_CLASSIFICATION,
+                "is:unread",
+                meta,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+        assert len(mistral.chat.appels) == 2 + MAX_TENTATIVES_SYNTHESE + 1

@@ -49,6 +49,7 @@ from validation import (
 MODELE_PAR_DEFAUT = "mistral-large-latest"
 MAX_TOKENS_PAR_DEFAUT = 1500
 PLAFOND_APPELS_OUTILS = 50
+MAX_TENTATIVES_SYNTHESE = 3
 
 Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
 AppelOutil = ToolExecutionEntry | FunctionCallEntry
@@ -251,6 +252,7 @@ def lancer_conversation(
     format_sortie = ResponseFormat.model_validate(response_format_agent(agent, registre))
     executions: list[AppelOutil] = []
     appels = 0
+    tentatives_synthese = 0
     threads_trouves: set[str] = set()
     threads_lus: set[str] = set()
     messages_lus: set[str] = set()
@@ -318,10 +320,17 @@ def lancer_conversation(
             raise SyntheseInvalideError("contenu final de l'agent non textuel")
         manquants = sorted(threads_trouves - threads_lus)
         if manquants:
+            tentatives_synthese += 1
+            if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+                raise SyntheseInvalideError(
+                    f"synthèse incomplète après {MAX_TENTATIVES_SYNTHESE} tentatives : "
+                    f"{len(manquants)} thread(s) non lus — abandon du run"
+                )
             log.warning(
                 "synthese refusee : threads non lus",
                 manquants=manquants[:10],
                 total=len(manquants),
+                tentative=tentatives_synthese,
             )
             messages.append(AssistantMessage(role="assistant", content=contenu_final))
             messages.append(
@@ -345,10 +354,17 @@ def lancer_conversation(
         }
         messages_manquants = sorted(messages_lus - ids_synthese)
         if messages_manquants and synthese.statut not in ("aucun_message", "echec_technique"):
+            tentatives_synthese += 1
+            if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+                raise SyntheseInvalideError(
+                    f"synthèse incomplète après {MAX_TENTATIVES_SYNTHESE} tentatives : "
+                    f"{len(messages_manquants)} message(s) lus non classés — abandon du run"
+                )
             log.warning(
                 "synthese refusee : messages lus non classes",
                 manquants=messages_manquants[:10],
                 total=len(messages_manquants),
+                tentative=tentatives_synthese,
             )
             messages.append(AssistantMessage(role="assistant", content=contenu_final))
             messages.append(
