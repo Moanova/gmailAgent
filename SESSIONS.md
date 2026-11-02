@@ -374,3 +374,69 @@ Aucun.
 - Kanban : **En revue** = T3.1 (en attente de validation utilisateur) ; **À faire** = T3.2–T3.4.
 - Branche `dev` : aucun commit (règle C).
 - Prochaine étape : validation utilisateur de T3.1, puis **T3.2** (orchestrateur squelette) sur demande explicite.
+
+---
+
+## Séance du 02/11/2026 (suite) — validation T3.1, puis T3.2
+
+### Contexte
+Validation utilisateur de T3.1 (ruff/mypy/pytest OK sur le poste), puis lancement de T3.2 sur demande explicite, avec commit + push autorisés (règle C levée pour cette séance).
+
+### Actions réalisées
+
+1. **Validation T3.1 (étape 6)** : kanban — T3.1 « En revue » → « Terminé » ; board Miro « gmailAgent » synchronisé (15 lignes : T1.1–T3.1 « Fait », T3.2–T3.4 « À faire ») ; `docs/tasks/T3.1_client_gmail_concret.md` complété.
+2. **Plan T3.2** (étape 2) puis **implémentation T3.2** :
+   - `src/orchestrator.py` (créé) : `Checkpoint` Pydantic + persistance JSON `data/checkpoints/<run_id>.json`, reprise sur incident, `requete_non_lus` (idempotence depuis le registre, clé `suivi.traite`), `lancer_run_tri` étapes 0–7 (stubs phases 4/5/6, dry-run par défaut, rejet → rapport `echec_partiel` persisté + arrêt propre) ;
+   - `src/client.py` : `avec_retry` généralisé (prédicat `erreur_retentable` : `SDKError` + `HttpError` 429/5xx) ;
+   - `pyproject.toml` : `py-modules += orchestrator` ;
+   - `tests/unit/test_orchestrator.py` (créé, 13 tests).
+3. **Vérification** : `ruff check src tests` OK (1 itération : 4 lignes > 100 car.) ; `mypy src` OK (strict, 9 fichiers) ; `python -m pytest tests/unit -q` : **121 passed**.
+4. **Kanban** : T3.2 « En cours » → « En revue » ; fichier de suivi `docs/tasks/T3.2_orchestrateur_squelette.md` à jour.
+5. **Commit et push sur `dev`** : `feat(T3.2)` + `docs(projet)`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D26 | Le squelette T3.2 ne fait aucun appel Mistral (stubs agentiques) | Critère de sortie phase 3 : « un run vide qui tourne de bout en bout » ; pas besoin de `MISTRAL_API_KEY` pour T3.2–T3.4. |
+| D27 | `lancer_run_tri` avec dépendances injectables et `dry_run=True` par défaut | Tests unitaires sans token Gmail ni écriture hors tmp ; règle E (aucune écriture Gmail en dry-run). |
+| D28 | Rejet = exception relancée après persistance d'un rapport `echec_partiel` avec `etape_fautive` | workflow.md : le rejet est journalisé avec son motif et le run s'arrête ; une synthèse rejetée n'est jamais restituée. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1 ; **En revue** = T3.2 (attente validation utilisateur) ; **À faire** = T3.3, T3.4.
+- Branche `dev` : commits `feat(T3.2)` + `docs(projet)` poussés.
+- Prochaine étape : validation utilisateur de T3.2 sur le poste (dry-run réel), puis **T3.3** (CLI + dry-run) sur demande explicite.
+
+---
+
+## Séance du 02/11/2026 (suite) — validation T3.1 et plan T3.2
+
+### Contexte
+L'utilisateur valide T3.1 sur son poste (`git pull`, `pip install -e ".[dev]"`, puis `ruff`, `mypy`, `pytest` OK) et demande le passage en « Terminé » + le plan d'implémentation de T3.2.
+
+### Actions réalisées
+
+1. **Validation T3.1 (étape 6)** : kanban — T3.1 déplacée « En revue » → **« Terminé »** ; `docs/tasks/T3.1_client_gmail_concret.md` complété (validation utilisateur 02/11/2026). **Aucun nouveau commit** (règle C — pas de demande explicite pour ces seuls changements de doc).
+2. **Plan T3.2 établi** (étape 2) : `docs/tasks/T3.2_orchestrateur_squelette.md` créé — sous-tâches (checkpoints JSON + reprise sur incident, requête d'idempotence depuis le registre, cycle de run étapes 0–7 avec stubs agentiques, retry HTTP Gmail, tests unitaires), fichiers prévus (`src/orchestrator.py`, `src/client.py`, `pyproject.toml`, `tests/unit/test_orchestrator.py`), vérifications ruff/mypy/pytest.
+3. **Board Miro « gmailAgent »** : état du kanban reporté (T3.1 → Terminé).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D26 | Le squelette T3.2 ne fait aucun appel Mistral (stubs agentiques) : le run vide ne requiert pas `MISTRAL_API_KEY` | Critère de sortie phase 3 : « un run vide qui tourne de bout en bout » ; les phases agentiques arrivent en phases 4/5. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1 ; **À faire** = T3.2–T3.4 ; « En cours »/« En revue » vides.
+- Branche `dev` : commits `d8ccfd8` + `dd97034` poussés ; modifications doc (kanban/SESSIONS/suivi) non commitées en attente.
+- Prochaine étape : implémenter **T3.2** sur demande explicite de l'utilisateur.
