@@ -98,6 +98,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
   2. L'utilisateur valide que tous les tests passent et que les critères d'acceptation sont respectés.
   3. L'utilisateur demande le déplacement de la tâche en **Terminé** dans `docs/projet/kanban.md`.
   4. L'utilisateur demande explicitement le commit et le push.
+  5. Reporter l'état du kanban sur le board gmailAgent du service miro.com au moyen du connecteur MCP configuré.
 - **Exemple de demande** :
   ```markdown
   Peux-tu valider la tâche T2.1 et la déplacer en Terminé dans le kanban ?
