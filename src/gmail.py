@@ -133,6 +133,13 @@ class ClientGmailAPI:
             self._service.users().threads().get(userId="me", id=thread_id).execute(),
         )
 
+    def get_message(self, message_id: str) -> dict[str, Any]:
+        self._compter_lecture("get_message")
+        return cast(
+            dict[str, Any],
+            self._service.users().messages().get(userId="me", id=message_id).execute(),
+        )
+
     def modifier_libelles(
         self,
         message_id: str,

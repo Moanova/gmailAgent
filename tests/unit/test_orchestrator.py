@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 from uuid import uuid4
 
@@ -7,6 +8,8 @@ from httplib2 import Response
 
 from client import avec_retry
 from config import RegistreLibelles
+from dedup import empreinte_message
+from gmail import ClientGmailAPI
 from labels import LibelleGmail, ResolveurLibelles
 from orchestrator import (
     Checkpoint,
@@ -16,6 +19,7 @@ from orchestrator import (
     requete_non_lus,
     sauvegarder_checkpoint,
 )
+from validation import SyntheseInvalideError, construire_synthese
 
 ETAPES_COMPLETES = [
     "demarrage",
@@ -58,6 +62,45 @@ class _FauxClientGmail:
         return LibelleGmail(id=f"Label_{len(self.creations)}", name=name)
 
 
+class _ServiceVide:
+    def users(self) -> "_ServiceVide":
+        return self
+
+    def labels(self) -> "_ServiceVide":
+        return self
+
+    def threads(self) -> "_ServiceVide":
+        return self
+
+    def messages(self) -> "_ServiceVide":
+        return self
+
+    def list(self, **kwargs: object) -> "_ServiceVide":
+        return self
+
+    def get(self, **kwargs: object) -> "_ServiceVide":
+        return self
+
+    def modify(self, **kwargs: object) -> "_ServiceVide":
+        return self
+
+    def create(self, **kwargs: object) -> "_ServiceVide":
+        return self
+
+    def trash(self, **kwargs: object) -> "_ServiceVide":
+        return self
+
+    def execute(self) -> dict[str, object]:
+        return {}
+
+
+def _faux_conversation_vide(agent: str, requete: str, meta: object, **kwargs: object):
+    synthese = construire_synthese(
+        agent, {"statut": "aucun_message", "messages": []}, meta  # type: ignore[arg-type]
+    )
+    return synthese, []
+
+
 def _run(
     registre: RegistreLibelles,
     tmp_path: Path,
@@ -65,11 +108,15 @@ def _run(
     *,
     run_id=None,
     dry_run: bool = True,
+    client_api: ClientGmailAPI | None = None,
+    conversation=None,
 ):
     return lancer_run_tri(
         run_id=run_id,
         dry_run=dry_run,
         client=client,
+        client_api=client_api or ClientGmailAPI(_ServiceVide(), dry_run=dry_run),
+        conversation=conversation or _faux_conversation_vide,
         registre=registre,
         dossier_checkpoints=tmp_path,
     )
@@ -197,3 +244,153 @@ class TestAvecRetry:
 
         with pytest.raises(ValueError, match="boom"):
             avec_retry(operation, dormir=lambda _d: None)
+
+
+def _payload_message(message_id: str = "m1") -> dict[str, object]:
+    corps = base64.urlsafe_b64encode(b"corps").decode().rstrip("=")
+    return {
+        "payload": {
+            "headers": [
+                {"name": "Message-ID", "value": "abc@ex.fr"},
+                {"name": "Subject", "value": "Sujet"},
+                {"name": "From", "value": "exp@ex.fr"},
+            ],
+            "body": {"data": corps},
+        }
+    }
+
+
+class _ServiceAvecMessage:
+    def __init__(self) -> None:
+        self.modifications: list[tuple[str, list[str], list[str]]] = []
+
+    def users(self) -> "_ServiceAvecMessage":
+        return self
+
+    def messages(self) -> "_ServiceAvecMessage":
+        return self
+
+    def labels(self) -> "_ServiceAvecMessage":
+        return self
+
+    def list(self, **kwargs: object) -> "_ServiceAvecMessage":
+        return self
+
+    def get(self, **kwargs: object) -> "_ServiceAvecMessage":
+        return self
+
+    def modify(self, userId: str, id: str, body: "dict[str, list[str]]") -> "_ServiceAvecMessage":
+        self.modifications.append(
+            (id, list(body.get("addLabelIds", [])), list(body.get("removeLabelIds", [])))
+        )
+        return self
+
+    def execute(self) -> dict[str, object]:
+        return _payload_message()
+
+
+def _conversation_classifiee(meta: object, empreinte: str) -> object:
+    def _fn(agent: str, requete: str, meta_arg: object, **kwargs: object):
+        payload = {
+            "statut": "synthese",
+            "messages": [
+                {
+                    "id": "m1",
+                    "objet": "Sujet",
+                    "expediteur": "exp@ex.fr",
+                    "motif": "motif",
+                    "categorie": "classification.a-repondre",
+                    "urgence": "haute",
+                    "message_id_rfc": "abc@ex.fr",
+                    "empreinte": empreinte,
+                }
+            ],
+        }
+        synthese = construire_synthese(agent, payload, meta_arg)  # type: ignore[arg-type]
+        return synthese, []
+
+    return _fn
+
+
+class TestEtapes34Classification:
+    def test_classification_ok_pose_libelles(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceAvecMessage()
+        api = ClientGmailAPI(service, dry_run=False)
+        _, empreinte = empreinte_message(_payload_message())
+        client_labels = _FauxClientGmail(
+            labels=[
+                LibelleGmail(id="L_traite", name="Agent/traité"),
+                LibelleGmail(id="L_arep", name="Agent/a-repondre"),
+            ]
+        )
+        rapport = _run(
+            registre,
+            tmp_path,
+            client_labels,
+            client_api=api,
+            conversation=_conversation_classifiee(None, empreinte),
+        )
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_classification is not None
+        assert service.modifications == [("m1", ["L_arep", "L_traite"], [])]
+        checkpoint = charger_checkpoint(rapport.meta.run_id, tmp_path)
+        assert "classification" in checkpoint.syntheses
+
+    def test_empreinte_erronee_rejette(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceAvecMessage()
+        api = ClientGmailAPI(service, dry_run=False)
+        client_labels = _FauxClientGmail(
+            labels=[
+                LibelleGmail(id="L_traite", name="Agent/traité"),
+                LibelleGmail(id="L_arep", name="Agent/a-repondre"),
+            ]
+        )
+        with pytest.raises(SyntheseInvalideError, match="C6"):
+            _run(
+                registre,
+                tmp_path,
+                client_labels,
+                client_api=api,
+                conversation=_conversation_classifiee(None, "0" * 64),
+            )
+
+    def test_dry_run_ne_modifie_pas(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceAvecMessage()
+        api = ClientGmailAPI(service, dry_run=True)
+        _, empreinte = empreinte_message(_payload_message())
+        client_labels = _FauxClientGmail(
+            labels=[
+                LibelleGmail(id="L_traite", name="Agent/traité"),
+                LibelleGmail(id="L_arep", name="Agent/a-repondre"),
+            ]
+        )
+        rapport = _run(
+            registre,
+            tmp_path,
+            client_labels,
+            dry_run=True,
+            client_api=api,
+            conversation=_conversation_classifiee(None, empreinte),
+        )
+        assert rapport.statut_global == "succes"
+        assert service.modifications == []
+
+    def test_reprise_ne_rappelle_pas_lagent(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        appels = {"n": 0}
+
+        def _compte(agent: str, requete: str, meta: object, **kwargs: object):
+            appels["n"] += 1
+            return _faux_conversation_vide(agent, requete, meta, **kwargs)
+
+        client_labels = _FauxClientGmail()
+        premier = _run(registre, tmp_path, client_labels, conversation=_compte)
+        _run(registre, tmp_path, client_labels, run_id=premier.meta.run_id, conversation=_compte)
+        assert appels["n"] == 1

@@ -1,8 +1,8 @@
 """Orchestrateur squelette : cycle du run principal (tri), checkpoints, idempotence.
 
-Étapes 0–7 du run principal (docs/design/workflow.md). En phase 3, les phases
-agentiques (étapes 1 et 3) et le dédoublonnage (étape 5) sont des stubs —
-implémentés en phases 4, 5 et 6. Le run vide ne fait aucun appel à l'API Mistral.
+Étapes 0–7 du run principal (docs/design/workflow.md). L'étape 1 (spam) reste un
+stub (phase 4) ; les étapes 3–4 (classification) sont réelles (phase 5) ; le
+dédoublonnage (étape 5) reste un stub (phase 6).
 
 Checkpoints : JSON persistés dans `data/checkpoints/<run_id>.json` à chaque étape
 validée ; en cas de crash, relancer avec le même `run_id` saute les étapes déjà
@@ -11,16 +11,29 @@ requête Gmail `is:unread -label:"<libellé traité>"`, construite depuis le reg
 (clé logique `suivi.traite`) — jamais de libellé physique en dur dans le code.
 """
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 from uuid import UUID, uuid4
 
+from mistralai.client import Mistral
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from agents import lancer_conversation
+from client import obtenir_client
 from config import RegistreLibelles, charger_registre
-from contracts import Meta, RapportFinal, SyntheseEtape
-from gmail import nouveau_client
+from contracts import (
+    AGENT_CLASSIFICATION,
+    Meta,
+    RapportFinal,
+    SyntheseClassification,
+    SyntheseEtape,
+)
+from dedup import empreinte_message, normaliser_message_id
+from gmail import ClientGmailAPI, nouveau_client
 from journalisation import configurer, obtenir_logger
 from labels import ClientGmail, ResolveurLibelles
+from validation import SyntheseInvalideError
 
 CLE_TRAITE = "suivi.traite"
 AGENT_ORCHESTRATEUR = "orchestrateur"
@@ -31,6 +44,66 @@ ETAPE_FIN = "fin"
 
 class CheckpointError(RuntimeError):
     pass
+
+
+ConversationFn = Callable[..., tuple[SyntheseEtape, list[Any]]]
+
+
+def _api_client(client_api: ClientGmailAPI | None, dry_run: bool) -> ClientGmailAPI:
+    if client_api is not None:
+        return client_api
+    return ClientGmailAPI.depuis_token(dry_run=dry_run)
+
+
+def _lancer_classification(
+    rid: UUID,
+    reg: RegistreLibelles,
+    resolveur: ResolveurLibelles,
+    *,
+    dry_run: bool,
+    client_api: ClientGmailAPI | None,
+    client_mistral: Mistral | None,
+    conversation: ConversationFn | None,
+) -> tuple[SyntheseEtape, list[Any]]:
+    api = _api_client(client_api, dry_run)
+    lance = conversation if conversation is not None else lancer_conversation
+    if conversation is None and client_mistral is None:
+        mistral = obtenir_client()
+    else:
+        mistral = cast("Mistral", client_mistral)
+    meta = Meta(run_id=rid, etape="lecture_classification", agent=AGENT_CLASSIFICATION)
+    requete = requete_non_lus(reg, resolveur)
+    return lance(
+        AGENT_CLASSIFICATION,
+        requete,
+        meta,
+        client_mistral=mistral,
+        client_gmail=api,
+        registre=reg,
+        dry_run=dry_run,
+    )
+
+
+def _recalculer_empreintes(synthese: SyntheseClassification, api: ClientGmailAPI) -> None:
+    """Recalcule message_id_rfc/empreinte depuis les lectures réelles (rejet C6 si écart)."""
+    for message in synthese.messages:
+        recalc_id, recalc_empreinte = empreinte_message(api.get_message(message.id))
+        if recalc_empreinte != message.empreinte or recalc_id != normaliser_message_id(
+            message.message_id_rfc
+        ):
+            raise SyntheseInvalideError(
+                f"clés de dédoublonnage recalculées différentes pour {message.id} — rejet C6"
+            )
+
+
+def _appliquer_libelles_classification(
+    synthese: SyntheseClassification, resolveur: ResolveurLibelles, api: ClientGmailAPI
+) -> None:
+    """Appose le libellé de catégorie + `Agent/traité` (dry-run : journalisé, règle E)."""
+    id_traite = resolveur.resoudre(CLE_TRAITE)
+    for message in synthese.messages:
+        id_categorie = resolveur.resoudre(message.categorie)
+        api.modifier_libelles(message.id, ajouter=[id_categorie, id_traite])
 
 
 class Checkpoint(BaseModel):
@@ -91,10 +164,13 @@ def lancer_run_tri(
     *,
     dry_run: bool = True,
     client: ClientGmail | None = None,
+    client_api: ClientGmailAPI | None = None,
+    client_mistral: Mistral | None = None,
+    conversation: ConversationFn | None = None,
     registre: RegistreLibelles | None = None,
     dossier_checkpoints: Path | None = None,
 ) -> RapportFinal:
-    """Cycle du run principal (étapes 0–7), squelette de la phase 3.
+    """Cycle du run principal (étapes 0–7) : étapes 3–4 réelles (phase 5), le reste en stub.
 
     `dry_run=True` par défaut (règle E) : aucune écriture Gmail. En cas d'échec,
     le motif est journalisé, le rapport marqué `echec_partiel` avec l'étape
@@ -105,7 +181,12 @@ def lancer_run_tri(
     log = obtenir_logger("orchestrateur")
     reg = registre if registre is not None else charger_registre()
     dossier = dossier_checkpoints if dossier_checkpoints is not None else _dossier_checkpoints()
-    client_gmail = client if client is not None else nouveau_client(dry_run=dry_run)
+    if client is not None:
+        client_gmail: ClientGmail = client
+    elif client_api is not None:
+        client_gmail = client_api
+    else:
+        client_gmail = nouveau_client(dry_run=dry_run)
     resolveur = ResolveurLibelles(reg, client_gmail, dry_run=dry_run)
 
     try:
@@ -125,24 +206,37 @@ def lancer_run_tri(
             log.info("run demarre", run_id=str(rid), dry_run=dry_run, requete_idempotence=requete)
             _valider_etape(checkpoint, ETAPE_DEMARRAGE, dossier)
 
-        for etape_agent, phase in (
-            ("lecture_spam", "phase 4 (agent spam)"),
-            ("lecture_classification", "phase 5 (agent classification)"),
-        ):
-            etape_courante = etape_agent
-            if etape_agent not in checkpoint.etapes_validees:
-                log.warning(
-                    "etape en stub (squelette phase 3)",
-                    etape=etape_agent,
-                    implementee_en=phase,
-                )
-                _valider_etape(checkpoint, etape_agent, dossier)
-            if etape_agent == "lecture_spam":
-                etape_courante = "validation_spam"
-            else:
-                etape_courante = "validation_classification"
-            if etape_courante not in checkpoint.etapes_validees:
-                _valider_etape(checkpoint, etape_courante, dossier)
+        etape_courante = "lecture_spam"
+        if "lecture_spam" not in checkpoint.etapes_validees:
+            log.warning("etape en stub (phase 4)", etape="lecture_spam")
+            _valider_etape(checkpoint, "lecture_spam", dossier)
+        etape_courante = "validation_spam"
+        if "validation_spam" not in checkpoint.etapes_validees:
+            _valider_etape(checkpoint, "validation_spam", dossier)
+
+        etape_courante = "lecture_classification"
+        if "lecture_classification" not in checkpoint.etapes_validees:
+            synthese, _executions = _lancer_classification(
+                rid,
+                reg,
+                resolveur,
+                dry_run=dry_run,
+                client_api=client_api,
+                client_mistral=client_mistral,
+                conversation=conversation,
+            )
+            checkpoint.syntheses["classification"] = synthese
+            _valider_etape(checkpoint, "lecture_classification", dossier)
+
+        etape_courante = "validation_classification"
+        if "validation_classification" not in checkpoint.etapes_validees:
+            synthese_c = checkpoint.syntheses.get("classification")
+            if not isinstance(synthese_c, SyntheseClassification):
+                raise CheckpointError("synthèse classification absente du checkpoint")
+            api = _api_client(client_api, dry_run)
+            _recalculer_empreintes(synthese_c, api)
+            _appliquer_libelles_classification(synthese_c, resolveur, api)
+            _valider_etape(checkpoint, "validation_classification", dossier)
 
         etape_courante = "dedoublonnage"
         if "dedoublonnage" not in checkpoint.etapes_validees:
@@ -156,7 +250,15 @@ def lancer_run_tri(
         etape_courante = ETAPE_RAPPORT
         if ETAPE_RAPPORT not in checkpoint.etapes_validees:
             meta = Meta(run_id=rid, etape=ETAPE_RAPPORT, agent=AGENT_ORCHESTRATEUR)
-            checkpoint.rapport = RapportFinal(meta=meta, nb_doublons=0, statut_global="succes")
+            synthese_c = checkpoint.syntheses.get("classification")
+            checkpoint.rapport = RapportFinal(
+                meta=meta,
+                synthese_classification=(
+                    synthese_c if isinstance(synthese_c, SyntheseClassification) else None
+                ),
+                nb_doublons=0,
+                statut_global="succes",
+            )
             _valider_etape(checkpoint, ETAPE_RAPPORT, dossier)
 
         etape_courante = ETAPE_FIN

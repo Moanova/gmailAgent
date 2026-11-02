@@ -13,8 +13,15 @@ import pytest
 import cli
 from cli import main
 from config import RegistreLibelles
+from contracts import Meta
 from gmail import ClientGmailAPI
 from orchestrator import Checkpoint, charger_checkpoint, lancer_run_tri, sauvegarder_checkpoint
+from validation import construire_synthese
+
+
+def _conversation_vide(agent: str, requete: str, meta: Meta, **kwargs: object):
+    synthese = construire_synthese(agent, {"statut": "aucun_message", "messages": []}, meta)
+    return synthese, []
 
 ETAPES_COMPLETES = [
     "demarrage",
@@ -149,7 +156,12 @@ class TestRunVide:
         self, registre: RegistreLibelles, tmp_path: Path, service_faux: _FauxService
     ) -> None:
         client = ClientGmailAPI(service_faux, dry_run=True)
-        rapport = lancer_run_tri(client=client, registre=registre, dossier_checkpoints=tmp_path)
+        rapport = lancer_run_tri(
+            client=client,
+            registre=registre,
+            dossier_checkpoints=tmp_path,
+            conversation=_conversation_vide,
+        )
         assert rapport.statut_global == "succes"
         checkpoint = charger_checkpoint(rapport.meta.run_id, tmp_path)
         assert checkpoint.etapes_validees == ETAPES_COMPLETES
@@ -160,13 +172,19 @@ class TestRunVide:
         self, registre: RegistreLibelles, tmp_path: Path, service_faux: _FauxService
     ) -> None:
         client = ClientGmailAPI(service_faux, dry_run=True)
-        premier = lancer_run_tri(client=client, registre=registre, dossier_checkpoints=tmp_path)
+        premier = lancer_run_tri(
+            client=client,
+            registre=registre,
+            dossier_checkpoints=tmp_path,
+            conversation=_conversation_vide,
+        )
         nb_appels = len(service_faux.appels)
         second = lancer_run_tri(
             run_id=premier.meta.run_id,
             client=client,
             registre=registre,
             dossier_checkpoints=tmp_path,
+            conversation=_conversation_vide,
         )
         assert second.meta.run_id == premier.meta.run_id
         assert second.statut_global == "succes"
@@ -179,7 +197,11 @@ class TestRunVide:
         sauvegarder_checkpoint(Checkpoint(run_id=rid, etapes_validees=["demarrage"]), tmp_path)
         client = ClientGmailAPI(service_faux, dry_run=True)
         rapport = lancer_run_tri(
-            run_id=rid, client=client, registre=registre, dossier_checkpoints=tmp_path
+            run_id=rid,
+            client=client,
+            registre=registre,
+            dossier_checkpoints=tmp_path,
+            conversation=_conversation_vide,
         )
         assert rapport.statut_global == "succes"
         checkpoint = charger_checkpoint(rid, tmp_path)
