@@ -68,9 +68,9 @@ def _requete_suppression(registre: RegistreLibelles) -> str:
     )
 
 
-def _cmd_tri(args: argparse.Namespace) -> int:
+def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
     dry_run = not args.reel
-    rapport = lancer_run_tri(args.run_id, dry_run=dry_run)
+    rapport = lancer_run_tri(run_id, dry_run=dry_run)
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
     return 0 if rapport.statut_global == "succes" else 1
@@ -121,11 +121,11 @@ def _cmd_migrate_labels(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    run_id = getattr(args, "run_id", None)
-    configurer(str(run_id) if run_id is not None else str(uuid4()))
+    run_id: UUID = args.run_id if getattr(args, "run_id", None) is not None else uuid4()
+    configurer(str(run_id))
     try:
         if args.commande == "tri":
-            return _cmd_tri(args)
+            return _cmd_tri(args, run_id)
         if args.commande == "suppression":
             return _cmd_suppression(args)
         return _cmd_migrate_labels(args)

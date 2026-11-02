@@ -62,8 +62,13 @@ class _Requete:
 class _FauxService:
     """Faux service googleapiclient avec 1 thread contenant 1 message."""
 
-    def __init__(self, message: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        message: dict[str, Any] | None = None,
+        threads: list[str] | None = None,
+    ) -> None:
         self.message = message if message is not None else _message_gmail("m1")
+        self.liste_threads = threads if threads is not None else ["t1"]
         self.appels: list[str] = []
         self.modifications: list[tuple[str, list[str], list[str]]] = []
         self._mode = ""
@@ -94,7 +99,7 @@ class _FauxService:
                     ]
                 }
             )
-        return _Requete({"threads": [{"id": "t1"}]})
+        return _Requete({"threads": [{"id": t} for t in self.liste_threads]})
 
     def get(self, **kwargs: Any) -> _Requete:
         self.appels.append("get")
@@ -256,7 +261,7 @@ class TestAgentClassificationBoutEnBout:
             )
 
     def test_boite_vide_aucun_message(self, registre: RegistreLibelles, tmp_path: Path) -> None:
-        service = _FauxService()
+        service = _FauxService(threads=[])
         api = ClientGmailAPI(service, dry_run=True)
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),

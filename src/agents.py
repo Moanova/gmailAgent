@@ -251,6 +251,8 @@ def lancer_conversation(
     format_sortie = ResponseFormat.model_validate(response_format_agent(agent, registre))
     executions: list[AppelOutil] = []
     appels = 0
+    threads_trouves: set[str] = set()
+    threads_lus: set[str] = set()
     while True:
         reponse: ChatCompletionResponse = avec_retry(
             lambda: client_mistral.chat.complete(
@@ -288,6 +290,12 @@ def lancer_conversation(
                 executions.append(appel)
                 args = _arguments_outil(appel)
                 resultat = executer_outil(appel.name, args, client_gmail)
+                if appel.name == "search_threads" and isinstance(resultat, dict):
+                    threads_trouves.update(
+                        t for t in resultat.get("threads", []) if isinstance(t, str)
+                    )
+                if appel.name == "get_thread":
+                    threads_lus.add(str(args.get("threadId", "")))
                 log.debug("outil execute", outil=appel.name, dry_run=dry_run)
                 messages.append(
                     ToolMessage(
@@ -301,6 +309,26 @@ def lancer_conversation(
         contenu_final = message.content
         if not isinstance(contenu_final, str):
             raise SyntheseInvalideError("contenu final de l'agent non textuel")
+        manquants = sorted(threads_trouves - threads_lus)
+        if manquants:
+            log.warning(
+                "synthese refusee : threads non lus",
+                manquants=manquants[:10],
+                total=len(manquants),
+            )
+            messages.append(AssistantMessage(role="assistant", content=contenu_final))
+            messages.append(
+                UserMessage(
+                    content=(
+                        "Synthèse incomplète : tu n'as pas encore lu "
+                        f"{len(manquants)} thread(s) retourné(s) par search_threads "
+                        f"(ids : {', '.join(manquants[:10])}{'…' if len(manquants) > 10 else ''}). "
+                        "Appelle get_thread sur chacun d'eux avant de produire la synthèse."
+                    ),
+                    role="user",
+                )
+            )
+            continue
         payload = _normaliser_payload(extraire_json(contenu_final))
         synthese = construire_synthese(agent, payload, meta)
         ids_reels = collecter_ids_reels(list(executions))

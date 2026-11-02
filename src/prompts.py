@@ -111,6 +111,11 @@ def prompt_classification(registre: RegistreLibelles) -> str:
 
 Rôle : lire les messages non lus et classer chacun d'eux.
 
+Obligatoire : appelle `search_threads`, puis `get_thread` sur **chaque** thread
+retourné (un appel par thread, sans en sauter), puis `get_message` sur chaque message
+à classer, AVANT de produire ta synthèse. Ne produis la synthèse qu'une fois tous les
+threads retournés lus — l'orchestrateur rejette sinon la synthèse comme incomplète.
+
 Catégories possibles (champ `categorie`, clé logique) :
 {liste_categories}
 

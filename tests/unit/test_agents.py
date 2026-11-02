@@ -80,8 +80,9 @@ class _Requete:
 
 
 class _FauxService:
-    def __init__(self) -> None:
+    def __init__(self, threads: list[str] | None = None) -> None:
         self.appels: list[str] = []
+        self.threads = threads if threads is not None else ["t1"]
 
     def users(self) -> "_FauxUsers":
         return _FauxUsers(self)
@@ -104,7 +105,7 @@ class _FauxThreads:
 
     def list(self, userId: str, q: str, maxResults: int) -> _Requete:
         self._service.appels.append("threads.list")
-        return _Requete({"threads": [{"id": "t1"}]})
+        return _Requete({"threads": [{"id": t} for t in self._service.threads]})
 
     def get(self, userId: str, id: str) -> _Requete:
         self._service.appels.append("threads.get")
@@ -369,3 +370,32 @@ class TestNormaliserPayload:
 
         with pytest.raises(SyntheseInvalideError, match="inattendu"):
             _normaliser_payload({"foo": "bar"})
+
+
+class TestCompletudeLecture:
+    def test_synthese_refusee_tant_que_threads_non_lus(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """search_threads renvoie 2 threads ; la 1re synthèse (1 thread lu) est
+        refusée, la boucle continue jusqu'à lecture complète."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_synthese_payload())),  # synthèse prématurée -> refusée
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t2"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_message", {"messageId": "m1"})])),
+            _Reponse(_Msg(content=_synthese_payload())),  # synthèse complète -> acceptée
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService(threads=["t1", "t2"])
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        assert "threads.get" in service.appels
