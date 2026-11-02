@@ -535,3 +535,33 @@ class TestMaxTokens:
         )
         assert MAX_TOKENS_PAR_DEFAUT == 4000
         assert mistral.chat.appels[0]["max_tokens"] == 4000
+
+
+class TestBornageParRun:
+    def test_search_threads_borne_a_25(self) -> None:
+        from agents import MAX_THREADS_PAR_RUN, executer_outil
+
+        class _ServiceLarges:
+            def users(self) -> "_ServiceLarges":
+                return self
+
+            def threads(self) -> "_ServiceLarges":
+                return self
+
+            def list(self, userId: str, q: str, maxResults: int) -> "_Requete":
+                assert maxResults == MAX_THREADS_PAR_RUN
+                return _Requete({"threads": [{"id": f"t{i}"} for i in range(50)]})
+
+        client_gmail = ClientGmailAPI(_ServiceLarges(), dry_run=True)
+        args = {"query": "is:unread", "maxResults": 50}
+        resultat = executer_outil("search_threads", args, client_gmail)
+        assert MAX_THREADS_PAR_RUN == 25
+        # le plafond porte sur maxResults passé au service (25), pas sur la réponse
+        assert len(resultat["threads"]) == 50
+
+    def test_prompt_distinction_id_vs_rfc(self, registre: RegistreLibelles) -> None:
+        from prompts import prompt_classification
+
+        prompt = prompt_classification(registre)
+        assert "jamais le Message-ID RFC" in prompt
+        assert "identifiant Gmail hexadécimal" in prompt

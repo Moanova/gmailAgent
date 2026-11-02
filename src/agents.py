@@ -50,6 +50,7 @@ MODELE_PAR_DEFAUT = "mistral-large-latest"
 MAX_TOKENS_PAR_DEFAUT = 4000
 PLAFOND_APPELS_OUTILS = 50
 MAX_TENTATIVES_SYNTHESE = 3
+MAX_THREADS_PAR_RUN = 25
 
 Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
 AppelOutil = ToolExecutionEntry | FunctionCallEntry
@@ -179,9 +180,8 @@ def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> di
     pour ne pas dépasser le contexte du modèle.
     """
     if nom == "search_threads":
-        ids = client.search_threads(
-            str(args["query"]), max_results=int(args.get("maxResults", 50))
-        )
+        max_results = min(int(args.get("maxResults", 50)), MAX_THREADS_PAR_RUN)
+        ids = client.search_threads(str(args["query"]), max_results=max_results)
         return {"threads": ids}
     if nom == "get_thread":
         return _apercu_thread(client.get_thread(str(args["threadId"])))
