@@ -509,3 +509,29 @@ class TestLimiteTentativesSynthese:
                 registre=registre,
             )
         assert len(mistral.chat.appels) == 2 + MAX_TENTATIVES_SYNTHESE + 1
+
+
+class TestMaxTokens:
+    def test_max_tokens_releve_pour_grandes_syntheses(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """max_tokens par défaut relevé à 4000 (une synthèse de 12+ messages dépasse 1500)."""
+        from agents import MAX_TOKENS_PAR_DEFAUT
+
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert MAX_TOKENS_PAR_DEFAUT == 4000
+        assert mistral.chat.appels[0]["max_tokens"] == 4000
