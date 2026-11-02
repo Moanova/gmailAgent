@@ -621,6 +621,65 @@ Aucun (3 itérations max respectées à chaque tâche).
 
 ---
 
+## Séance du 02/11/2026 (suite) — incidents phase 5 + tâche T3.5
+
+### Contexte
+Itérations de validation dry-run réelle de la phase 5 (classification). Quatre incidents réels corrigés et poussés : ToolCall vs ToolExecutionEntry (8cdaf27), payload message nu (eb94d57), prompt trop gros 704k>262k -> aperçus bornés (a0bf854), run_id double CLI/orchestrateur + garde complétude threads (2b3a26c), garde complétude messages (fcdf369), plafond 3 tentatives de synthèse (bfc084d), max_tokens 4000 (81542a8), distinction id Gmail vs message_id_rfc + bornage 25 threads/run (6712704). 183→185 tests.
+
+### Actions réalisées
+
+1. **Question de conception** : la conception (§2.6, §4.1, §2.7) prévoit la planification **externe** (cron/timer, phase 10) et le bornage par run avec reprise au run suivant — pas de boucle interne. Réponse communiquée.
+2. **Tâche T3.5 ajoutée au kanban** (« À faire ») : option `gmailagent tri --tout` (boucle de runs jusqu'à épuisement des non lus, plafond de runs, run_id distincts, dry-run par défaut) — alternative ponctuelle au cron pour vider un retard. Plan dans `docs/tasks/T3.5_option_tout.md`.
+3. **Conception mise à jour** (`docs/design/conception.md`) : §2.6 (rattrapage volumineux, option `--tout` prévue T3.5) et §4.1 (bornage implémenté à 25 threads/run, référence à `--tout`).
+4. Aucun commit (règle C — pas de demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D38 | Le nom retenu est `--tout` ; la boucle de rattrapage est une option, pas le mode par défaut | Le design retenu mise sur le cron externe (§2.7 « planification externe, sans moteur de workflow ») ; `--tout` n'est qu'une alternative ponctuelle, bornée (plafond de runs). |
+| D39 | Bornage implémenté à 25 threads/run (`MAX_THREADS_PAR_RUN`), max_tokens plafonné à 4000 | Ne pas faire croître max_tokens indéfiniment ; la pagination inter-runs absorbe le volume (réponse à la question utilisateur). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T5.1–T5.5 ; **À faire** = T4.1–T4.4, T3.5.
+- Branche `dev` : dernier push `6712704` ; modifications doc (kanban, conception, T3.5, SESSIONS) non commitées.
+- Prochaine étape : retest dry-run de la phase 5 avec les correctifs, puis validation ou **phase 4 (agent spam)**.
+
+---
+
+## Séance du 02/11/2026 (suite) — validation phase 5
+
+### Contexte
+Dernier correctif poussé : C3 accepte aussi les ids présents dans les résultats d'outils (fffea69). Retest utilisateur : `gmailagent tri` terminé en **succes**, checkpoint avec **13 messages / 12 fils** (run `7e2337c1-71a6-4281-ad89-1aab17c4466b`).
+
+### Actions réalisées
+
+1. **Validation phase 5 (étape 6)** : kanban — T5.1–T5.5 « En revue » → **« Terminé »** (critère de sortie atteint : étapes 3–4 opérationnelles en dry-run réel) ; fichiers de suivi T5.* complétés (validation 02/11/2026) ; board Miro : T5.1–T5.5 → « Fait ».
+2. Aucun commit (règle C — pas de demande explicite pour ces changements de doc).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D40 | C3 élargi aux ids des résultats d'outils (pas seulement les arguments) | Un message lu via le résultat de get_thread est réellement manipulé ; rejet C3 sinon (faux positif constaté sur un thread à 2 messages). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.4, T5.1–T5.5 (phases 1, 2, 3 et 5) ; **À faire** = T4.1–T4.4 (phase 4, agent spam), T3.5 (option --tout).
+- Branche `dev` : dernier push `fffea69` ; modifications doc non commitées.
+- Prochaine étape : **phase 4 (agent spam)** — T4.1 sur demande explicite.
+
+---
+
 ## Séance du 02/11/2026 (suite) — validation T3.1 et plan T3.2
 
 ### Contexte

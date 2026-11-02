@@ -18,15 +18,11 @@ T4.1
 T4.2
 T4.3
 T4.4
+T3.5
 
 ## En cours
 
 ## En revue
-T5.1
-T5.2
-T5.3
-T5.4
-T5.5
 
 
 ## Terminé
@@ -45,6 +41,11 @@ T3.1
 T3.2
 T3.3
 T3.4
+T5.1
+T5.2
+T5.3
+T5.4
+T5.5
 
 
 ## Annulé
@@ -122,6 +123,9 @@ Dans `src/orchestrator.py`, remplacer les stubs `lecture_spam` / `validation_spa
 
 ## T4.4 — Agent spam : Tests et validation de bout en bout
 TU (prompts, agents, orchestrateur) + TI mockés (`tests/integration`) : run complet avec agent spam mocké — synthèse valide → libellés posés (dry-run journalisé / appliqués en `--reel`) ; synthèse rejetée → arrêt propre + rapport `echec_partiel`. Validation dry-run réelle sur la boîte (règle E), puis petit périmètre réel. Critère de sortie phase 4 : étapes 1–2 opérationnelles. Vérifications ruff/mypy/pytest, kanban → En revue, commit/push sur demande explicite.
+
+## T3.5 — Orchestrateur squelette : option `--tout` (boucle de runs jusqu'à épuisement)
+Option CLI `gmailagent tri --tout` : enchaîne les runs tant que `search_threads` renvoie des threads non lus (rattrapage d'un gros retard sans attendre le cron), avec **plafond de runs par invocation** (garde-fou, ex. 10) et un `run_id` distinct par run (checkpoints indépendants, idempotence par libellé `Agent/traité` entre les runs). Alternative documentée au cron externe (conception §2.6/§4.1) pour le rattrapage ponctuel ; le cron reste le mode de fonctionnement quotidien (phase 10). Hors périmètre si `--reel` non passé : dry-run par défaut. Tests : boucle bornée, arrêt quand plus de non lus, plafond atteint → arrêt propre.
 
 ## T5.1 — Agent classification : Prompt (enums dynamiques depuis le registre)
 Étendre `src/prompts.py` : `PROMPT_CLASSIFICATION` — catégories et urgence injectées dynamiquement depuis `config/labels.yaml` (le schéma strict `SyntheseClassification` est déjà construit par `schema_agent`, T2.2 ; jamais de libellé physique en dur dans le prompt), règles de véracité, déclaration `message_id_rfc` + `empreinte` par message. Tests : prompt sans libellé en dur, enums issus du registre.

@@ -115,6 +115,7 @@ Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais rest
 - **Idempotence** : la recherche de l'agent classification porte sur `is:unread -label:"Agent/traité"` ; un run interrompu puis relancé ne retraite pas les messages déjà traités. La suppression porte sur `label:"Agent/traité" older_than:1h`.
 - **Reprise** : en cas de crash, le run est relancé ; les étapes déjà checkpointées sont sautées. Une erreur transitoire (429, 5xx) est retentée selon la politique de backoff (§4).
 - **Planification** : le pipeline est un exécutable Python, déclenché manuellement ou par cron / timer systemd (quotidien, en heures creuses). Le run de suppression est planifié indépendamment (T+1h). Si le pipeline est hébergé sur un serveur, il ne dépend pas du poste local.
+- **Rattrapage d'un retard volumineux (option prévue, tâche T3.5)** : `gmailagent tri --tout` enchaîne les runs tant que la recherche renvoie des non lus, avec un plafond de runs par invocation (garde-fou) et un `run_id` distinct par run. C'est une **alternative ponctuelle au cron** pour vider un retard ; le cron reste le mode de fonctionnement quotidien (phase 10). Sans `--tout`, un run traite un seul lot borné (§4.1).
 
 ### 2.7 Limites connues
 
@@ -147,7 +148,7 @@ Deux familles de quotas sont en jeu : l'API Mistral (RPM/TPM selon le tier, erre
 
 Mesures retenues :
 
-1. **Bornage par run** : la recherche `search_threads` est paginée avec `max_results` (plafond conseillé : 50 messages par run). Les non lus restants le restent et sont absorbés au run suivant — la pagination Gmail garantit la reprise naturelle.
+1. **Bornage par run** : la recherche `search_threads` est paginée avec `max_results` (plafond conseillé : 50 messages par run ; implémenté : 25 threads par run, `MAX_THREADS_PAR_RUN`). Les non lus restants le restent et sont absorbés au run suivant — la pagination Gmail garantit la reprise naturelle (ou immédiatement dans la même invocation avec l'option `--tout`, §2.6).
 2. **Backoff exponentiel avec jitter** : 3 tentatives, base de 2 secondes, sur les 429 et 5xx, applicable aux appels Mistral comme aux appels d'outils Gmail.
 3. **Garde-fou anti-boucle** : plafond d'appels sur les outils de consultation (`search_threads`, `list_labels`), repris du script `02` ; au-delà, abandon propre du run avec statut `echec_technique`.
 4. **Cache intra-run** : `list_labels` appelé une seule fois par agent et par run ; threads lus conservés en mémoire.
