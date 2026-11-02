@@ -198,6 +198,24 @@ def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> di
     raise ValueError(f"outil inconnu : {nom!r}")
 
 
+def _normaliser_payload(payload: Any) -> dict[str, Any]:
+    """Normalise le JSON extrait en enveloppe de synthèse {statut, messages, ...}.
+
+    Tolérance : si le modèle renvoie un objet message nu (champs `id`/`objet`) ou une
+    liste de messages au lieu de l'enveloppe, on l'enveloppe (`statut="synthese"`).
+    """
+    if isinstance(payload, list):
+        return {"statut": "synthese", "messages": payload}
+    if isinstance(payload, dict):
+        if "statut" in payload or "messages" in payload:
+            return payload
+        if "id" in payload and "objet" in payload:
+            return {"statut": "synthese", "messages": [payload]}
+    raise SyntheseInvalideError(
+        f"payload JSON inattendu (ni enveloppe synthèse ni message) : {str(payload)[:200]}"
+    )
+
+
 def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
     if agent == AGENT_CLASSIFICATION:
         return prompt_classification(registre)
@@ -283,7 +301,7 @@ def lancer_conversation(
         contenu_final = message.content
         if not isinstance(contenu_final, str):
             raise SyntheseInvalideError("contenu final de l'agent non textuel")
-        payload = extraire_json(contenu_final)
+        payload = _normaliser_payload(extraire_json(contenu_final))
         synthese = construire_synthese(agent, payload, meta)
         ids_reels = collecter_ids_reels(list(executions))
         valider_synthese(synthese, ids_reels)

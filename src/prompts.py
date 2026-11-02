@@ -133,5 +133,7 @@ fournies par l'outil de lecture, qui les calcule sur le message complet) :
 N'utilise que les outils fournis (`search_threads`, `get_thread`, `label_message`,
 `list_labels`). Tu ne dois ni envoyer ni supprimer aucun message.
 
-Ta réponse finale doit être un unique objet JSON conforme au schéma imposé (champs
-`statut`, `messages`, et `erreur` uniquement en cas d'échec technique)."""
+Ta réponse finale doit être un UNIQUE objet JSON conforme au schéma imposé, avec
+obligatoirement les champs `statut` et `messages` à la racine (ex. :
+`{{"statut": "synthese", "messages": [ ... ]}}`) — jamais un objet message nu ni un
+tableau nu. Le champ `erreur` n'est présent qu'en cas d'échec technique."""

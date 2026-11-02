@@ -340,3 +340,32 @@ class TestApercuBorne:
 
         texte = _borner_reponse({"data": "y" * (LIMITE_REPONSE_OUTIL + 100)})
         assert len(texte) <= LIMITE_REPONSE_OUTIL + len('…["tronqué"]')
+
+
+class TestNormaliserPayload:
+    def test_enveloppe_deja_conforme(self) -> None:
+        from agents import _normaliser_payload
+
+        assert _normaliser_payload({"statut": "synthese", "messages": []}) == {
+            "statut": "synthese",
+            "messages": [],
+        }
+
+    def test_objet_message_nu_enveloppe(self) -> None:
+        from agents import _normaliser_payload
+
+        msg = {"id": "m1", "objet": "S", "expediteur": "e@x.fr", "motif": "m"}
+        assert _normaliser_payload(msg) == {"statut": "synthese", "messages": [msg]}
+
+    def test_liste_enveloppee(self) -> None:
+        from agents import _normaliser_payload
+
+        msgs = [{"id": "m1", "objet": "S"}]
+        assert _normaliser_payload(msgs) == {"statut": "synthese", "messages": msgs}
+
+    def test_payload_inattendu_rejete(self) -> None:
+        from agents import _normaliser_payload
+        from validation import SyntheseInvalideError
+
+        with pytest.raises(SyntheseInvalideError, match="inattendu"):
+            _normaliser_payload({"foo": "bar"})
