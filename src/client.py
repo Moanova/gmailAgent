@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
+from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 from mistralai.client.errors import SDKError
 
@@ -22,8 +23,18 @@ def obtenir_client() -> Mistral:
     return _client
 
 
-def _est_retentable(erreur: SDKError) -> bool:
-    return erreur.status_code == 429 or 500 <= erreur.status_code < 600
+def _statut_erreur(erreur: Exception) -> int | None:
+    if isinstance(erreur, SDKError):
+        return erreur.status_code
+    if isinstance(erreur, HttpError) and erreur.resp is not None:
+        return int(erreur.resp.status)
+    return None
+
+
+def erreur_retentable(erreur: Exception) -> bool:
+    """429 ou 5xx — côté API Mistral (SDKError) comme côté outils Gmail (HttpError)."""
+    statut = _statut_erreur(erreur)
+    return statut == 429 or (statut is not None and 500 <= statut < 600)
 
 
 def avec_retry(
@@ -32,19 +43,20 @@ def avec_retry(
     tentatives: int = 3,
     base: float = 2.0,
     dormir: Callable[[float], None] = time.sleep,
+    retentable: Callable[[Exception], bool] = erreur_retentable,
 ) -> T:
     for essai in range(tentatives):
         try:
             return operation()
-        except SDKError as erreur:
-            retentable = _est_retentable(erreur)
-            if not retentable:
+        except Exception as erreur:
+            if not retentable(erreur):
                 raise
             if essai == tentatives - 1:
                 _log.error(
                     "echec definitif apres retries",
                     tentatives=tentatives,
-                    status_code=erreur.status_code,
+                    statut=_statut_erreur(erreur),
+                    erreur=repr(erreur),
                 )
                 raise
             delai = base * 2**essai + random.uniform(0, base)
@@ -52,7 +64,7 @@ def avec_retry(
                 "erreur transitoire, nouvel essai",
                 tentative=essai + 1,
                 tentatives=tentatives,
-                status_code=erreur.status_code,
+                statut=_statut_erreur(erreur),
                 delai=round(delai, 2),
             )
             dormir(delai)

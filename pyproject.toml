@@ -30,7 +30,7 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail"]
+py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator"]
 
 [tool.ruff]
 line-length = 100
