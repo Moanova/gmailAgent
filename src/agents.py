@@ -10,7 +10,7 @@ parsée (`extraire_json`), construite (`construire_synthese`) puis validée
 """
 
 import json
-from typing import Any, cast
+from typing import Any
 
 from mistralai.client import Mistral
 from mistralai.client.models import (
@@ -76,18 +76,45 @@ def _tool_call_id(appel: AppelOutil) -> str:
     return appel.id or ""
 
 
-def _vers_tool_call(appel: AppelOutil) -> ToolCall:
-    """Convertit une exécution d'outil reçue en ToolCall (forme requête) pour le renvoi."""
+def _vers_tool_call(appel: FunctionCallEntry) -> ToolCall:
+    """Convertit un appel normalisé en ToolCall (forme requête) pour l'écho assistant."""
     return ToolCall.model_validate(
         {
             "type": "function",
-            "id": _tool_call_id(appel),
+            "id": appel.tool_call_id,
             "function": {
                 "name": appel.name,
                 "arguments": json.dumps(_arguments_outil(appel), ensure_ascii=False),
             },
         }
     )
+
+
+def _normaliser_tool_call(brut: Any) -> FunctionCallEntry:
+    """Normalise un appel d'outil reçu de l'API en FunctionCallEntry.
+
+    L'API renvoie des ToolCall (forme requête : id + function.name/arguments,
+    type="function") ; on les convertit en FunctionCallEntry (type="function.call")
+    pour que `collecter_ids_reels` les reconnaisse (C3) et que le dispatch
+    fonctionne uniformément.
+    """
+    if isinstance(brut, FunctionCallEntry):
+        return brut
+    if isinstance(brut, ToolExecutionEntry):
+        return FunctionCallEntry(
+            tool_call_id=brut.id or "",
+            name=brut.name,
+            arguments=brut.arguments if isinstance(brut.arguments, (str, dict)) else "{}",
+        )
+    if isinstance(brut, ToolCall):
+        return FunctionCallEntry(
+            tool_call_id=brut.id or "",
+            name=brut.function.name,
+            arguments=brut.function.arguments
+            if isinstance(brut.function.arguments, (str, dict))
+            else "{}",
+        )
+    raise ValueError(f"appel d'outil inattendu : {type(brut).__name__}")
 
 
 def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> dict[str, Any]:
@@ -169,11 +196,13 @@ def lancer_conversation(
                 AssistantMessage(
                     role="assistant",
                     content=contenu,
-                    tool_calls=[_vers_tool_call(cast(AppelOutil, brut)) for brut in appels_tool],
+                    tool_calls=[
+                        _vers_tool_call(_normaliser_tool_call(brut)) for brut in appels_tool
+                    ],
                 )
             )
             for brut in appels_tool:
-                appel = cast(AppelOutil, brut)
+                appel = _normaliser_tool_call(brut)
                 appels += 1
                 if appels > plafond_appels:
                     raise GardeFouAtteintError(

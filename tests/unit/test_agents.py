@@ -115,6 +115,10 @@ class _FauxMessages:
     def __init__(self, service: _FauxService) -> None:
         self._service = service
 
+    def get(self, userId: str, id: str) -> _Requete:
+        self._service.appels.append("messages.get")
+        return _Requete({"id": id, "payload": {"headers": [], "body": {}}})
+
     def modify(self, userId: str, id: str, body: dict[str, list[str]]) -> _Requete:
         self._service.appels.append("messages.modify")
         return _Requete({"id": id})
@@ -122,6 +126,19 @@ class _FauxMessages:
 
 def _appel(nom: str, args: dict[str, Any]) -> ToolExecutionEntry:
     return ToolExecutionEntry(name=nom, arguments=json.dumps(args, ensure_ascii=False))
+
+
+def _appel_reel(nom: str, args: dict[str, Any], id_appel: str = "call_1") -> Any:
+    """Appel d'outil sous la forme réellement renvoyée par l'API Mistral (ToolCall)."""
+    from mistralai.client.models import ToolCall
+
+    return ToolCall.model_validate(
+        {
+            "type": "function",
+            "id": id_appel,
+            "function": {"name": nom, "arguments": json.dumps(args, ensure_ascii=False)},
+        }
+    )
 
 
 def _synthese_payload(statut: str = "synthese", message_id: str = "m1") -> str:
@@ -213,6 +230,34 @@ class TestLancerConversation:
                 registre=registre,
                 plafond_appels=2,
             )
+
+    def test_tool_calls_reels_form_toolcall(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Régression : l'API renvoie des ToolCall (function.name/arguments), pas des
+        ToolExecutionEntry — la boucle doit fonctionner et C3 doit voir les ids."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel_reel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel_reel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(tool_calls=[_appel_reel("get_message", {"messageId": "m1"})])),
+            _Reponse(_Msg(content=_synthese_payload())),
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService()
+        service.appels = []
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        assert len(executions) == 3
+        assert all(e.type == "function.call" for e in executions)
+        assert service.appels == ["threads.list", "threads.get"]
 
     def test_agent_sans_prompt(self, registre: RegistreLibelles, meta: Meta) -> None:
         mistral = _FauxMistral([])
