@@ -525,6 +525,102 @@ Aucun.
 
 ---
 
+## Séance du 02/11/2026 (suite) — validation T3.4, passage à la phase 4
+
+### Contexte
+L'utilisateur valide T3.4 (le mécanisme d'idempotence fonctionne : 2e run avec le même `--run-id` journalise « reprise sur incident »). Questions de conception traitées : `--run-id` accepte tout UUID (forme canonique normalisée, rejet des chaînes invalides, pas de traversal de chemin) ; journalisation = fichier unique `logs/gmailagent.log` en append, sans rotation ni purge (décision : laisser en l'état pour l'instant).
+
+### Actions réalisées
+
+1. **Validation T3.4 (étape 6)** : kanban T3.4 → « Terminé » (phase 3 clôturée) ; `docs/tasks/T3.4_run_vide_bout_en_bout.md` complété ; board Miro : T3.4 → « Fait ».
+2. **Découpage phase 4 (Agent spam) ajouté au kanban** en « À faire » : T4.1 (prompts + contrats d'outils), T4.2 (runner conversation éphémère `src/agents.py`), T4.3 (branchement étapes 1–2 dans l'orchestrateur), T4.4 (tests + validation de bout en bout). Plans écrits dans `docs/tasks/T4.*.md`.
+3. Aucun commit (règle C — pas de demande explicite pour ces changements de doc).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D32 | Phase 4 (agent spam) lancée avant la phase 5 (classification), sur choix explicite de l'utilisateur | Écart volontaire à l'ordre du plan macro §4 (5 avant 4, pour valider les contrats sur l'agent le plus représentatif) ; l'utilisateur a choisi la phase 4. |
+| D33 | Journalisation : fichier unique append-only `logs/gmailagent.log`, sans rotation ni purge | Tel qu'implémenté (`journalisation.py` FileHandler mode append) ; corrélation par run via le contexte `run_id`. Rotation éventuelle à voir en phase 10. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.4 (phase 3 clôturée) ; **À faire** = T4.1–T4.4 (phase 4, Agent spam) ; « En cours »/« En revue » vides.
+- Branche `dev` : dernier push `93d8a16` ; modifications doc non commitées.
+- Prochaine étape : implémenter **T4.1** sur demande explicite de l'utilisateur.
+
+---
+
+## Séance du 02/11/2026 (suite) — retour à l'ordre initial, plan de la phase 5
+
+### Contexte
+L'utilisateur reprend l'ordre initial du plan macro §4 : **phase 5 (classification) avant phase 4 (spam)** (décision D32 révolue). Plan de la phase 5 demandé.
+
+### Actions réalisées
+
+1. **Kanban** : T5.1–T5.5 ajoutés en « À faire » (prioritaires, listés avant T4.1–T4.4 conservés en backlog) avec descriptions + note d'ordre ; plans écrits dans `docs/tasks/T5.*.md`.
+2. **Board Miro** : cartes T5.1–T5.5 ajoutées (« À faire », priorité Haute) ; T4.x annotées « après T5.x » ; correction d'un doublon de carte T3.2 (les deux cartes passées en « Fait »).
+3. Aucun commit (règle C — pas de demande explicite pour ces changements de doc).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D34 | Ordre initial du plan macro §4 restauré : phase 5 (classification) avant phase 4 (spam) | La classification est l'agent le plus représentatif du pattern commun : elle valide les contrats et la validation programmatique (C1–C6 + recalcul des empreintes) avant leur réutilisation par le spam. D32 révolue. |
+| D35 | Le runner de conversation éphémère (`src/agents.py`, T5.2) est paramétré par agent et mutualisé ; la phase 4 ne fera plus que le prompt spam + le branchement orchestrateur | Évite la duplication ; les plans T4.2/T4.3 seront révisés en conséquence lors de la phase 4. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.4 ; **À faire** = T5.1–T5.5 (prioritaires) puis T4.1–T4.4.
+- Branche `dev` : dernier push `93d8a16` ; modifications doc non commitées.
+- Prochaine étape : implémenter **T5.1** sur demande explicite de l'utilisateur.
+
+---
+
+## Séance du 02/11/2026 (suite) — phase 5 (T5.1–T5.5)
+
+### Contexte
+Ordre initial restauré (D34) : phase 5 (classification) avant phase 4. Implémentation en chaîne T5.1→T5.5 sur demande explicite, commit+push unique en fin de phase si tout est vert.
+
+### Actions réalisées
+
+1. **T5.1** : `src/prompts.py` (créé) — `OUTILS_GMAIL` (allow-list : search_threads, get_thread, get_message, label_message, list_labels) + `prompt_classification` (enums injectés depuis le registre, règles de véracité, déclaration message_id_rfc/empreinte) ; 5 TU. `py-modules += prompts`.
+2. **T5.2** : `src/agents.py` (créé) — `lancer_conversation(agent, requete, meta, …)` : conversation éphémère (Mistral `chat.complete`, `avec_retry`, temperature 0.0, max_tokens 1500, response_format strict via `response_format_agent`), boucle tool-calls bornée (garde-fou 50), `executer_outil` vers `ClientGmailAPI` (dry-run = écritures journalisées), puis `extraire_json` → `construire_synthese` → `valider_synthese` (C1–C6) avec `collecter_ids_reels`. Itérations : conversion des tool-calls reçus en `ToolCall` requête (`_vers_tool_call`), gardes mypy (message optionnel, contenu non-str). 8 TU.
+3. **T5.3** : `src/dedup.py` (créé) — normalisations (Message-ID, sujet Re/Fwd/Tr, corps base64/quoted-printable/HTML→texte) + `empreinte_sha256` + `empreinte_message` (recalcul depuis une sortie réelle get_thread/get_message, multipart text/plain préféré). 11 TU.
+4. **T5.4** : `src/orchestrator.py` — étapes 3–4 réelles : `_lancer_classification` (requête d'idempotence `is:unread -label:"…"`), `_recalculer_empreintes` (rejet C6 si écart — `get_message` ajouté à `src/gmail.py`), `_appliquer_libelles_classification` (catégorie + `suivi.traite`, dry-run par défaut), synthèse dans le checkpoint, rapport avec `synthese_classification`. Dépendances injectables (client_api/client_mistral/conversation) ; résolution Mistral paresseuse. 4 TU (+ mise à jour des TU/TI existants).
+5. **T5.5** : `tests/integration/test_agent_classification.py` (créé, 5 tests) — classification ok → libellés posés (réel) / aucune écriture (dry-run) ; empreinte erronée → rejet C6 ; boîte vide → `aucun_message` ; idempotence (agent non rappelé). Itération : ajout de `get_message` à l'allow-list (l'authenticité C3 exige que chaque id de la synthèse provienne d'un argument d'outil).
+6. **Vérification** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `python -m pytest tests -q` : **172 passed** (137 + 35).
+7. **Kanban** : T5.1–T5.5 → « En revue » ; T4.1–T4.4 restent « À faire ». Fichiers de suivi T5.* cochés. Board Miro : T5.1–T5.5 ajoutés « En revue ».
+8. **Commit et push sur `dev`** : `feat(T5.1-T5.5)` + `docs(projet)`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D35 | Runner mutualisé paramétré par agent (T5.2), réutilisé en phase 4 | Évite la duplication ; phase 4 = prompt spam + branchement orchestrateur. |
+| D36 | `get_message` ajouté à l'allow-list des outils Gmail | C3 (authenticité) : chaque id de la synthèse doit provenir d'un argument d'outil réel ; get_thread ne fournit que le threadId. |
+| D37 | Empreintes recalculées par l'orchestrateur via `dedup.empreinte_message` sur `get_message` (rejet C6 si écart) | Conception §3 : règle de véracité sur les clés de dédoublonnage. |
+
+### Blocages
+
+Aucun (3 itérations max respectées à chaque tâche).
+
+### État en fin de séance
+
+- Kanban : **En revue** = T5.1–T5.5 (attente validation utilisateur) ; **À faire** = T4.1–T4.4.
+- Branche `dev` : commits `feat(T5.1-T5.5)` + `docs(projet)` poussés.
+- Prochaine étape : validation utilisateur de la phase 5 en dry-run réel (`MISTRAL_API_KEY` exportée, `gmailagent tri`), puis **phase 4 (agent spam)**.
+
+---
+
 ## Séance du 02/11/2026 (suite) — validation T3.1 et plan T3.2
 
 ### Contexte

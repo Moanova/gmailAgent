@@ -14,11 +14,19 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 # Tableau du kanban
 
 ## À faire
+T4.1
+T4.2
+T4.3
+T4.4
 
 ## En cours
 
 ## En revue
-T3.4
+T5.1
+T5.2
+T5.3
+T5.4
+T5.5
 
 
 ## Terminé
@@ -36,6 +44,7 @@ T2.4
 T3.1
 T3.2
 T3.3
+T3.4
 
 
 ## Annulé
@@ -45,7 +54,7 @@ T3.3
 
 # Description des tâches
 
-> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé) ; les tâches T3.x à la **phase 3 (Orchestrateur squelette)** (critère de sortie : un run vide qui tourne de bout en bout, dry-run sans aucun appel d'écriture Gmail).
+> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé) ; les tâches T3.x à la **phase 3 (Orchestrateur squelette)** (critère de sortie : un run vide qui tourne de bout en bout, dry-run sans aucun appel d'écriture Gmail) ; les tâches T4.x à la **phase 4 (Agent spam)** (critère de sortie : étapes 1–2 opérationnelles — lecture spam, validation, apposition `Agent/valide-spam`) ; les tâches T5.x à la **phase 5 (Agent classification)** (critère de sortie : étapes 3–4 opérationnelles — lecture non lus, validation IDs + empreintes recalculées, apposition catégorie + `Agent/traité`). **Ordre de priorité : T5.x avant T4.x** (plan macro §4 — décision D34).
 
 ## T1.1 — Fondations : Initialisation du projet
 Créer la structure des dossiers (`src/`, `tests/unit/`, `config/`, `docs/tasks/`) et le fichier `pyproject.toml` (dépendances : `mistralai`, `pydantic`, `httpx`, `structlog`, `pyyaml` ; dépendances dev : `pytest`, `ruff`, `mypy`). Vérifier `pip install -e .[dev]`.
@@ -101,3 +110,30 @@ Ajouter `google-api-python-client` à `pyproject.toml` (absent malgré la mentio
 
 ## T3.4 — Orchestrateur squelette : Run vide de bout en bout (critère de sortie)
 Exécution réelle de `tri` en dry-run sur la boîte de l'utilisateur (lecture seule, aucune écriture Gmail) : vérification des checkpoints, du rapport final JSON, de l'idempotence (2 runs successifs) et de la reprise sur incident (arrêt + relance) ; tests d'intégration avec Gmail mocké. Sortie de phase 3 : un run vide qui tourne de bout en bout.
+
+## T4.1 — Agent spam : Prompts et contrats d'outils Gmail
+`src/prompts.py` (nouveau) : prompt conservatoire de l'agent spam (versionné avec le code ; aucun nom de libellé physique en dur — libellés injectés depuis `config/labels.yaml`), règles de véracité, conservatisme (ne replacer depuis le spam que les messages dont la légitimité est certaine). Schémas JSON des outils Gmail `search_threads` / `get_thread` / `label_message` / `list_labels` (allow-list, moindre privilège — §2.4 de la conception). Tests : prompt sans libellé en dur, schémas conformes.
+
+## T4.2 — Agent spam : Runner de conversation éphémère
+`src/agents.py` (nouveau) : pattern conversation éphémère (synchrone, script de référence `02b`) — appel Mistral via `client.obtenir_client` + `avec_retry` (timeout 300 s), `response_format_agent(AGENT_SPAM, registre)` strict, `temperature=0.0`, `max_tokens` cap, outils en allow-list ; boucle tool-calls jusqu'à la synthèse ; `extraire_json` + `construire_synthese` + `valider_synthese` (C1–C6) + `collecter_ids_reels` ; exécution des outils contre `ClientGmailAPI` (`search_threads` paginé max 50/run, `get_thread`, `label_message` → `modifier_libelles`). Tests : client Mistral mocké (fixtures SDK), faux service Gmail.
+
+## T4.3 — Agent spam : Branchement des étapes 1–2 dans l'orchestrateur
+Dans `src/orchestrator.py`, remplacer les stubs `lecture_spam` / `validation_spam` : conversation agent spam sur la requête `in:spam`, validation de la synthèse, si ok apposition de `Agent/valide-spam` (et `Agent/traité`) sur les messages déplacés via le resolveur + `modifier_libelles` (dry-run journalisé, règle E), checkpoint de la synthèse ; rejet → arrêt propre (déjà en place).
+
+## T4.4 — Agent spam : Tests et validation de bout en bout
+TU (prompts, agents, orchestrateur) + TI mockés (`tests/integration`) : run complet avec agent spam mocké — synthèse valide → libellés posés (dry-run journalisé / appliqués en `--reel`) ; synthèse rejetée → arrêt propre + rapport `echec_partiel`. Validation dry-run réelle sur la boîte (règle E), puis petit périmètre réel. Critère de sortie phase 4 : étapes 1–2 opérationnelles. Vérifications ruff/mypy/pytest, kanban → En revue, commit/push sur demande explicite.
+
+## T5.1 — Agent classification : Prompt (enums dynamiques depuis le registre)
+Étendre `src/prompts.py` : `PROMPT_CLASSIFICATION` — catégories et urgence injectées dynamiquement depuis `config/labels.yaml` (le schéma strict `SyntheseClassification` est déjà construit par `schema_agent`, T2.2 ; jamais de libellé physique en dur dans le prompt), règles de véracité, déclaration `message_id_rfc` + `empreinte` par message. Tests : prompt sans libellé en dur, enums issus du registre.
+
+## T5.2 — Agent classification : Runner de conversation éphémère générique
+`src/agents.py` (nouveau) : `lancer_conversation(agent, ...)` paramétré par agent (réutilisé par la phase 4 — décision D35) — client Mistral (`obtenir_client` + `avec_retry`, timeout 300 s), `temperature=0.0`, `max_tokens` cap (1500), `response_format_agent(agent, registre)` strict, allow-list d'outils Gmail (T4.1), boucle tool-calls avec garde-fou anti-boucle, `extraire_json` → `construire_synthese` → `valider_synthese` (C1–C6) + `collecter_ids_reels`, exécution des outils via `ClientGmailAPI`. Tests : Mistral mocké (fixtures SDK), faux service Gmail.
+
+## T5.3 — Empreintes et normalisation (pré-requis du recalcul C6)
+`src/dedup.py` (nouveau) : normalisation du Message-ID RFC 5322 (minuscules, sans `<>`/espaces), du sujet (minuscules, préfixes `Re:`/`Fwd:`/`Tr:` retirés), du corps (décodage quoted-printable/base64, HTML → texte brut, minuscules, espaces normalisés) ; `empreinte_sha256(expediteur, sujet, corps)` ; recalcul à partir des sorties réelles de `get_thread` (conception §3). Tests : vecteurs connus, SHA-256 déterministe. Le groupement par doublons reste en phase 6.
+
+## T5.4 — Agent classification : Branchement des étapes 3–4 dans l'orchestrateur
+Dans `src/orchestrator.py`, remplacer les stubs `lecture_classification` / `validation_classification` : conversation sur la requête d'idempotence `is:unread -label:"Agent/traité"` (max 50), validation C1–C6 + **recalcul des empreintes** depuis les sorties réelles (rejet si écart), si ok apposition du libellé de catégorie + `Agent/traité` via le resolveur + `modifier_libelles` (dry-run journalisé, règle E), checkpoint de la synthèse ; rejet → arrêt propre (déjà en place).
+
+## T5.5 — Agent classification : Tests et validation de bout en bout
+TU + TI mockés (`tests/integration/test_agent_classification.py`) : classification ok → libellés posés (dry-run journalisé / `--reel` exécuté) ; empreinte erronée → rejet C6 ; synthèse incohérente → arrêt propre + `echec_partiel` ; boîte vide → `aucun_message` ; idempotence (2 runs, même `run_id`). Validation dry-run réelle sur la boîte (règle E, `MISTRAL_API_KEY` exportée), puis petit périmètre réel. Critère de sortie phase 5 : étapes 3–4 opérationnelles. ruff/mypy/pytest, kanban → En revue, commit/push sur demande explicite.
