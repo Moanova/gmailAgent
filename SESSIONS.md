@@ -414,6 +414,64 @@ Aucun.
 
 ---
 
+## Séance du 02/11/2026 (suite) — validation T3.2, plans T3.3/T3.4
+
+### Contexte
+Validation utilisateur de T3.2 : ruff/mypy/pytest OK sur le poste + smoke test dry-run réel réussi (checkpoint `2332efc2-…` : 8 étapes validées, `statut_global: "succes"`).
+
+### Actions réalisées
+
+1. **Validation T3.2 (étape 6)** : kanban — T3.2 « En revue » → « Terminé » ; `docs/tasks/T3.2_orchestrateur_squelette.md` complété (validation utilisateur) ; board Miro « gmailAgent » : T3.2 → « Fait ».
+2. **Plans T3.3 et T3.4 établis** (étape 2) : `docs/tasks/T3.3_cli_dry_run.md` (CLI argparse `tri`/`suppression`/`migrate-labels`, dry-run par défaut + `--reel`, `[project.scripts]`) et `docs/tasks/T3.4_run_vide_bout_en_bout.md` (tests d'intégration mockés + validation dry-run réelle — critère de sortie phase 3).
+3. Aucun commit (règle C — pas de demande explicite pour ces changements de doc).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1, T3.2 ; **À faire** = T3.3, T3.4 ; « En cours »/« En revue » vides.
+- Branche `dev` : dernier push `8469a9a` ; modifications doc non commitées.
+- Prochaine étape : implémenter **T3.3** sur demande explicite de l'utilisateur.
+
+---
+
+## Séance du 02/11/2026 (suite) — T3.3
+
+### Contexte
+Validation utilisateur de T3.2 (smoke test dry-run réel : `succes`). Lancement de T3.3 (CLI + dry-run) sur demande explicite, avec commit + push autorisés.
+
+### Actions réalisées
+
+1. **Validation T3.2 (étape 6)** : kanban T3.2 → « Terminé » ; board Miro T3.2 → « Fait » ; plans T3.3/T3.4 écrits (`docs/tasks/T3.3_cli_dry_run.md`, `T3.4_run_vide_bout_en_bout.md`).
+2. **Implémentation T3.3** :
+   - `src/cli.py` (créé) : sous-commandes `tri` / `suppression` (stub phase 7) / `migrate-labels ANCIEN NOUVEAU` ; **dry-run par défaut**, `--reel` pour les écritures (accepté avant ou après la sous-commande) ; rapport `RapportFinal` affiché en JSON ; registre validé au démarrage, secrets via `os.environ` uniquement ;
+   - `pyproject.toml` : `[project.scripts] gmailagent = "cli:main"`, `py-modules += cli` ;
+   - `tests/unit/test_cli.py` (créé, 11 tests) : parsing, dry-run par défaut, `tri` → `lancer_run_tri`, `migrate-labels` dry-run vs `--reel`, libellé inconnu.
+3. **Vérification** : `ruff check src tests` OK ; `mypy src` OK (strict, 10 fichiers) ; `pytest tests/unit -q` : **132 passed** (1 itération : bug argparse `--reel` après sous-commande, résolu avec `default=argparse.SUPPRESS`) ; `gmailagent --help` OK.
+4. **Kanban** : T3.3 « En cours » → « En revue » ; fichier de suivi à jour.
+5. **Commit et push sur `dev`** : `feat(T3.3)` + `docs(projet)`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D29 | Dry-run par défaut côté CLI (`--reel` pour les écritures) | Règle E : aucune écriture Gmail sans validation dry-run préalable ; le run de tri phase 3 ne fait de toute façon que des lectures + création de libellés. |
+| D30 | `--reel` accepté avant ET après la sous-commande | UX argparse (parser parent + SUPPRESS côté sous-commande pour ne pas écraser la valeur). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1, T3.2 ; **En revue** = T3.3 ; **À faire** = T3.4.
+- Branche `dev` : commits `feat(T3.3)` + `docs(projet)` poussés.
+- Prochaine étape : validation utilisateur de T3.3 sur le poste, puis **T3.4** (run vide de bout en bout) sur demande explicite.
+
+---
+
 ## Séance du 02/11/2026 (suite) — validation T3.1 et plan T3.2
 
 ### Contexte
