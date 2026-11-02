@@ -109,7 +109,8 @@ class _FauxThreads:
 
     def get(self, userId: str, id: str) -> _Requete:
         self._service.appels.append("threads.get")
-        return _Requete({"id": id, "messages": [{"id": "m1"}]})
+        mid = "m1" if id == "t1" else f"m-{id}"
+        return _Requete({"id": id, "messages": [{"id": mid}]})
 
 
 class _FauxMessages:
@@ -372,19 +373,49 @@ class TestNormaliserPayload:
             _normaliser_payload({"foo": "bar"})
 
 
+def _payload_classification(messages: list[dict[str, str]]) -> str:
+    return json.dumps({"statut": "synthese", "messages": messages})
+
+
+def _msg_classifie(mid: str, cat: str = "classification.information") -> dict[str, str]:
+    return {
+        "id": mid,
+        "objet": f"S-{mid}",
+        "expediteur": "e@x.fr",
+        "motif": "m",
+        "categorie": cat,
+        "urgence": "basse",
+        "message_id_rfc": f"{mid}@x.fr",
+        "empreinte": "a" * 64,
+    }
+
+
 class TestCompletudeLecture:
     def test_synthese_refusee_tant_que_threads_non_lus(
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
-        """search_threads renvoie 2 threads ; la 1re synthèse (1 thread lu) est
-        refusée, la boucle continue jusqu'à lecture complète."""
+        """search renvoie t1,t2 ; synthèse après lecture de t1 seul -> refusée,
+        puis acceptée après lecture de t2 et get_message des 2 messages."""
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
             _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
-            _Reponse(_Msg(content=_synthese_payload())),  # synthèse prématurée -> refusée
-            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t2"})])),
-            _Reponse(_Msg(tool_calls=[_appel("get_message", {"messageId": "m1"})])),
-            _Reponse(_Msg(content=_synthese_payload())),  # synthèse complète -> acceptée
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_message", {"messageId": "m1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_classification([_msg_classifie("m1")]))),
+            _Reponse(_Msg(tool_calls=[_appel("get_message", {"messageId": "m-t2"})])),
+            _Reponse(
+                _Msg(
+                    content=_payload_classification(
+                        [_msg_classifie("m1"), _msg_classifie("m-t2")]
+                    )
+                )
+            ),
         ]
         mistral = _FauxMistral(scenario)
         service = _FauxService(threads=["t1", "t2"])
@@ -398,4 +429,45 @@ class TestCompletudeLecture:
             registre=registre,
         )
         assert synthese.statut == "synthese"
-        assert "threads.get" in service.appels
+        assert len(synthese.messages) == 2
+
+
+class TestCompletudeMessages:
+    def test_synthese_refusee_si_message_lu_non_classe(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """t1 et t2 lus, m1 et m-t2 lus via get_message ; synthèse ne couvrant que m1
+        -> refusée (garde message), puis acceptée avec les deux."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_thread", {"threadId": "t1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                        _appel("get_message", {"messageId": "m1"}),
+                        _appel("get_message", {"messageId": "m-t2"}),
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_classification([_msg_classifie("m1")]))),
+            _Reponse(
+                _Msg(
+                    content=_payload_classification(
+                        [_msg_classifie("m1"), _msg_classifie("m-t2")]
+                    )
+                )
+            ),
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService(threads=["t1", "t2"])
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert len(synthese.messages) == 2

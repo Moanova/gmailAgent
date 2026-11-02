@@ -253,6 +253,7 @@ def lancer_conversation(
     appels = 0
     threads_trouves: set[str] = set()
     threads_lus: set[str] = set()
+    messages_lus: set[str] = set()
     while True:
         reponse: ChatCompletionResponse = avec_retry(
             lambda: client_mistral.chat.complete(
@@ -296,6 +297,12 @@ def lancer_conversation(
                     )
                 if appel.name == "get_thread":
                     threads_lus.add(str(args.get("threadId", "")))
+                    if isinstance(resultat, dict):
+                        for m in resultat.get("messages", []):
+                            if isinstance(m, dict) and isinstance(m.get("id"), str):
+                                messages_lus.add(m["id"])
+                if appel.name == "get_message":
+                    messages_lus.add(str(args.get("messageId", "")))
                 log.debug("outil execute", outil=appel.name, dry_run=dry_run)
                 messages.append(
                     ToolMessage(
@@ -333,5 +340,30 @@ def lancer_conversation(
         synthese = construire_synthese(agent, payload, meta)
         ids_reels = collecter_ids_reels(list(executions))
         valider_synthese(synthese, ids_reels)
+        ids_synthese = {
+            m.id for m in getattr(synthese, "messages", []) if hasattr(m, "id")
+        }
+        messages_manquants = sorted(messages_lus - ids_synthese)
+        if messages_manquants and synthese.statut not in ("aucun_message", "echec_technique"):
+            log.warning(
+                "synthese refusee : messages lus non classes",
+                manquants=messages_manquants[:10],
+                total=len(messages_manquants),
+            )
+            messages.append(AssistantMessage(role="assistant", content=contenu_final))
+            messages.append(
+                UserMessage(
+                    content=(
+                        "Synthèse incomplète : "
+                        f"{len(messages_manquants)} message(s) lu(s) via get_thread "
+                        "ou get_message ne figurent pas dans ta synthèse (ids : "
+                        f"{', '.join(messages_manquants[:10])}"
+                        f"{'…' if len(messages_manquants) > 10 else ''}). "
+                        "Classe CHACUN des messages lus avant de produire la synthèse."
+                    ),
+                    role="user",
+                )
+            )
+            continue
         log.info("synthese validee", agent=agent, statut=synthese.statut, dry_run=dry_run)
         return synthese, executions
