@@ -256,6 +256,7 @@ def lancer_conversation(
     threads_trouves: set[str] = set()
     threads_lus: set[str] = set()
     messages_lus: set[str] = set()
+    ids_resultats: set[str] = set()
     while True:
         reponse: ChatCompletionResponse = avec_retry(
             lambda: client_mistral.chat.complete(
@@ -300,11 +301,17 @@ def lancer_conversation(
                 if appel.name == "get_thread":
                     threads_lus.add(str(args.get("threadId", "")))
                     if isinstance(resultat, dict):
+                        ids_resultats.add(str(args.get("threadId", "")))
                         for m in resultat.get("messages", []):
                             if isinstance(m, dict) and isinstance(m.get("id"), str):
                                 messages_lus.add(m["id"])
+                                ids_resultats.add(m["id"])
                 if appel.name == "get_message":
                     messages_lus.add(str(args.get("messageId", "")))
+                if appel.name == "search_threads" and isinstance(resultat, dict):
+                    ids_resultats.update(
+                        t for t in resultat.get("threads", []) if isinstance(t, str)
+                    )
                 log.debug("outil execute", outil=appel.name, dry_run=dry_run)
                 messages.append(
                     ToolMessage(
@@ -347,7 +354,7 @@ def lancer_conversation(
             continue
         payload = _normaliser_payload(extraire_json(contenu_final))
         synthese = construire_synthese(agent, payload, meta)
-        ids_reels = collecter_ids_reels(list(executions))
+        ids_reels = collecter_ids_reels(list(executions)) | ids_resultats
         valider_synthese(synthese, ids_reels)
         ids_synthese = {
             m.id for m in getattr(synthese, "messages", []) if hasattr(m, "id")

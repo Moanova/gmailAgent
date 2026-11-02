@@ -565,3 +565,56 @@ class TestBornageParRun:
         prompt = prompt_classification(registre)
         assert "jamais le Message-ID RFC" in prompt
         assert "identifiant Gmail hexadécimal" in prompt
+
+
+class TestIdsResultats:
+    def test_id_lu_via_resultat_get_thread_accepte(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Un thread contenant 2 messages : get_thread(t1) renvoie m1 et m2 ; la synthèse
+        citant m2 (présent uniquement dans le RÉSULTAT, pas dans les args) doit être
+        acceptée par C3 (le message a réellement été lu)."""
+
+        class _ServiceMulti:
+            def users(self) -> "_ServiceMulti":
+                return self
+
+            def threads(self) -> "_ServiceMulti":
+                return self
+
+            def messages(self) -> "_ServiceMulti":
+                return self
+
+            def list(self, userId: str, q: str, maxResults: int) -> _Requete:
+                return _Requete({"threads": [{"id": "t1"}]})
+
+            def get(self, userId: str, id: str) -> _Requete:
+                return _Requete(
+                    {"id": id, "messages": [{"id": "m1"}, {"id": "m2"}]}
+                )
+
+            def execute(self) -> dict[str, object]:
+                return {}
+
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(
+                _Msg(
+                    content=_payload_classification(
+                        [_msg_classifie("m1"), _msg_classifie("m2")]
+                    )
+                )
+            ),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_ServiceMulti(), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert len(synthese.messages) == 2
