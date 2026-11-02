@@ -311,3 +311,66 @@ Aucun.
 - Branche `dev` : commits poussés (voir `git log`).
 - Kanban : 4 tâches en « En revue » (T1.6, T2.1, T2.2, T2.3, T2.4 — en attente de validation utilisateur) ; 1 tâche en « À faire » (T1.7).
 - Prochaine étape pressentie : validation utilisateur des tâches en revue, puis **phase 3 (Orchestrateur squelette)** ou **T1.7 (pré-requis OAuth Gmail)** selon la priorité de l'utilisateur.
+
+---
+
+## Séance du 02/11/2026
+
+### Contexte
+Reprise après exécution de la partie B de T1.7 sur le poste utilisateur : déplacement du projet dans une nouvelle arborescence, recréation du venv, `python scripts/init_oauth.py` mené à bout, `data/gmail_token.json` renseigné (permissions 600, `data/` ignoré par git). Application Google confirmée « En production » ; `ruff check src tests`, `mypy src` et `python -m pytest tests/unit -v` passent sur le poste (91 TU).
+
+### Actions réalisées
+
+1. **Diagnostic T1.7 partie B** : `ModuleNotFoundError: No module named 'google'` → cause environnementale, pas un bug du dépôt : venv non recréé après déplacement du projet, et dépendances `google-auth` / `google-auth-oauthlib` ajoutées à `pyproject.toml` seulement au commit `63025a2`. Procédure communiquée : supprimer l'ancien venv, `python -m venv .venv`, `.\.venv\Scripts\activate`, `pip install -e ".[dev]"`.
+2. **Écran « app non vérifiée »** : confirmé attendu et acceptable (kanban T1.7 partie A — usage perso < 100 utilisateurs, scope `gmail.modify` sensible non restreint) : passage par « Avancé » → « Continuer vers … (non sécurisé) », aucune vérification Google requise. Condition de durabilité du refresh token rappelée : statut « En production » (confirmé par l'utilisateur).
+3. **Kanban mis à jour** (sur demande explicite ; **aucun commit**, demande utilisateur) : T1.6, T1.7 et T2.1–T2.4 déplacées vers « Terminé » ; découpage de la phase 3 ajouté en « À faire » (T3.1–T3.4) avec descriptions.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D22 | Phase 3 découpée en T3.1 (client Gmail concret + câblage OAuth), T3.2 (cycle de run, checkpoints, idempotence), T3.3 (CLI `tri`/`suppression`/`migrate-labels` + dry-run), T3.4 (run vide de bout en bout) | Reprend le contenu de la phase 3 du plan macro ; le câblage `googleapiclient` (pré-requis T1.7, décision D12) en tête ; dry-run dès la phase 3 (précaution transverse §5). |
+| D23 | `google-api-python-client` sera ajouté en T3.1 | Le kanban T1.7 le mentionnait « déjà déclaré », mais `pyproject.toml` ne contient que `google-auth` et `google-auth-oauthlib` ; le câblage SDK relève bien de la phase 3. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4 ; **À faire** = T3.1–T3.4 (phase 3, Orchestrateur squelette) ; « En cours » et « En revue » vides.
+- Aucun commit effectué (demande explicite de l'utilisateur : pas de commit intermédiaire).
+- Prochaine étape : démarrer **T3.1** sur demande explicite de l'utilisateur.
+
+---
+
+## Séance du 02/11/2026 (suite) — T3.1
+
+### Contexte
+Début de la phase 3 (Orchestrateur squelette) sur demande explicite de l'utilisateur. Tâche lancée : **T3.1** (client Gmail concret).
+
+### Actions réalisées
+
+1. **Implémentation T3.1** :
+   - `pyproject.toml` : ajout de `google-api-python-client`, de `gmail` dans `py-modules`, override mypy `googleapiclient.*` ;
+   - `src/gmail.py` (créé) : `charger_credentials` (contrat T1.7, `Credentials.from_authorized_user_info`), `ClientGmailAPI` (protocole `ClientGmail` de `labels.py` + `search_threads` / `get_thread` / `modifier_libelles` / `corbeille`), dry-run des écritures (règle E), garde-fou anti-boucle (`PLAFOND_LECTURES = 100`), fabrique `nouveau_client` typée contre le protocole ;
+   - `tests/unit/test_gmail.py` (créé, 17 tests) : faux service googleapiclient, mappage/filtrage, dry-run (écritures non exécutées), plafond, recharge du token (fichier OK / absent / non JSON / non objet), construction via `build` mocké.
+2. **Vérification** : `ruff check src tests` OK ; `mypy src` OK (strict, 8 fichiers — 1 itération : `cast` + `type: ignore[no-untyped-call]` sur `from_authorized_user_info`) ; `python -m pytest tests/unit -q` : **108 passed**.
+3. **Kanban** : T3.1 déplacée « En cours » → « En revue » ; fichier de suivi `docs/tasks/T3.1_client_gmail_concret.md` créé. **Aucun commit** (règle C — pas de demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D24 | Le client concret vit dans `src/gmail.py` (complète l'arborescence cible du plan macro) et satisfait le protocole `ClientGmail` de `labels.py` | Le découplage protocole/implémentation (T1.6) permet de mocker Gmail dans les tests sans dépendre de googleapiclient. |
+| D25 | Dry-run au niveau client (écritures journalisées, non exécutées), en plus du dry-run du `ResolveurLibelles` | Règle E : aucun appel d'écriture Gmail en dry-run, à tous les niveaux. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T3.1 (en attente de validation utilisateur) ; **À faire** = T3.2–T3.4.
+- Branche `dev` : aucun commit (règle C).
+- Prochaine étape : validation utilisateur de T3.1, puis **T3.2** (orchestrateur squelette) sur demande explicite.

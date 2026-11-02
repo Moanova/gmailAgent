@@ -14,16 +14,14 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 # Tableau du kanban
 
 ## À faire
-T1.7
+T3.2
+T3.3
+T3.4
 
 ## En cours
 
 ## En revue
-T1.6
-T2.1
-T2.2
-T2.3
-T2.4
+T3.1
 
 
 ## Terminé
@@ -32,6 +30,12 @@ T1.2
 T1.3
 T1.4
 T1.5
+T1.6
+T1.7
+T2.1
+T2.2
+T2.3
+T2.4
 
 
 ## Annulé
@@ -41,7 +45,7 @@ T1.5
 
 # Description des tâches
 
-> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé).
+> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé) ; les tâches T3.x à la **phase 3 (Orchestrateur squelette)** (critère de sortie : un run vide qui tourne de bout en bout, dry-run sans aucun appel d'écriture Gmail).
 
 ## T1.1 — Fondations : Initialisation du projet
 Créer la structure des dossiers (`src/`, `tests/unit/`, `config/`, `docs/tasks/`) et le fichier `pyproject.toml` (dépendances : `mistralai`, `pydantic`, `httpx`, `structlog`, `pyyaml` ; dépendances dev : `pytest`, `ruff`, `mypy`). Vérifier `pip install -e .[dev]`.
@@ -85,3 +89,15 @@ Créer `src/validation.py` : fonctions reprises des scripts de référence — `
 
 ## T2.4 — Contrats : Tests unitaires
 Créer `tests/unit/test_contracts.py` et `tests/unit/test_validation.py` : validation des modèles (champs requis, enums dynamiques issus du registre), sérialisation/désérialisation, rejet des synthèses incohérentes (statut échec avec messages, IDs inconnus, JSON malformé). *(La phase 9 initialisera `tests/plan_tests.md` et couvrira l'ensemble du pipeline : fixtures de conversations mockées, mode dry-run, CI.)*
+
+## T3.1 — Orchestrateur squelette : Client Gmail concret (câblage OAuth + API)
+Ajouter `google-api-python-client` à `pyproject.toml` (absent malgré la mention « déjà déclarées » de T1.7). Nouveau module `src/gmail.py` : chargement de `data/gmail_token.json` via `Credentials.from_authorized_user_info` (contrat T1.7), refresh automatique (google-auth), service Gmail ; implémentation du protocole `ClientGmail` de `src/labels.py` (`list_labels`, `create_label`) et des opérations du pipeline : `search_threads` (requête d'idempotence `is:unread -label:"Agent/traité"`), `get_thread`, `modify` (add/remove de libellés), `trash` (corbeille uniquement). Wrapper dry-run (écritures journalisées, non exécutées — règle E) et garde-fou anti-boucle (plafond d'appels en lecture). Tests unitaires avec client mocké.
+
+## T3.2 — Orchestrateur squelette : Cycle de run, checkpoints, idempotence
+`src/orchestrator.py` : `run_id`, démarrage du run, checkpoints JSON persistés à chaque étape validée + reprise sur incident ([workflow](../design/workflow.md)), squelette des étapes 0–7 du run principal avec emplacements pour les phases agentiques (phases 4–7), rapport final (stub), fin de run. Retry 3 tentatives, backoff exponentiel avec jitter sur 429/5xx (réutilisation de `src/client.py`).
+
+## T3.3 — Orchestrateur squelette : CLI et mode dry-run
+`src/cli.py` : commandes `tri`, `suppression`, `migrate-labels`, option `--dry-run` (dry-run dès la phase 3 — précaution transverse du plan macro). Registre `config/labels.yaml` validé au démarrage (`src/config.py`), secrets lus via `os.environ` uniquement (règle D), journalisation structurée (`src/journalisation.py`).
+
+## T3.4 — Orchestrateur squelette : Run vide de bout en bout (critère de sortie)
+Exécution réelle de `tri` en dry-run sur la boîte de l'utilisateur (lecture seule, aucune écriture Gmail) : vérification des checkpoints, du rapport final JSON, de l'idempotence (2 runs successifs) et de la reprise sur incident (arrêt + relance) ; tests d'intégration avec Gmail mocké. Sortie de phase 3 : un run vide qui tourne de bout en bout.
