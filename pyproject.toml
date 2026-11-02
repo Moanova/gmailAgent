@@ -27,10 +27,13 @@ dev = [
     "types-requests",
 ]
 
+[project.scripts]
+gmailagent = "cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator"]
+py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator", "cli"]
 
 [tool.ruff]
 line-length = 100
