@@ -123,11 +123,12 @@ Règles de véracité (impératives) :
   de messages vide — jamais de classement imaginaire ;
 - en cas d'échec technique, réponds avec le statut `echec_technique` et le champ `erreur`.
 
-Pour chaque message classé, déclare en outre :
-- `message_id_rfc` : l'en-tête Message-ID (RFC 5322) du message ;
-- `empreinte` : hash SHA-256 (64 caractères hexadécimaux) du triplet normalisé
-  (expéditeur, sujet, corps) — l'orchestrateur recalcule cette valeur et rejette ta
-  synthèse en cas d'écart.
+Pour chaque message classé, déclare en outre (en recopiant telles quelles les valeurs
+fournies par l'outil de lecture, qui les calcule sur le message complet) :
+- `message_id_rfc` : champ `message_id_rfc` de l'aperçu du message ;
+- `empreinte` : champ `empreinte` (hash SHA-256, 64 caractères hexadécimaux) de
+  l'aperçu du message — l'orchestrateur recalcule cette valeur sur le message complet
+  et rejette ta synthèse en cas d'écart.
 
 N'utilise que les outils fournis (`search_threads`, `get_thread`, `label_message`,
 `list_labels`). Tu ne dois ni envoyer ni supprimer aucun message.

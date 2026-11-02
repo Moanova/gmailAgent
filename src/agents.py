@@ -117,17 +117,75 @@ def _normaliser_tool_call(brut: Any) -> FunctionCallEntry:
     raise ValueError(f"appel d'outil inattendu : {type(brut).__name__}")
 
 
+LIMITE_CORPS_APERCU = 2000
+LIMITE_REPONSE_OUTIL = 20000
+_ENTETES_APERCU = ("message-id", "subject", "from", "to", "date")
+
+
+def _apercu_message(message: dict[str, Any]) -> dict[str, Any]:
+    """Aperçu borné d'un message pour le LLM : en-têtes clés + extrait de corps.
+
+    Le corps complet n'est PAS renvoyé au modèle (risque de dépassement du contexte,
+    erreur 400 prompt_too_long) ; l'orchestrateur relit le message complet via
+    `get_message` pour le recalcul des empreintes (C6).
+    """
+    payload = message.get("payload")
+    if not isinstance(payload, dict):
+        return {"id": message.get("id"), "erreur": "payload absent"}
+    headers = payload.get("headers", [])
+    entetes = {
+        str(h.get("name", "")): str(h.get("value", ""))
+        for h in headers
+        if isinstance(h, dict) and str(h.get("name", "")).lower() in _ENTETES_APERCU
+    }
+    from dedup import _collecter_texte, empreinte_message
+
+    corps = _collecter_texte(payload)
+    empreinte = empreinte_message(message)[1]
+    if len(corps) > LIMITE_CORPS_APERCU:
+        corps = corps[:LIMITE_CORPS_APERCU] + "…[tronqué]"
+    return {
+        "id": message.get("id"),
+        "threadId": message.get("threadId"),
+        "entetes": entetes,
+        "corps": corps,
+        "message_id_rfc": empreinte_message(message)[0],
+        "empreinte": empreinte,
+    }
+
+
+def _apercu_thread(thread: dict[str, Any]) -> dict[str, Any]:
+    messages = thread.get("messages", [])
+    return {
+        "id": thread.get("id"),
+        "messages": [
+            _apercu_message(m) for m in messages if isinstance(m, dict)
+        ],
+    }
+
+
+def _borner_reponse(resultat: dict[str, Any]) -> str:
+    texte = json.dumps(resultat, ensure_ascii=False)
+    if len(texte) > LIMITE_REPONSE_OUTIL:
+        texte = texte[:LIMITE_REPONSE_OUTIL] + '…["tronqué"]'
+    return texte
+
+
 def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> dict[str, Any]:
-    """Exécute un outil Gmail contre le client (écritures neutralisées en dry-run)."""
+    """Exécute un outil Gmail contre le client (écritures neutralisées en dry-run).
+
+    `get_thread`/`get_message` renvoient un aperçu borné (jamais le JSON brut complet)
+    pour ne pas dépasser le contexte du modèle.
+    """
     if nom == "search_threads":
         ids = client.search_threads(
             str(args["query"]), max_results=int(args.get("maxResults", 50))
         )
         return {"threads": ids}
     if nom == "get_thread":
-        return client.get_thread(str(args["threadId"]))
+        return _apercu_thread(client.get_thread(str(args["threadId"])))
     if nom == "get_message":
-        return client.get_message(str(args["messageId"]))
+        return _apercu_message(client.get_message(str(args["messageId"])))
     if nom == "list_labels":
         return {"labels": client.list_labels()}
     if nom == "label_message":
@@ -218,7 +276,7 @@ def lancer_conversation(
                         role="tool",
                         tool_call_id=_tool_call_id(appel),
                         name=appel.name,
-                        content=json.dumps(resultat, ensure_ascii=False),
+                        content=_borner_reponse(resultat),
                     )
                 )
             continue

@@ -304,3 +304,39 @@ class TestExecuterOutil:
             client_gmail,
         )
         assert service.appels == ["messages.modify"]
+
+
+class TestApercuBorne:
+    def test_corps_tronque_et_empreinte_fournie(self) -> None:
+        from agents import LIMITE_CORPS_APERCU, _apercu_message
+
+        corps_long = "x" * (LIMITE_CORPS_APERCU + 500)
+        import base64 as _b64
+
+        message = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {
+                "mimeType": "text/plain",
+                "headers": [
+                    {"name": "Message-ID", "value": "<a@b.fr>"},
+                    {"name": "Subject", "value": "S"},
+                    {"name": "From", "value": "e@x.fr"},
+                ],
+                "body": {
+                    "data": _b64.urlsafe_b64encode(corps_long.encode()).decode().rstrip("=")
+                },
+            },
+        }
+        apercu = _apercu_message(message)
+        assert len(apercu["corps"]) <= LIMITE_CORPS_APERCU + len("…[tronqué]")
+        assert apercu["corps"].endswith("…[tronqué]")
+        assert apercu["message_id_rfc"] == "a@b.fr"
+        assert len(apercu["empreinte"]) == 64
+        assert set(apercu["entetes"]) == {"Message-ID", "Subject", "From"}
+
+    def test_borner_reponse(self) -> None:
+        from agents import LIMITE_REPONSE_OUTIL, _borner_reponse
+
+        texte = _borner_reponse({"data": "y" * (LIMITE_REPONSE_OUTIL + 100)})
+        assert len(texte) <= LIMITE_REPONSE_OUTIL + len('…["tronqué"]')
