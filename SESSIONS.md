@@ -472,6 +472,59 @@ Aucun.
 
 ---
 
+## Séance du 02/11/2026 (suite) — validation T3.3
+
+### Contexte
+Validation utilisateur de T3.3 (ruff/mypy/pytest OK sur le poste). Question utilisateur sur la commande `gmailagent` (hors venv, hors racine du projet) — réponses vérifiées empiriquement : point d'entrée embarque le python du venv (shebang), chemins projet par défaut résolus en absolu via `__file__` (registre, token, checkpoints), seul `LOG_FILE` par défaut (`logs/gmailagent.log`) est relatif au cwd.
+
+### Actions réalisées
+
+1. **Validation T3.3 (étape 6)** : kanban — T3.3 « En revue » → « Terminé » ; `docs/tasks/T3.3_cli_dry_run.md` complété ; board Miro « gmailAgent » : T3.3 → « Fait ».
+2. Aucun commit (règle C — pas de demande explicite pour ces changements de doc).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.3 ; **À faire** = T3.4 ; « En cours »/« En revue » vides.
+- Branche `dev` : dernier push `24ff7c2` ; modifications doc non commitées.
+- Prochaine étape : **T3.4** (run vide de bout en bout : tests d'intégration mockés + validation dry-run réelle) sur demande explicite.
+
+---
+
+## Séance du 02/11/2026 (suite) — T3.4
+
+### Contexte
+Validation utilisateur de T3.3 (ruff/mypy/pytest OK sur le poste). Questions sur la commande `gmailagent` (hors venv / hors racine) — réponses vérifiées : point d'entrée avec shebang du venv (chemin complet OK sans activation), chemins projet par défaut en absolu via `__file__`, seul `LOG_FILE` par défaut relatif au cwd. Lancement de T3.4 sur demande explicite, avec commit + push autorisés.
+
+### Actions réalisées
+
+1. **Validation T3.3 (étape 6)** : kanban T3.3 → « Terminé » ; board Miro T3.3 → « Fait ».
+2. **Implémentation T3.4** : `tests/integration/test_run_vide.py` (créé, 5 tests) — pile réelle CLI/orchestrateur/`ClientGmailAPI` avec faux service googleapiclient : run `tri` complet en dry-run (8 étapes, checkpoint, lectures seules), idempotence (2 runs, même run_id), reprise sur crash (checkpoint partiel), `migrate-labels` dry-run (aucune écriture) vs `--reel` (création libellé + 4 modify). Aucun changement `src/`.
+3. **Vérification** : `ruff check src tests` OK (1 itération : 1 ligne > 100 car.) ; `mypy src` OK (strict, 10 fichiers) ; `python -m pytest tests -q` : **137 passed** (132 unit + 5 intégration).
+4. **Kanban** : T3.4 « En cours » → « En revue » ; fichier de suivi à jour (validation dry-run réelle restant à faire côté utilisateur, étape 6).
+5. **Commit et push sur `dev`** : `test(T3.4)` + `docs(projet)`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D31 | T3.4 = tests d'intégration uniquement (aucun changement src/) | Le squelette (T3.2) et la CLI (T3.3) couvrent déjà le comportement ; T3.4 prouve le critère de sortie phase 3 « un run vide qui tourne de bout en bout » avec Gmail mocké, avant validation dry-run réelle côté utilisateur. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.3 ; **En revue** = T3.4 ; **À faire** = phase 4+ (agents).
+- Branche `dev` : commits `test(T3.4)` + `docs(projet)` poussés.
+- Prochaine étape : validation utilisateur de T3.4 en dry-run réel (`gmailagent tri`), puis clôture de la phase 3 et passage à la **phase 5 (agent classification)** selon l'ordre du plan macro (5 avant 4).
+
+---
+
 ## Séance du 02/11/2026 (suite) — validation T3.1 et plan T3.2
 
 ### Contexte
