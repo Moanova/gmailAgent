@@ -706,3 +706,140 @@ Aucun.
 - Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1 ; **À faire** = T3.2–T3.4 ; « En cours »/« En revue » vides.
 - Branche `dev` : commits `d8ccfd8` + `dd97034` poussés ; modifications doc (kanban/SESSIONS/suivi) non commitées en attente.
 - Prochaine étape : implémenter **T3.2** sur demande explicite de l'utilisateur.
+
+---
+
+## Séance du 03/11/2026 — T4.1 (prompt agent spam)
+
+### Contexte
+Reprise du projet **gmailAgent**. Phase 5 (classification) validée (T5.1–T5.5 en « Terminé ») ; la phase en cours est la **phase 4 (agent spam)**. Plan détaillé de T4.1 établi sur demande, puis implémentation lancée sur demande explicite.
+
+### Actions réalisées
+
+1. **Reprise de contexte** : branche `dev` à jour (`aca36a8`), lecture de `AGENTS.md`, `docs/projet/kanban.md`, `docs/projet/plan-macro.md`, `SESSIONS.md`, `docs/tasks/T4.1_prompts_contrats_outils.md`, `src/prompts.py`, `src/contracts.py`, `src/config.py`, `tests/unit/test_prompts.py`.
+2. **Plan T4.1 établi (étape 2)** : constat — `OUTILS_GMAIL` (allow-list 5 outils) déjà livré en T5.1 et testé ; schéma strict `SyntheseSpam` + enum `deplaces`/`aucun_message`/`echec_technique` déjà construits (T2.2) et testés (T2.4). Périmètre réel : `prompt_spam(registre)` + tests unitaires.
+3. **Kanban** : T4.1 déplacée « À faire » → « En cours ».
+4. **Implémentation** : `prompt_spam(registre)` ajouté dans `src/prompts.py` — rôle conservatoire (dossier spam `in:spam`, ne retenir que les messages dont la légitimité est certaine ; en cas de doute, laisser en spam) ; véracité (lecture de chaque thread via `get_thread` avant synthèse) ; clés logiques `suivi.valide-spam`/`suivi.traite` injectées depuis le registre (aucun libellé `Agent/` en dur) ; consigne de ne modifier aucun libellé soi-même (l'orchestrateur appose en T4.3) ; ni envoi ni suppression (corbeille interdite) ; sortie = unique objet JSON racine conforme au schéma strict `SyntheseSpam`.
+5. **Tests** : `TestPromptSpam` (5 tests) dans `tests/unit/test_prompts.py` — clés de suivi depuis le registre, aucun libellé physique en dur, conservatisme/véracité/statuts, pas de libellisation par l'agent, objet JSON unique à la racine.
+6. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `python -m pytest tests -q` : **191 passed** (dont 12 dans `test_prompts.py`).
+7. **Kanban** : T4.1 « En cours » → « En revue » (validation agent, étape 5) ; fichier de suivi `docs/tasks/T4.1_prompts_contrats_outils.md` mis à jour. **Aucun commit** (règle C — pas de demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D41 | T4.1 se réduit au prompt spam + tests ; `OUTILS_GMAIL` réutilisé tel quel (livré en T5.1) | Allow-list identique pour les deux agents (moindre privilège) ; aucun besoin spécifique au spam. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T4.1 ; **À faire** = T4.2–T4.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (`src/prompts.py`, `tests/unit/test_prompts.py`, `docs/projet/kanban.md`, `docs/tasks/T4.1_prompts_contrats_outils.md`, `SESSIONS.md`) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : validation utilisateur de T4.1 (étape 6), puis **T4.2** (dispatch `AGENT_SPAM` dans `_prompt_systeme`, `src/agents.py`) sur demande explicite.
+
+---
+
+## Séance du 03/11/2026 (suite) — T4.2 (branchement agent spam dans le runner)
+
+### Contexte
+Poursuite de la phase 4 (agent spam) après T4.1 (prompt spam, « En revue »). Plan de T4.2 établi sur demande (révision D35 : le runner générique `lancer_conversation(agent, ...)` est déjà livré en T5.2), puis implémentation lancée sur demande explicite.
+
+### Actions réalisées
+
+1. **Kanban** : T4.2 déplacée « À faire » → « En cours ».
+2. **Implémentation dans `src/agents.py`** :
+   - `_prompt_systeme` : branche `AGENT_SPAM` → `prompt_spam(registre)` (T4.1) ; `AGENT_SUPPRESSION` lève encore `AgentInconnuError` (phase 7) ;
+   - garde de complétude « messages lus non classés » désormais conditionnée à `AGENT_CLASSIFICATION` : pour le spam, un message lu mais laissé en spam ne figure pas dans la synthèse (conservatisme du prompt T4.1) ; la garde threads (tout thread retourné lu via `get_thread`) reste active pour tous les agents.
+3. **Tests** (`tests/unit/test_agents.py`, 7 nouveaux) : sélection du prompt spam + `response_format` `SyntheseSpam` ; conversation spam complète mockée (`deplaces`) ; `aucun_message` ; message lu non retenu accepté pour le spam ; garde threads active pour le spam (refus puis acceptation) ; rejet C3 (id non manipulé) ; suppression toujours sans prompt.
+4. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `python -m pytest tests -q` : **198 passed** (7 nouveaux, tous verts).
+5. **Kanban** : T4.2 « En cours » → « En revue » (étape 5) ; fichier de suivi `docs/tasks/T4.2_runner_conversation_ephemere.md` révisé (constat D35). **Aucun commit** (règle C).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D42 | Garde « messages lus non classés » réservée à la classification | Pour le spam, un message lu mais non retenu (laissé en spam) est légitime — le prompt T4.1 impose de ne rien mentionner en cas de doute ; la garde threads suffit. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T4.1, T4.2 ; **À faire** = T4.3, T4.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (`src/agents.py`, `tests/unit/test_agents.py`, `docs/projet/kanban.md`, `docs/tasks/T4.1_*.md`, `docs/tasks/T4.2_*.md`, `SESSIONS.md`) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : validation utilisateur de T4.1/T4.2 (étape 6), puis **T4.3** (branchement des étapes 1–2 dans `src/orchestrator.py` : requête `in:spam`, apposition `suivi.valide-spam`/`suivi.traite`, checkpoint) sur demande explicite.
+
+---
+
+## Séance du 03/11/2026 (suite) — T4.3 (étapes 1–2 spam dans l'orchestrateur)
+
+### Contexte
+Poursuite de la phase 4 (agent spam) : T4.1/T4.2 en « En revue ». Plan de T4.3 établi sur demande, implémentation lancée sur demande explicite. Rappel : un **stub** = fonction provisoire à la bonne signature mais au comportement factice (ici : validation de checkpoint sans appel agent).
+
+### Actions réalisées
+
+1. **Kanban** : T4.3 déplacée « À faire » → « En cours ».
+2. **Implémentation dans `src/orchestrator.py`** :
+   - `_lancer_spam(...)` : miroir de `_lancer_classification` (dépendances injectables `client_api`/`client_mistral`/`conversation`), `Meta(etape="lecture_spam", agent=AGENT_SPAM)`, requête `in:spam`, via `lancer_conversation(AGENT_SPAM, ...)` ;
+   - `_appliquer_libelles_spam(...)` : si statut `deplaces`, appose `suivi.valide-spam` + `suivi.traite` + INBOX et retire SPAM par message (`api.modifier_libelles`, dry-run journalisé, règle E ; jamais de corbeille). Constantes `REQUETE_SPAM="in:spam"`, `LABEL_SPAM="SPAM"`, `LABEL_INBOX="INBOX"` (ids système API, hors registre `Agent/`) ;
+   - stubs `lecture_spam`/`validation_spam` remplacés : synthèse spam persistée (`checkpoint.syntheses["spam"]`), validation C1–C3 déjà faite dans `lancer_conversation`, rejet → arrêt propre `echec_partiel`/`etape_fautive="lecture_spam"` (chemin existant) ; `synthese_spam` renseigné dans le `RapportFinal` ; docstrings mises à jour.
+3. **Tests** :
+   - `tests/unit/test_orchestrator.py` : `TestEtapes12Spam` (4 tests) — `deplaces` → `modifier_libelles` avec `ajouter=[L_valspam, L_traite, INBOX]`, `retirer=[SPAM]` (réel) / aucune écriture (dry-run) ; rejet → `echec_partiel` ; reprise sans rappeler l'agent spam ; `syntheses["spam"]` persistée. `_conversation_classifiee` dispatchée (spam → conversation vide) ; `test_reprise_ne_rappelle_pas_lagent` ajusté (2 appels : spam + classification).
+   - `tests/integration/test_agent_classification.py` : faux service filtre `in:spam` (`liste_threads_spam`, vide par défaut) + libellé `Agent/valide-spam` ; `_scenario_spam_vide()` préfixé aux scénarios (étape spam réelle avant la classification).
+4. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `python -m pytest tests -q` : **202 passed** (4 nouveaux, tous verts).
+5. **Kanban** : T4.3 « En cours » → « En revue » (étape 5) ; fichier de suivi `docs/tasks/T4.3_orchestrateur_etapes_1_2.md` mis à jour. **Aucun commit** (règle C).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D43 | Replacer depuis le spam = retirer SPAM + ajouter INBOX (+ `suivi.valide-spam`, `suivi.traite`) | SPAM/INBOX sont des ids système stables de l'API Gmail, hors registre `Agent/` ; la corbeille reste interdite ici. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T4.1, T4.2, T4.3 ; **À faire** = T4.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (T4.1+T4.2+T4.3 : `src/prompts.py`, `src/agents.py`, `src/orchestrator.py`, tests, docs) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : validation utilisateur de T4.1–T4.3 (étape 6), puis **T4.4** (TI spam de bout en bout + validation dry-run réelle sur la boîte) sur demande explicite. Critère de sortie phase 4 alors atteint : étapes 1–2 opérationnelles.
+
+---
+
+## Séance du 03/11/2026 (suite) — T4.4 (TI spam de bout en bout)
+
+### Contexte
+Dernière tâche de la **phase 4 (agent spam)** : T4.1–T4.3 en « En revue ». Plan de T4.4 établi sur demande, implémentation lancée sur demande explicite.
+
+### Actions réalisées
+
+1. **Kanban** : T4.4 déplacée « À faire » → « En cours ».
+2. **Nouveau TI `tests/integration/test_agent_spam.py`** (5 tests, pile réelle orchestrateur → `lancer_conversation` avec faux Mistral scénarisé + faux service googleapiclient filtrant `in:spam`) :
+   - `deplaces` valide en réel → `messages.modify` avec `ajouter=[L_valspam, L_traite, INBOX]`, `retirer=[SPAM]` ; `syntheses["spam"]` au checkpoint ; 8 étapes validées dans l'ordre (spam avant classification) ;
+   - `deplaces` en dry-run → aucune écriture (`modify` non appelé) ;
+   - synthèse rejetée (C3, id non manipulé) → `SyntheseInvalideError`, rapport `echec_partiel`, `etape_fautive="lecture_spam"` ;
+   - boîte spam vide → `aucun_message`, run `succes` ;
+   - idempotence : 2 runs même `run_id` → agent spam non rappelé (aucun appel Mistral au 2e run).
+   - **Aucun changement `src/`** (T4.4 = tests + docs, comme prévu).
+3. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `python -m pytest tests -q` : **207 passed** (5 nouveaux, 5/5 verts).
+4. **Kanban** : T4.4 « En cours » → « En revue » (étape 5) ; fichier de suivi `docs/tasks/T4.4_tests_validation_bout_en_bout.md` mis à jour. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D41–D43 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T4.1–T4.4 (phase 4 complète côté code/tests) ; **À faire** = T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (T4.1–T4.4 : `src/prompts.py`, `src/agents.py`, `src/orchestrator.py`, `tests/integration/test_agent_spam.py` nouveau, autres tests, docs) — en attente de commit/push sur demande explicite (règle C).
+- Reste pour clôturer la phase 4 (étape 6, règle E, poste utilisateur) : validation dry-run réelle (`MISTRAL_API_KEY` exporté, `gmailagent tri`) puis petit périmètre réel (`--reel` sur quelques spams évidents) → T4.1–T4.4 « Terminé ».
+- Prochaine tâche ensuite : **T3.5** (option `gmailagent tri --tout`), puis découpage de la **phase 6 (dédoublonnage)**.
