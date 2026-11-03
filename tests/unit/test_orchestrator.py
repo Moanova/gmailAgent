@@ -8,6 +8,7 @@ from httplib2 import Response
 
 from client import avec_retry
 from config import RegistreLibelles
+from contracts import AGENT_CLASSIFICATION, AGENT_SPAM
 from dedup import empreinte_message
 from gmail import ClientGmailAPI
 from labels import LibelleGmail, ResolveurLibelles
@@ -291,6 +292,8 @@ class _ServiceAvecMessage:
 
 def _conversation_classifiee(meta: object, empreinte: str) -> object:
     def _fn(agent: str, requete: str, meta_arg: object, **kwargs: object):
+        if agent != AGENT_CLASSIFICATION:
+            return _faux_conversation_vide(agent, requete, meta_arg, **kwargs)
         payload = {
             "statut": "synthese",
             "messages": [
@@ -393,4 +396,106 @@ class TestEtapes34Classification:
         client_labels = _FauxClientGmail()
         premier = _run(registre, tmp_path, client_labels, conversation=_compte)
         _run(registre, tmp_path, client_labels, run_id=premier.meta.run_id, conversation=_compte)
-        assert appels["n"] == 1
+        assert appels["n"] == 2
+
+
+def _conversation_spam(ids: list[str]) -> object:
+    def _fn(agent: str, requete: str, meta_arg: object, **kwargs: object):
+        if agent != AGENT_SPAM:
+            return _faux_conversation_vide(agent, requete, meta_arg, **kwargs)
+        payload = {
+            "statut": "deplaces",
+            "messages": [
+                {
+                    "id": mid,
+                    "objet": f"S-{mid}",
+                    "expediteur": "exp@ex.fr",
+                    "motif": "newsletter connue",
+                }
+                for mid in ids
+            ],
+        }
+        synthese = construire_synthese(agent, payload, meta_arg)  # type: ignore[arg-type]
+        return synthese, []
+
+    return _fn
+
+
+class TestEtapes12Spam:
+    def _labels(self) -> list[LibelleGmail]:
+        return [
+            LibelleGmail(id="L_traite", name="Agent/traité"),
+            LibelleGmail(id="L_valspam", name="Agent/valide-spam"),
+        ]
+
+    def test_spam_deplaces_pose_libelles_et_remet_inbox(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceAvecMessage()
+        api = ClientGmailAPI(service, dry_run=False)
+        rapport = _run(
+            registre,
+            tmp_path,
+            _FauxClientGmail(labels=self._labels()),
+            client_api=api,
+            conversation=_conversation_spam(["m1"]),
+        )
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_spam is not None
+        assert rapport.synthese_spam.statut == "deplaces"
+        assert service.modifications == [("m1", ["L_valspam", "L_traite", "INBOX"], ["SPAM"])]
+        checkpoint = charger_checkpoint(rapport.meta.run_id, tmp_path)
+        assert "spam" in checkpoint.syntheses
+
+    def test_spam_dry_run_ne_modifie_pas(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceAvecMessage()
+        api = ClientGmailAPI(service, dry_run=True)
+        rapport = _run(
+            registre,
+            tmp_path,
+            _FauxClientGmail(labels=self._labels()),
+            client_api=api,
+            conversation=_conversation_spam(["m1"]),
+        )
+        assert rapport.statut_global == "succes"
+        assert service.modifications == []
+
+    def test_rejet_spam_arrete_proprement(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        rid = uuid4()
+
+        def _conversation_rejet(agent: str, requete: str, meta: object, **kwargs: object):
+            if agent == AGENT_SPAM:
+                raise SyntheseInvalideError("synthese rejetee")
+            return _faux_conversation_vide(agent, requete, meta, **kwargs)
+
+        with pytest.raises(SyntheseInvalideError, match="synthese rejetee"):
+            _run(
+                registre,
+                tmp_path,
+                _FauxClientGmail(),
+                run_id=rid,
+                conversation=_conversation_rejet,
+            )
+        checkpoint = charger_checkpoint(rid, tmp_path)
+        assert checkpoint.rapport is not None
+        assert checkpoint.rapport.statut_global == "echec_partiel"
+        assert checkpoint.rapport.etape_fautive == "lecture_spam"
+
+    def test_reprise_ne_rappelle_pas_lagent_spam(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        appels_spam = {"n": 0}
+
+        def _compte(agent: str, requete: str, meta: object, **kwargs: object):
+            if agent == AGENT_SPAM:
+                appels_spam["n"] += 1
+            return _faux_conversation_vide(agent, requete, meta, **kwargs)
+
+        client_labels = _FauxClientGmail()
+        premier = _run(registre, tmp_path, client_labels, conversation=_compte)
+        _run(registre, tmp_path, client_labels, run_id=premier.meta.run_id, conversation=_compte)
+        assert appels_spam["n"] == 1

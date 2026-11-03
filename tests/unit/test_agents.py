@@ -12,7 +12,14 @@ from agents import (
     lancer_conversation,
 )
 from config import RegistreLibelles
-from contracts import AGENT_CLASSIFICATION, AgentInconnuError, Meta
+from contracts import (
+    AGENT_CLASSIFICATION,
+    AGENT_SPAM,
+    AGENT_SUPPRESSION,
+    AgentInconnuError,
+    Meta,
+    SyntheseSpam,
+)
 from gmail import ClientGmailAPI
 from validation import SyntheseInvalideError
 
@@ -43,6 +50,11 @@ def registre() -> RegistreLibelles:
 @pytest.fixture
 def meta() -> Meta:
     return Meta(run_id=uuid4(), etape="lecture_classification", agent=AGENT_CLASSIFICATION)
+
+
+@pytest.fixture
+def meta_spam(meta: Meta) -> Meta:
+    return Meta(run_id=meta.run_id, etape="lecture_spam", agent=AGENT_SPAM)
 
 
 class _Msg:
@@ -390,6 +402,20 @@ def _msg_classifie(mid: str, cat: str = "classification.information") -> dict[st
     }
 
 
+def _msg_spam(mid: str) -> dict[str, str]:
+    return {
+        "id": mid,
+        "objet": f"S-{mid}",
+        "expediteur": "e@x.fr",
+        "motif": "newsletter connue",
+    }
+
+
+def _payload_spam(statut: str = "deplaces", ids: list[str] | None = None) -> str:
+    messages = [_msg_spam(i) for i in (ids or [])]
+    return json.dumps({"statut": statut, "messages": messages})
+
+
 class TestCompletudeLecture:
     def test_synthese_refusee_tant_que_threads_non_lus(
         self, registre: RegistreLibelles, meta: Meta
@@ -618,3 +644,143 @@ class TestIdsResultats:
             registre=registre,
         )
         assert len(synthese.messages) == 2
+
+
+class TestPromptSpam:
+    def test_prompt_spam_selectionne(self, registre: RegistreLibelles) -> None:
+        from agents import _prompt_systeme
+
+        prompt = _prompt_systeme(AGENT_SPAM, registre)
+        assert "in:spam" in prompt
+        assert "suivi.valide-spam" in prompt
+        assert "Agent/" not in prompt
+
+    def test_suppression_toujours_sans_prompt(self, registre: RegistreLibelles) -> None:
+        from agents import _prompt_systeme
+
+        with pytest.raises(AgentInconnuError, match="sans prompt"):
+            _prompt_systeme(AGENT_SUPPRESSION, registre)
+
+
+class TestConversationSpam:
+    def test_conversation_spam_complete(
+        self, registre: RegistreLibelles, meta_spam: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_payload_spam("deplaces", ["m1"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1"]), dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_SPAM,
+            "in:spam",
+            meta_spam,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSpam)
+        assert synthese.statut == "deplaces"
+        assert [m.id for m in synthese.messages] == ["m1"]
+        assert len(executions) == 2
+        appel0 = mistral.chat.appels[0]
+        assert appel0["response_format"].json_schema.name == "SyntheseSpam"
+        assert "in:spam" in appel0["messages"][0].content
+
+    def test_aucun_message_spam_accepte(
+        self, registre: RegistreLibelles, meta_spam: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(content=_payload_spam("aucun_message", []))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SPAM,
+            "in:spam",
+            meta_spam,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "aucun_message"
+        assert synthese.messages == []
+
+    def test_message_lu_non_retenu_accepte_pour_spam(
+        self, registre: RegistreLibelles, meta_spam: Meta
+    ) -> None:
+        """Contraste avec la classification : pour le spam, un message lu mais laissé
+        en spam ne figure pas dans la synthèse — accepté (la garde "messages lus non
+        classés" est réservée à la classification)."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_thread", {"threadId": "t1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_spam("deplaces", ["m1"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SPAM,
+            "in:spam",
+            meta_spam,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert [m.id for m in synthese.messages] == ["m1"]
+
+    def test_garde_threads_active_pour_spam(
+        self, registre: RegistreLibelles, meta_spam: Meta
+    ) -> None:
+        """Tout thread retourné par search_threads doit être lu via get_thread, même
+        pour le spam : synthèse après lecture de t1 seul -> refusée, puis acceptée
+        après lecture de t2."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_payload_spam("deplaces", ["m1"]))),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t2"})])),
+            _Reponse(_Msg(content=_payload_spam("deplaces", ["m1", "m-t2"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SPAM,
+            "in:spam",
+            meta_spam,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "deplaces"
+        assert len(synthese.messages) == 2
+
+    def test_rejet_id_inconnu_spam(
+        self, registre: RegistreLibelles, meta_spam: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_payload_spam("deplaces", ["m-inconnu"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1"]), dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="non manipul"):
+            lancer_conversation(
+                AGENT_SPAM,
+                "in:spam",
+                meta_spam,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )

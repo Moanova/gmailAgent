@@ -3,7 +3,7 @@ import json
 import pytest
 
 from config import RegistreLibelles
-from prompts import OUTILS_GMAIL, categories, prompt_classification
+from prompts import OUTILS_GMAIL, categories, prompt_classification, prompt_spam
 
 
 @pytest.fixture
@@ -82,3 +82,37 @@ class TestPromptClassification:
             "classification.information",
             "classification.notification",
         ]
+
+
+class TestPromptSpam:
+    def test_cles_suivi_depuis_le_registre(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_spam(registre)
+        assert "suivi.valide-spam" in prompt
+        assert "suivi.traite" in prompt
+
+    def test_aucun_libelle_physique_en_dur(self, registre: RegistreLibelles) -> None:
+        assert "Agent/" not in prompt_spam(registre)
+
+    def test_conservatisme_veracite_et_statuts(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_spam(registre)
+        for mot in (
+            "in:spam",
+            "doute",
+            "deplaces",
+            "aucun_message",
+            "echec_technique",
+            "motif",
+            "véracité",
+        ):
+            assert mot in prompt
+
+    def test_pas_de_libellisation_par_lagent(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_spam(registre)
+        assert "Ne modifie toi-même AUCUN libellé" in prompt
+        assert "ni envoyer ni supprimer" in prompt
+
+    def test_objet_json_unique_a_la_racine(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_spam(registre)
+        assert "UNIQUE objet JSON" in prompt
+        assert "`statut`" in prompt
+        assert "`messages`" in prompt

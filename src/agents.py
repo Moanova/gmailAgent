@@ -30,6 +30,7 @@ from client import avec_retry
 from config import RegistreLibelles
 from contracts import (
     AGENT_CLASSIFICATION,
+    AGENT_SPAM,
     AgentInconnuError,
     Meta,
     SyntheseEtape,
@@ -37,7 +38,7 @@ from contracts import (
 )
 from gmail import ClientGmailAPI
 from journalisation import obtenir_logger
-from prompts import OUTILS_GMAIL, prompt_classification
+from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam
 from validation import (
     SyntheseInvalideError,
     collecter_ids_reels,
@@ -220,6 +221,8 @@ def _normaliser_payload(payload: Any) -> dict[str, Any]:
 def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
     if agent == AGENT_CLASSIFICATION:
         return prompt_classification(registre)
+    if agent == AGENT_SPAM:
+        return prompt_spam(registre)
     raise AgentInconnuError(f"agent sans prompt : {agent!r}")
 
 
@@ -360,7 +363,11 @@ def lancer_conversation(
             m.id for m in getattr(synthese, "messages", []) if hasattr(m, "id")
         }
         messages_manquants = sorted(messages_lus - ids_synthese)
-        if messages_manquants and synthese.statut not in ("aucun_message", "echec_technique"):
+        if (
+            agent == AGENT_CLASSIFICATION
+            and messages_manquants
+            and synthese.statut not in ("aucun_message", "echec_technique")
+        ):
             tentatives_synthese += 1
             if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
                 raise SyntheseInvalideError(

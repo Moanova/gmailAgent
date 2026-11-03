@@ -1,8 +1,8 @@
-"""Orchestrateur squelette : cycle du run principal (tri), checkpoints, idempotence.
+"""Orchestrateur : cycle du run principal (tri), checkpoints, idempotence.
 
-Étapes 0–7 du run principal (docs/design/workflow.md). L'étape 1 (spam) reste un
-stub (phase 4) ; les étapes 3–4 (classification) sont réelles (phase 5) ; le
-dédoublonnage (étape 5) reste un stub (phase 6).
+Étapes 0–7 du run principal (docs/design/workflow.md). Les étapes 1–2 (spam) et
+3–4 (classification) sont réelles (phases 4–5) ; le dédoublonnage (étape 5) reste
+un stub (phase 6).
 
 Checkpoints : JSON persistés dans `data/checkpoints/<run_id>.json` à chaque étape
 validée ; en cas de crash, relancer avec le même `run_id` saute les étapes déjà
@@ -24,10 +24,12 @@ from client import obtenir_client
 from config import RegistreLibelles, charger_registre
 from contracts import (
     AGENT_CLASSIFICATION,
+    AGENT_SPAM,
     Meta,
     RapportFinal,
     SyntheseClassification,
     SyntheseEtape,
+    SyntheseSpam,
 )
 from dedup import empreinte_message, normaliser_message_id
 from gmail import ClientGmailAPI, nouveau_client
@@ -36,6 +38,10 @@ from labels import ClientGmail, ResolveurLibelles
 from validation import SyntheseInvalideError
 
 CLE_TRAITE = "suivi.traite"
+CLE_VALIDE_SPAM = "suivi.valide-spam"
+REQUETE_SPAM = "in:spam"
+LABEL_SPAM = "SPAM"
+LABEL_INBOX = "INBOX"
 AGENT_ORCHESTRATEUR = "orchestrateur"
 ETAPE_DEMARRAGE = "demarrage"
 ETAPE_RAPPORT = "rapport"
@@ -84,6 +90,33 @@ def _lancer_classification(
     )
 
 
+def _lancer_spam(
+    rid: UUID,
+    reg: RegistreLibelles,
+    *,
+    dry_run: bool,
+    client_api: ClientGmailAPI | None,
+    client_mistral: Mistral | None,
+    conversation: ConversationFn | None,
+) -> tuple[SyntheseEtape, list[Any]]:
+    api = _api_client(client_api, dry_run)
+    lance = conversation if conversation is not None else lancer_conversation
+    if conversation is None and client_mistral is None:
+        mistral = obtenir_client()
+    else:
+        mistral = cast("Mistral", client_mistral)
+    meta = Meta(run_id=rid, etape="lecture_spam", agent=AGENT_SPAM)
+    return lance(
+        AGENT_SPAM,
+        REQUETE_SPAM,
+        meta,
+        client_mistral=mistral,
+        client_gmail=api,
+        registre=reg,
+        dry_run=dry_run,
+    )
+
+
 def _recalculer_empreintes(synthese: SyntheseClassification, api: ClientGmailAPI) -> None:
     """Recalcule message_id_rfc/empreinte depuis les lectures réelles (rejet C6 si écart)."""
     for message in synthese.messages:
@@ -104,6 +137,23 @@ def _appliquer_libelles_classification(
     for message in synthese.messages:
         id_categorie = resolveur.resoudre(message.categorie)
         api.modifier_libelles(message.id, ajouter=[id_categorie, id_traite])
+
+
+def _appliquer_libelles_spam(
+    synthese: SyntheseSpam, resolveur: ResolveurLibelles, api: ClientGmailAPI
+) -> None:
+    """Replacer depuis le spam : appose `valide-spam` + `traité`, retire SPAM, remet
+    INBOX (dry-run : journalisé, règle E)."""
+    if synthese.statut != "deplaces":
+        return
+    id_valide_spam = resolveur.resoudre(CLE_VALIDE_SPAM)
+    id_traite = resolveur.resoudre(CLE_TRAITE)
+    for message in synthese.messages:
+        api.modifier_libelles(
+            message.id,
+            ajouter=[id_valide_spam, id_traite, LABEL_INBOX],
+            retirer=[LABEL_SPAM],
+        )
 
 
 class Checkpoint(BaseModel):
@@ -170,7 +220,7 @@ def lancer_run_tri(
     registre: RegistreLibelles | None = None,
     dossier_checkpoints: Path | None = None,
 ) -> RapportFinal:
-    """Cycle du run principal (étapes 0–7) : étapes 3–4 réelles (phase 5), le reste en stub.
+    """Cycle du run principal (étapes 0–7) : étapes 1–4 réelles (phases 4–5), le reste en stub.
 
     `dry_run=True` par défaut (règle E) : aucune écriture Gmail. En cas d'échec,
     le motif est journalisé, le rapport marqué `echec_partiel` avec l'étape
@@ -208,10 +258,24 @@ def lancer_run_tri(
 
         etape_courante = "lecture_spam"
         if "lecture_spam" not in checkpoint.etapes_validees:
-            log.warning("etape en stub (phase 4)", etape="lecture_spam")
+            synthese, _executions = _lancer_spam(
+                rid,
+                reg,
+                dry_run=dry_run,
+                client_api=client_api,
+                client_mistral=client_mistral,
+                conversation=conversation,
+            )
+            checkpoint.syntheses["spam"] = synthese
             _valider_etape(checkpoint, "lecture_spam", dossier)
+
         etape_courante = "validation_spam"
         if "validation_spam" not in checkpoint.etapes_validees:
+            synthese_s = checkpoint.syntheses.get("spam")
+            if not isinstance(synthese_s, SyntheseSpam):
+                raise CheckpointError("synthèse spam absente du checkpoint")
+            api = _api_client(client_api, dry_run)
+            _appliquer_libelles_spam(synthese_s, resolveur, api)
             _valider_etape(checkpoint, "validation_spam", dossier)
 
         etape_courante = "lecture_classification"
@@ -251,8 +315,12 @@ def lancer_run_tri(
         if ETAPE_RAPPORT not in checkpoint.etapes_validees:
             meta = Meta(run_id=rid, etape=ETAPE_RAPPORT, agent=AGENT_ORCHESTRATEUR)
             synthese_c = checkpoint.syntheses.get("classification")
+            synthese_s = checkpoint.syntheses.get("spam")
             checkpoint.rapport = RapportFinal(
                 meta=meta,
+                synthese_spam=(
+                    synthese_s if isinstance(synthese_s, SyntheseSpam) else None
+                ),
                 synthese_classification=(
                     synthese_c if isinstance(synthese_c, SyntheseClassification) else None
                 ),

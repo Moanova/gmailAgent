@@ -66,9 +66,11 @@ class _FauxService:
         self,
         message: dict[str, Any] | None = None,
         threads: list[str] | None = None,
+        threads_spam: list[str] | None = None,
     ) -> None:
         self.message = message if message is not None else _message_gmail("m1")
         self.liste_threads = threads if threads is not None else ["t1"]
+        self.liste_threads_spam = threads_spam if threads_spam is not None else []
         self.appels: list[str] = []
         self.modifications: list[tuple[str, list[str], list[str]]] = []
         self._mode = ""
@@ -96,9 +98,12 @@ class _FauxService:
                     "labels": [
                         {"id": "L_traite", "name": "Agent/traité"},
                         {"id": "L_arep", "name": "Agent/a-repondre"},
+                        {"id": "L_valspam", "name": "Agent/valide-spam"},
                     ]
                 }
             )
+        if "spam" in str(kwargs.get("q", "")):
+            return _Requete({"threads": [{"id": t} for t in self.liste_threads_spam]})
         return _Requete({"threads": [{"id": t} for t in self.liste_threads]})
 
     def get(self, **kwargs: Any) -> _Requete:
@@ -152,8 +157,15 @@ def _appel(nom: str, args: dict[str, Any]) -> Any:
     return ToolExecutionEntry(name=nom, arguments=json.dumps(args, ensure_ascii=False))
 
 
-def _scenario_classification(empreinte: str) -> list[_Reponse]:
+def _scenario_spam_vide() -> list[_Reponse]:
     return [
+        _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+        _Reponse(_Msg(content=json.dumps({"statut": "aucun_message", "messages": []}))),
+    ]
+
+
+def _scenario_classification(empreinte: str) -> list[_Reponse]:
+    return _scenario_spam_vide() + [
         _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
         _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
         _Reponse(_Msg(tool_calls=[_appel("get_message", {"messageId": "m1"})])),
@@ -263,7 +275,7 @@ class TestAgentClassificationBoutEnBout:
     def test_boite_vide_aucun_message(self, registre: RegistreLibelles, tmp_path: Path) -> None:
         service = _FauxService(threads=[])
         api = ClientGmailAPI(service, dry_run=True)
-        scenario = [
+        scenario = _scenario_spam_vide() + [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
             _Reponse(_Msg(content=json.dumps({"statut": "aucun_message", "messages": []}))),
         ]
