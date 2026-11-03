@@ -865,3 +865,32 @@ Aucun.
 
 - `README.md` non commité, en attente de commit/push sur demande explicite.
 - Branche `dev` : dernier push `6174cb7` (T4.1–T4.4).
+
+---
+
+## Séance du 03/11/2026 (suite) — correctif reprise sur incident (discriminateur `agent`)
+
+### Contexte
+Validation utilisateur de la phase 4 en dry-run réel. Incident réseau + relance avec `--run-id` : le run repris a terminé en `echec_partiel` à `validation_spam` avec `synthese_spam: null` dans le rapport. Diagnostic confirmé en local : au rechargement du checkpoint, l'union `SyntheseEtape` désérialisait une synthèse spam `aucun_message` (messages vides, statut commun) en `SyntheseClassification` → `isinstance(..., SyntheseSpam)` False → `CheckpointError`. L'agent spam avait répondu `aucun_message` (conservatisme — le message douteux laissé en spam), ce qui déclenchait le bug à la reprise si le crash était survenu entre `lecture_spam` et `validation_spam`.
+
+### Actions réalisées
+
+1. **Correctif dans `src/contracts.py`** : champ racine `agent: Literal[...] = ...` ajouté aux 3 modèles de synthèse (constantes `AGENT_*` passées en `Final`) ; `SyntheseEtape = Annotated[Union[...], Field(discriminator="agent")]` ; `_schema_payload` exclut désormais `("meta", "agent")` du schéma JSON strict (le LLM ne voit pas le champ). `src/validation.py` : `construire_synthese` injecte `agent` dans le payload validé.
+2. **Tests** (3 nouveaux) : `test_schema_exclut_meta_et_agent` et `test_union_discriminee_par_agent` (test_contracts) ; `test_reprise_crash_entre_lecture_et_validation_spam` (test_orchestrator — checkpoint avec `lecture_spam` validée + spam `aucun_message`, reprise → `succes`, `synthese_spam` non null).
+3. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers — littéraux directs dans `Literal[...]` après 1 itération mypy `Final`) ; `python -m pytest tests -q` : **210 passed**. Repro manuel : `aucun_message` rechargé en `SyntheseSpam` (avant : `SyntheseClassification`).
+4. **Commit + push sur `dev`** sur demande explicite.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D44 | Discriminateur `agent` (champ racine Literal) sur l'union `SyntheseEtape`, exclu du schéma JSON strict | Rechargement de checkpoint non ambigu quel que soit le statut ; le schéma exposé au LLM est inchangé. **Rétrocompatibilité** : les checkpoints antérieurs (sans champ `agent`) sont illisibles → ignorés, le run repart de zéro — sans danger (idempotence par libellés Gmail). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : correctif poussé (voir commit ci-dessus).
+- À retester côté utilisateur : relancer `gmailagent tri --run-id <run_id interrompu>` → plus de `CheckpointError`, rapport `succes` avec `synthese_spam` renseigné.
