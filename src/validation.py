@@ -217,4 +217,6 @@ def construire_synthese(
         cls = modeles[agent]
     except KeyError:
         raise SyntheseInvalideError(f"agent inconnu : {agent!r}") from None
-    return cls.model_validate({**payload, "meta": meta.model_dump(mode="json")})
+    return cls.model_validate(
+        {**payload, "meta": meta.model_dump(mode="json"), "agent": agent}
+    )

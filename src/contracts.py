@@ -1,6 +1,6 @@
 import copy
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Final, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,6 +12,10 @@ Urgence = Literal["haute", "moyenne", "basse"]
 StatutClassification = Literal["synthese", "aucun_message", "echec_technique"]
 StatutSpam = Literal["deplaces", "aucun_message", "echec_technique"]
 StatutSuppression = Literal["supprimes", "aucun_message", "echec_technique"]
+
+AGENT_CLASSIFICATION: Final = "classification"
+AGENT_SPAM: Final = "spam"
+AGENT_SUPPRESSION: Final = "suppression"
 
 _PATTERN_EMPREINTE = r"^[0-9a-f]{64}$"
 _PATTERN_MESSAGE_ID_RFC = r"^[^<>\s]+@[^<>\s]+$"
@@ -54,6 +58,7 @@ class SyntheseClassification(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    agent: Literal["classification"] = AGENT_CLASSIFICATION
     statut: StatutClassification
     messages: list[MessageClasse]
     erreur: str | None = None
@@ -65,6 +70,7 @@ class SyntheseSpam(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    agent: Literal["spam"] = AGENT_SPAM
     statut: StatutSpam
     messages: list[MessageLu]
     erreur: str | None = None
@@ -76,6 +82,7 @@ class SyntheseSuppression(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    agent: Literal["suppression"] = AGENT_SUPPRESSION
     statut: StatutSuppression
     count: int = Field(ge=0)
     ids: list[str]
@@ -83,7 +90,10 @@ class SyntheseSuppression(BaseModel):
     meta: Meta
 
 
-SyntheseEtape = SyntheseClassification | SyntheseSpam | SyntheseSuppression
+SyntheseEtape = Annotated[
+    SyntheseClassification | SyntheseSpam | SyntheseSuppression,
+    Field(discriminator="agent"),
+]
 
 
 class RapportFinal(BaseModel):
@@ -98,10 +108,6 @@ class RapportFinal(BaseModel):
     statut_global: Literal["succes", "echec_partiel"]
     etape_fautive: str | None = None
 
-
-AGENT_CLASSIFICATION = "classification"
-AGENT_SPAM = "spam"
-AGENT_SUPPRESSION = "suppression"
 
 _MODELES_PAR_AGENT: dict[str, type[BaseModel]] = {
     AGENT_CLASSIFICATION: SyntheseClassification,
@@ -123,7 +129,7 @@ class AgentInconnuError(ValueError):
 
 
 def _schema_payload(
-    cls: type[BaseModel], *, exclure: tuple[str, ...] = ("meta",)
+    cls: type[BaseModel], *, exclure: tuple[str, ...] = ("meta", "agent")
 ) -> dict[str, Any]:
     schema = copy.deepcopy(cls.model_json_schema())
     for champ in exclure:

@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from config import RegistreLibelles
 from contracts import (
@@ -267,6 +267,33 @@ class TestSchemaAgent:
     def test_agent_inconnu_rejete(self, registre: RegistreLibelles) -> None:
         with pytest.raises(AgentInconnuError, match="agent inconnu"):
             schema_agent("inconnu", registre)
+
+    def test_schema_exclut_meta_et_agent(self, registre: RegistreLibelles) -> None:
+        for agent in AGENTS:
+            props = schema_agent(agent, registre)["properties"]
+            assert "meta" not in props
+            assert "agent" not in props
+
+    def test_union_discriminee_par_agent(self, meta: Meta) -> None:
+        """Régression : `aucun_message` est un statut commun — le rechargement d'un
+        checkpoint doit rester non ambigu grâce au discriminateur `agent`."""
+        from contracts import SyntheseEtape
+
+        ta = TypeAdapter(SyntheseEtape)
+        meta_json = meta.model_dump(mode="json")
+        spam = ta.validate_python(
+            {"agent": AGENT_SPAM, "statut": "aucun_message", "messages": [], "meta": meta_json}
+        )
+        clas = ta.validate_python(
+            {
+                "agent": AGENT_CLASSIFICATION,
+                "statut": "aucun_message",
+                "messages": [],
+                "meta": meta_json,
+            }
+        )
+        assert type(spam) is SyntheseSpam
+        assert type(clas) is SyntheseClassification
 
     def test_registre_par_defaut_charge_yaml(self) -> None:
         schema = schema_agent(AGENT_CLASSIFICATION)

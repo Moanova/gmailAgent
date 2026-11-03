@@ -8,7 +8,7 @@ from httplib2 import Response
 
 from client import avec_retry
 from config import RegistreLibelles
-from contracts import AGENT_CLASSIFICATION, AGENT_SPAM
+from contracts import AGENT_CLASSIFICATION, AGENT_SPAM, Meta
 from dedup import empreinte_message
 from gmail import ClientGmailAPI
 from labels import LibelleGmail, ResolveurLibelles
@@ -173,6 +173,32 @@ class TestLancerRunTri:
         sauvegarder_checkpoint(Checkpoint(run_id=rid, etapes_validees=["demarrage"]), tmp_path)
         rapport = _run(registre, tmp_path, _FauxClientGmail(), run_id=rid)
         assert rapport.statut_global == "succes"
+        checkpoint = charger_checkpoint(rid, tmp_path)
+        assert checkpoint.etapes_validees == ETAPES_COMPLETES
+
+    def test_reprise_crash_entre_lecture_et_validation_spam(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        """Régression : crash après `lecture_spam` validée (synthèse spam `aucun_message`
+        persistée) — la reprise ne doit pas lever CheckpointError, et le rapport doit
+        contenir la synthèse spam (discriminateur `agent` sur l'union SyntheseEtape)."""
+        rid = uuid4()
+        meta = Meta(run_id=rid, etape="lecture_spam", agent=AGENT_SPAM)
+        synthese_spam = construire_synthese(
+            AGENT_SPAM, {"statut": "aucun_message", "messages": []}, meta
+        )
+        sauvegarder_checkpoint(
+            Checkpoint(
+                run_id=rid,
+                etapes_validees=["demarrage", "lecture_spam"],
+                syntheses={"spam": synthese_spam},
+            ),
+            tmp_path,
+        )
+        rapport = _run(registre, tmp_path, _FauxClientGmail(), run_id=rid)
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_spam is not None
+        assert rapport.synthese_spam.statut == "aucun_message"
         checkpoint = charger_checkpoint(rid, tmp_path)
         assert checkpoint.etapes_validees == ETAPES_COMPLETES
 
