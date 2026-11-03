@@ -843,3 +843,25 @@ Aucun.
 - Branche `dev` : modifications non commitées (T4.1–T4.4 : `src/prompts.py`, `src/agents.py`, `src/orchestrator.py`, `tests/integration/test_agent_spam.py` nouveau, autres tests, docs) — en attente de commit/push sur demande explicite (règle C).
 - Reste pour clôturer la phase 4 (étape 6, règle E, poste utilisateur) : validation dry-run réelle (`MISTRAL_API_KEY` exporté, `gmailagent tri`) puis petit périmètre réel (`--reel` sur quelques spams évidents) → T4.1–T4.4 « Terminé ».
 - Prochaine tâche ensuite : **T3.5** (option `gmailagent tri --tout`), puis découpage de la **phase 6 (dédoublonnage)**.
+
+---
+
+## Séance du 03/11/2026 (suite) — README
+
+### Contexte
+Question utilisateur : les options de `gmailagent` sont-elles documentées dans un README ? Constat : aucun `README.md` n'existait sur `dev`. Création d'un README à la racine sur demande explicite.
+
+### Actions réalisées
+
+1. **Création de `README.md`** (racine) : présentation, prérequis (Python ≥ 3.11, `MISTRAL_API_KEY`, `data/gmail_token.json` via `scripts/init_oauth.py`), installation (`pip install -e ".[dev]"`), usage CLI complet (`tri [--run-id UUID] [--reel]`, `suppression [--reel]` stub phase 7, `migrate-labels ANCIEN NOUVEAU [--reel]`, `--reel` avant/après sous-commande, dry-run par défaut règle E, note `--tout` prévu mais non implémenté T3.5), tests/qualité (`ruff`, `mypy`, `pytest`), liens vers la doc projet, consigne branche `dev`.
+2. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK ; `python -m pytest tests -q` : **207 passed** (inchangé — doc seule).
+3. **Aucun commit** (règle C — pas de demande explicite pour ce changement).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- `README.md` non commité, en attente de commit/push sur demande explicite.
+- Branche `dev` : dernier push `6174cb7` (T4.1–T4.4).
