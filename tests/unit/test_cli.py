@@ -6,7 +6,7 @@ import pytest
 
 import cli
 from cli import _parse_args, main
-from contracts import Meta, RapportFinal
+from contracts import Meta, RapportFinal, SyntheseClassification
 
 
 @pytest.fixture(autouse=True)
@@ -221,3 +221,81 @@ class TestResumeConsole:
         monkeypatch.setattr(cli, "lancer_run_suppression", lambda *a, **k: rapport)
         assert main(["suppression"]) == 0
         assert "corbeille : 3 message(s)" in capsys.readouterr().out
+
+
+class TestTout:
+    def test_parse_tout(self) -> None:
+        assert _parse_args(["tri", "--tout"]).tout is True
+        assert _parse_args(["tri"]).tout is False
+
+    def _faux_runs(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        statuts: list[str],
+        message_classe: Any,
+        meta: Meta,
+    ) -> list[Any]:
+        runs: list[Any] = []
+
+        def faux_run(
+            run_id: Any = None, *, dry_run: bool = True, **kwargs: Any
+        ) -> RapportFinal:
+            runs.append((run_id, dry_run))
+            statut = statuts[min(len(runs) - 1, len(statuts) - 1)]
+            synt = SyntheseClassification(
+                statut=statut,  # type: ignore[arg-type]
+                messages=[message_classe] if statut == "synthese" else [],
+                meta=meta,
+            )
+            return RapportFinal(
+                meta=meta, synthese_classification=synt, statut_global="succes"
+            )
+
+        monkeypatch.setattr(cli, "lancer_run_tri", faux_run)
+        return runs
+
+    def test_tout_boucle_jusqua_epuisement_reel(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+        meta: Meta, message_classe: Any,
+    ) -> None:
+        runs = self._faux_runs(monkeypatch, ["synthese", "aucun_message"], message_classe, meta)
+        assert main(["tri", "--tout", "--reel"]) == 0
+        assert len(runs) == 2
+        assert runs[0][0] != runs[1][0]  # run_id distincts
+        assert all(dry is False for _, dry in runs)
+        assert "--tout : 2 run(s)" in capsys.readouterr().out
+
+    def test_tout_plafond_atteint(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+        meta: Meta, message_classe: Any,
+    ) -> None:
+        runs = self._faux_runs(monkeypatch, ["synthese"], message_classe, meta)
+        assert main(["tri", "--tout", "--reel"]) == 0
+        assert len(runs) == cli.PLAFOND_RUNS_TOUT
+        assert f"--tout : {cli.PLAFOND_RUNS_TOUT} run(s)" in capsys.readouterr().out
+
+    def test_tout_dry_run_un_seul_run(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+        meta: Meta, message_classe: Any,
+    ) -> None:
+        runs = self._faux_runs(monkeypatch, ["synthese"], message_classe, meta)
+        assert main(["tri", "--tout"]) == 0
+        assert len(runs) == 1
+        assert runs[0][1] is True
+
+    def test_tout_arret_sur_echec(
+        self, monkeypatch: pytest.MonkeyPatch, meta: Meta
+    ) -> None:
+        runs: list[Any] = []
+
+        def faux_run(
+            run_id: Any = None, *, dry_run: bool = True, **kwargs: Any
+        ) -> RapportFinal:
+            runs.append(run_id)
+            return RapportFinal(
+                meta=meta, statut_global="echec_partiel", etape_fautive="lecture_spam"
+            )
+
+        monkeypatch.setattr(cli, "lancer_run_tri", faux_run)
+        assert main(["tri", "--tout", "--reel"]) == 1
+        assert len(runs) == 1

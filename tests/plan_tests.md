@@ -6,7 +6,7 @@ Les tests ont été écrits **par phase, avec chaque tâche** (chaque tâche du
 recense tels qu'ils existent réellement (audit de couverture), il ne décrit pas un
 plan idéalisé.
 
-État au 04/11/2026 : **256 tests, tous verts** — 235 unitaires (TU) + 21 d'intégration
+État au 04/11/2026 : **261 tests, tous verts** — 240 unitaires (TU) + 21 d'intégration
 (TI). Recensement : `python -m pytest tests --collect-only -q`.
 
 ## Conventions
@@ -25,7 +25,7 @@ plan idéalisé.
 
 ## Recensement par fichier
 
-### Tests unitaires (`tests/unit/`, 235 tests)
+### Tests unitaires (`tests/unit/`, 240 tests)
 
 | Fichier | Nb | Portée | Tâches |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ plan idéalisé.
 | `test_agents.py` | 35 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus | T4.2, T5.2, T7.2 |
 | `test_orchestrator.py` | 29 | Requêtes depuis le registre (idempotence, suppression D47), cycle de run, checkpoints, reprise sur incident, étapes 1–4 (spam/classification + C6), run de suppression (T7.3), `resume` des rapports (T8.2) | T3.2, T4.3, T5.4, T7.3, T8.2 |
 | `test_prompts.py` | 19 | Prompts sans libellé physique en dur, enums/clés depuis le registre, conservatisme/véracité, corbeille uniquement, catégorie notification seule éligible (D47), schémas d'outils | T4.1, T5.1, T7.1 |
-| `test_cli.py` | 14 | Parsing (`--reel`, `--run-id`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2) | T3.3, T7.3, T8.2 |
+| `test_cli.py` | 19 | Parsing (`--reel`, `--run-id`, `--tout`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2), boucle `--tout` (`TestTout` : épuisement, plafond, dry-run 1 run, arrêt sur échec) | T3.3, T7.3, T8.2, T3.5 |
 | `test_gmail.py` | 17 | Client Gmail concret mocké : token, labels, recherche paginée bornée, dry-run (écritures journalisées), plafond de lectures | T3.1 |
 | `test_dedup.py` | 11 | Normalisation (Message-ID RFC, sujet, corps), SHA-256 déterministe, `empreinte_message` depuis `get_thread` | T5.3 |
 | `test_report.py` | 8 | `aggreger` (comptes déterministes), `formater_console` (résumé, aucun `Agent/` en dur) | T8.2 |

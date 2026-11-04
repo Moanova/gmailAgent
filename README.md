@@ -36,7 +36,7 @@ Chaque run est encadré dans `logs/gmailagent.log` par des lignes d'événements
 
 | Commande | Options | Description |
 | --- | --- | --- |
-| `gmailagent tri` | `[--run-id UUID] [--reel]` | Run principal de tri (étapes 0–7 : spam puis classification). Imprime le rapport final JSON puis `run <id> terminé : <statut>`. Code retour 0 si `succes`, 1 sinon. `--run-id` : reprise sur incident depuis les checkpoints (`data/checkpoints/<run_id>.json`). |
+| `gmailagent tri` | `[--run-id UUID] [--tout] [--reel]` | Run principal de tri (étapes 0–7 : spam puis classification). Imprime le rapport final JSON puis le résumé console, puis `run <id> terminé : <statut>`. Code retour 0 si `succes`, 1 sinon. `--run-id` : reprise sur incident depuis les checkpoints (`data/checkpoints/<run_id>.json`). `--tout` : boucle de runs jusqu'à épuisement des non lus (plafond 10 runs, `run_id` distinct par run ; en dry-run : un seul run car les libellés ne sont pas posés). |
 | `gmailagent suppression` | `[--run-id UUID] [--reel]` | Run de suppression T+24h (phase 7) : corbeille uniquement (`TRASH`) sur les notifications traitées — `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` (notification seule éligible, D47 ; clause `doublon` inerte en v1 — D46). |
 | `gmailagent migrate-labels ANCIEN NOUVEAU` | `[--reel]` | Déplace les messages d'un libellé physique vers un autre (le libellé cible est créé s'il manque). |
 
@@ -53,8 +53,8 @@ python -m cli migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage de lib
 
 Aide : `gmailagent --help`, `gmailagent tri --help`.
 
-> L'option `--tout` (boucle de runs jusqu'à épuisement des non lus, tâche T3.5) est
-> prévue par la conception mais pas encore implémentée.
+> `--tout` (tâche T3.5, conception §2.6) : rattrapage d'un retard volumineux en une seule
+> invocation — alternative ponctuelle au cron (qui reste le mode quotidien, phase 10).
 
 ## Tests et qualité
 

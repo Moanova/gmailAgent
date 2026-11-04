@@ -14,7 +14,6 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 # Tableau du kanban
 
 ## À faire
-T3.5
 
 ## En cours
 
@@ -27,6 +26,7 @@ T8.1
 T8.2
 T8.3
 T9.1
+T3.5
 
 ## Terminé
 T1.1

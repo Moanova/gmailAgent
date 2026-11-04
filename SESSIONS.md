@@ -1722,3 +1722,80 @@ Aucun.
 - Branche `dev` : non commité (`tests/plan_tests.md`, `docs/test/acceptation.md`, kanban,
   SESSIONS) — en attente de commit/push sur demande explicite (règle C). Dernier push :
   `a109d61`.
+
+---
+
+## Séance du 04/11/2026 (suite) — T3.5 implémentée (option `tri --tout`)
+
+### Contexte
+Implémentation directe de **T3.5** sur demande explicite, selon
+`docs/tasks/T3.5_option_tout.md`.
+
+### Actions réalisées
+
+1. `src/cli.py` : flag `--tout` sur la sous-commande `tri` (`PLAFOND_RUNS_TOUT = 10`) ;
+   `_cmd_tri_tout` : boucle appelant `lancer_run_tri(uuid4(), dry_run=...)` — `run_id`
+   distinct par run, rapport JSON + résumé console + `marquer_fin_run` par run ; arrêt
+   quand la synthèse classification est `aucun_message` (épuisement), au plafond (arrêt
+   propre journalisé), ou sur `echec_partiel` (code retour 1) ; **garde-fou dry-run** :
+   un seul run (les libellés n'étant pas posés, la boucle ne progresserait pas) ;
+   `_afficher_rapport` mutualisé ; aide `--tout`.
+2. `README.md` : option documentée (`[--tout]`), la mention « pas encore implémentée »
+   remplacée par la description (rattrapage ponctuel, alternative au cron).
+3. Tests `tests/unit/test_cli.py` — `TestTout` (5 tests) : parsing, boucle jusqu'à
+   épuisement en `--reel` (2 runs, run_id distincts, dry_run=False propagé), plafond
+   atteint (10 runs), dry-run = 1 seul run, arrêt sur échec (code retour 1, 1 run).
+4. **Vérifications (étape 4, 2 tentatives — 1ʳᵉ : import `RapportFinal` manquant dans
+   cli.py, corrigé)** : `ruff check src tests` OK ; `mypy src` OK (strict, 14 fichiers) ;
+   `pytest tests -q` : **261 passed** (+5, tous verts).
+5. **Validation agent (étape 5)** : kanban T3.5 → **« En revue »** ; suivi T3.5 coché.
+   **Aucun commit** (règle C — pas de demande).
+
+### Décisions clés
+
+Aucune nouvelle (D46–D48 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4, T8.1–T8.3, T9.1, T3.5 ; « À faire » et « En cours »
+  vides.
+- Branche `dev` : non commité (`src/cli.py`, `tests/unit/test_cli.py`, README, kanban,
+  suivi T3.5, SESSIONS) — en attente de commit/push sur demande explicite (règle C).
+  Dernier push : `30bb3b4`.
+- Prochaine étape : validation utilisateur de T3.5 (dry-run réel `gmailagent tri --tout`)
+  puis « Terminé » sur demande ; commit/push des changements en attente sur demande.
+
+---
+
+## Séance du 04/11/2026 (suite) — T3.5 en En revue + commit/push (plan de tests resynchronisé)
+
+### Contexte
+Demande de commit/push des changements en cours (T3.5). Vérification préalable : le plan de
+tests était rédigé avant T3.5 → resynchronisé (256 → 261 tests).
+
+### Actions réalisées
+
+1. `tests/plan_tests.md` et `docs/test/acceptation.md` resynchronisés : 240 TU + 21 TI =
+   261 tests (vérifié `pytest --collect-only`), `test_cli.py` 14 → 19 avec `TestTout`
+   (T3.5) dans le mapping.
+2. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (strict, 14 fichiers) ;
+   `pytest tests -q` : **261 passed**.
+3. **Commit + push sur `dev`** (demande explicite) : T3.5 (`--tout`) + docs resynchronisées.
+
+### Décisions clés
+
+Aucune nouvelle (D46–D48 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : tout en « En revue » (T7.1–T7.4, T8.1–T8.3, T9.1, T3.5) ; « À faire » vide.
+- Branche `dev` : poussée. Validations utilisateur restantes : T3.5/T8.x/T9.1 (dry-run
+  réels) et T7.x après le délai de 24 h (D47), puis « Terminé » sur demande.

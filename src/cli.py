@@ -6,7 +6,7 @@ Règle E de AGENTS.md : aucune écriture Gmail sans `--reel` (en dry-run, les
 `data/gmail_token.json` (tâche T1.7).
 
 Usage :
-  gmailagent tri [--run-id UUID] [--reel]
+  gmailagent tri [--run-id UUID] [--tout] [--reel]
   gmailagent suppression [--run-id UUID] [--reel]
   gmailagent migrate-labels ANCIEN NOUVEAU [--reel]
 """
@@ -16,12 +16,18 @@ import json
 import sys
 from uuid import UUID, uuid4
 
+from contracts import RapportFinal
 from gmail import ClientGmailAPI
 from journalisation import configurer, marquer_fin_run, obtenir_logger
 from orchestrator import lancer_run_suppression, lancer_run_tri
 from report import formater_console
 
 AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures journalisées)"
+PLAFOND_RUNS_TOUT = 10
+AIDE_TOUT = (
+    f"boucle de runs jusqu'à épuisement des non lus (plafond {PLAFOND_RUNS_TOUT} runs, "
+    "run_id distinct par run ; en dry-run : un seul run, les libellés n'étant pas posés)"
+)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -46,6 +52,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="run_id existant pour reprise sur incident",
     )
+    p_tri.add_argument("--tout", action="store_true", help=AIDE_TOUT)
     p_sup = _sous_commande(
         "suppression", "run de suppression T+24h (notifications uniquement, corbeille)"
     )
@@ -64,14 +71,51 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
-    dry_run = not args.reel
-    rapport = lancer_run_tri(run_id, dry_run=dry_run)
+def _afficher_rapport(rapport: RapportFinal) -> None:
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
     print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
+
+
+def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
+    dry_run = not args.reel
+    if getattr(args, "tout", False):
+        return _cmd_tri_tout(dry_run)
+    rapport = lancer_run_tri(run_id, dry_run=dry_run)
+    _afficher_rapport(rapport)
     marquer_fin_run(rapport.statut_global)
     return 0 if rapport.statut_global == "succes" else 1
+
+
+def _cmd_tri_tout(dry_run: bool) -> int:
+    """`tri --tout` : boucle de runs (run_id distinct par run) jusqu'à épuisement des
+    non lus, avec plafond de runs (garde-fou). En dry-run : un seul run (les libellés
+    ne sont pas posés, la boucle ne pourrait pas progresser)."""
+    log = obtenir_logger("cli")
+    nb_runs = 0
+    for _ in range(PLAFOND_RUNS_TOUT):
+        rapport = lancer_run_tri(uuid4(), dry_run=dry_run)
+        nb_runs += 1
+        _afficher_rapport(rapport)
+        marquer_fin_run(rapport.statut_global)
+        if rapport.statut_global != "succes":
+            print(f"--tout : arrêt sur échec au run {nb_runs}")
+            return 1
+        synthese = rapport.synthese_classification
+        if dry_run:
+            log.info(
+                "dry-run : les libellés ne sont pas posés, arrêt de --tout après le 1er run",
+                nb_runs=nb_runs,
+            )
+            break
+        if synthese is not None and synthese.statut == "aucun_message":
+            break
+    else:
+        log.warning(
+            "plafond de runs atteint (--tout)", plafond=PLAFOND_RUNS_TOUT, nb_runs=nb_runs
+        )
+    print(f"--tout : {nb_runs} run(s) exécuté(s)")
+    return 0
 
 
 def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
