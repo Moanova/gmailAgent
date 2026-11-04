@@ -50,7 +50,9 @@ from validation import (
 )
 
 MODELE_PAR_DEFAUT = "mistral-large-latest"
-MAX_TOKENS_PAR_DEFAUT = 4000
+# Relevé à 8000 le 04/11/2026 après incident réel (--tout --reel, ~50 messages) :
+# à 4000, la synthèse était tronquée et la garde de complétude abandonnait le run.
+MAX_TOKENS_PAR_DEFAUT = 8000
 PLAFOND_APPELS_OUTILS = 50
 MAX_TENTATIVES_SYNTHESE = 3
 MAX_THREADS_PAR_RUN = 25

@@ -299,3 +299,33 @@ class TestTout:
         monkeypatch.setattr(cli, "lancer_run_tri", faux_run)
         assert main(["tri", "--tout", "--reel"]) == 1
         assert len(runs) == 1
+
+
+class TestFinRunSurIncident:
+    def test_fin_run_emis_si_exception(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Une balise fin_run (statut=interrompu) est émise dans le log même quand le
+        run lève une exception (clôture propre en cas d'incident)."""
+        import json
+
+        import journalisation
+        from validation import SyntheseInvalideError
+
+        monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
+        monkeypatch.setattr(journalisation, "_configure", False)
+        monkeypatch.setattr(journalisation, "_run_id_courant", None)
+
+        def boom(run_id: Any = None, *, dry_run: bool = True, **kwargs: Any) -> RapportFinal:
+            raise SyntheseInvalideError("incident simulé")
+
+        monkeypatch.setattr(cli, "lancer_run_tri", boom)
+        assert main(["tri"]) == 1
+        lignes = [
+            json.loads(x)
+            for x in (tmp_path / "gmailagent.log").read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        assert lignes[0]["evenement"] == "debut_run"
+        assert lignes[-1]["evenement"] == "fin_run"
+        assert lignes[-1]["statut"] == "interrompu"

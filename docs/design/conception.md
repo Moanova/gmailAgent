@@ -159,7 +159,7 @@ Mesures retenues :
 4. **Cache intra-run** : `list_labels` appelé une seule fois par agent et par run ; threads lus conservés en mémoire.
 5. **Mode incrémental** : si le volume devient significatif, remplacer le scan `is:unread` par `history.list` (à partir du `historyId` mémorisé au run précédent) pour ne lire que les deltas.
 6. **Lissage de charge** : le run de suppression est séparé (T+24h) ; la planification est placée en heures creuses.
-7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capsés (1500 pour la classification, 2000 si création de libellés), timeout HTTP explicite (300 s) — déjà en place dans les scripts de référence.
+7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capé à 8000 (relevé le 04/11/2026 après incident réel `tri --reel --tout` sur ~50 messages : à 4000, la synthèse était tronquée, la garde de complétude rejetait 3 fois puis abandonnait le run), timeout HTTP explicite (300 s).
 8. **Observabilité** : journaliser par run le nombre d'appels d'outils, les tokens consommés et les latences, afin d'ajuster les plafonds sur des données réelles.
 
 ---

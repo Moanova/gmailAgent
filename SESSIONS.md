@@ -1799,3 +1799,66 @@ Aucun.
 - Kanban : tout en « En revue » (T7.1–T7.4, T8.1–T8.3, T9.1, T3.5) ; « À faire » vide.
 - Branche `dev` : poussée. Validations utilisateur restantes : T3.5/T8.x/T9.1 (dry-run
   réels) et T7.x après le délai de 24 h (D47), puis « Terminé » sur demande.
+
+---
+
+## Séance du 04/11/2026 (suite) — incident réel `tri --reel --tout` : diagnostic + correctifs
+
+### Contexte
+Incident utilisateur : boîte réinitialisée (50 non lus + 3 spam), `gmailagent tri
+--reel --tout` → les 3 spams traités, la boîte de réception non traitée ; run abandonné
+à `lecture_classification` avec `SyntheseInvalideError('synthèse incomplète après 3
+tentatives : 24 message(s) lus non classés — abandon du run')`. Demande : comprendre +
+balise `fin_run` même en cas d'incident.
+
+### Diagnostic (extrait de gmailagent.log)
+
+1. **Cause racine** : lot de 25 threads / ~50 messages ; `max_tokens=4000` tronquait la
+   synthèse de classification → la garde de complétude (D42, tous les messages lus
+   doivent être classés) a rejeté 3 fois (9 puis 24 manquants) → abandon propre du run
+   (`echec_partiel`). Le spam (3 messages) avait réussi. `--tout` s'est arrêté sur
+   l'échec (comportement prévu). Correctif : `MAX_TOKENS_PAR_DEFAUT` 4000 → **8000**
+   (`src/agents.py`), conception §4.7 mise à jour.
+2. **Deux run_id dans le log** (`debut_run` = c6452a57… vs lignes du run = a52714cc…) :
+   en mode `--tout`, le contextvar `run_id` n'était lié qu'au premier appel de
+   `configurer` (garde `_configure`) → toutes les lignes sans run_id explicite
+   (HTTP, synthèses) portaient le run_id initial. Correctif : `configurer` re-lie le
+   `run_id` et réémet `debut_run` à chaque changement de run_id
+   (`_run_id_courant`, `src/journalisation.py`) ; `main` ne configure plus le run_id
+   CLI en mode `--tout` (chaque run a le sien).
+3. **Pas de `fin_run` sur incident** : `marquer_fin_run` n'était appelé qu'après un
+   retour normal ; sur exception, `lancer_run_tri` relance et `main` retournait 1 sans
+   balise. Correctif : `try/finally` avec `statut="interrompu"` par défaut dans
+   `_cmd_tri`, `_cmd_tri_tout` (par run) et `_cmd_suppression` ; `migrate-labels`
+   couvert via `main`.
+
+### Actions réalisées
+
+1. Correctifs ci-dessus : `src/agents.py` (max_tokens 8000), `src/journalisation.py`
+   (re-liaison run_id + debut_run par run), `src/cli.py` (fin_run garanti, try/finally ;
+   main ne configure pas le run_id en mode --tout ; migrate-labels couvert).
+2. Tests : `TestMaxTokens` (8000), `test_journalisation.py` (+test rebind run_id en
+   --tout), `test_cli.py` `TestFinRunSurIncident` (fin_run « interrompu » sur exception,
+   debut_run en tête).
+3. `docs/design/conception.md` §4.7 (plafond 8000 + incident).
+4. **Vérifications (2 tentatives — 1ʳᵉ : faute `obtener_logger` + E741, corrigés)** :
+   `ruff check src tests` OK ; `mypy src` OK (strict, 14 fichiers) ; `pytest tests -q` :
+   **263 passed** (+2). **Aucun commit** (règle C — pas de demande).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D49 | `max_tokens` relevés à 8000 ; `fin_run` émis systématiquement (succès, `echec_partiel` ou `interrompu`) ; en `--tout`, chaque run re-lie son `run_id` et émet son propre `debut_run` | Incident réel 04/11 : synthèse tronquée à 4000 sur ~50 messages → abandon par la garde de complétude ; lisibilité du log par run. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Correctifs D49 non commités (`src/agents.py`, `src/journalisation.py`, `src/cli.py`,
+  tests, conception.md, SESSIONS) — commit/push sur demande explicite (règle C).
+  Dernier push : `a3fb593`.
+- À retester côté utilisateur : `gmailagent tri --reel --tout` sur le même périmètre
+  (50 non lus + 3 spam).

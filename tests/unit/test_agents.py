@@ -552,7 +552,8 @@ class TestMaxTokens:
     def test_max_tokens_releve_pour_grandes_syntheses(
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
-        """max_tokens par défaut relevé à 4000 (une synthèse de 12+ messages dépasse 1500)."""
+        """max_tokens par défaut relevé à 8000 (incident réel 04/11 : synthèse tronquée
+        à 4000 sur ~50 messages, garde de complétude puis abandon du run)."""
         from agents import MAX_TOKENS_PAR_DEFAUT
 
         mistral = _FauxMistral(
@@ -570,8 +571,8 @@ class TestMaxTokens:
             client_gmail=client_gmail,
             registre=registre,
         )
-        assert MAX_TOKENS_PAR_DEFAUT == 4000
-        assert mistral.chat.appels[0]["max_tokens"] == 4000
+        assert MAX_TOKENS_PAR_DEFAUT == 8000
+        assert mistral.chat.appels[0]["max_tokens"] == 8000
 
 
 class TestBornageParRun:

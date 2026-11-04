@@ -81,10 +81,14 @@ def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
     dry_run = not args.reel
     if getattr(args, "tout", False):
         return _cmd_tri_tout(dry_run)
-    rapport = lancer_run_tri(run_id, dry_run=dry_run)
-    _afficher_rapport(rapport)
-    marquer_fin_run(rapport.statut_global)
-    return 0 if rapport.statut_global == "succes" else 1
+    statut = "interrompu"
+    try:
+        rapport = lancer_run_tri(run_id, dry_run=dry_run)
+        statut = rapport.statut_global
+        _afficher_rapport(rapport)
+        return 0 if rapport.statut_global == "succes" else 1
+    finally:
+        marquer_fin_run(statut)  # balise fin_run émise aussi en cas d'incident
 
 
 def _cmd_tri_tout(dry_run: bool) -> int:
@@ -94,11 +98,15 @@ def _cmd_tri_tout(dry_run: bool) -> int:
     log = obtenir_logger("cli")
     nb_runs = 0
     for _ in range(PLAFOND_RUNS_TOUT):
-        rapport = lancer_run_tri(uuid4(), dry_run=dry_run)
+        statut = "interrompu"
+        try:
+            rapport = lancer_run_tri(uuid4(), dry_run=dry_run)
+            statut = rapport.statut_global
+        finally:
+            marquer_fin_run(statut)  # balise fin_run par run, même en cas d'incident
         nb_runs += 1
         _afficher_rapport(rapport)
-        marquer_fin_run(rapport.statut_global)
-        if rapport.statut_global != "succes":
+        if statut != "succes":
             print(f"--tout : arrêt sur échec au run {nb_runs}")
             return 1
         synthese = rapport.synthese_classification
@@ -120,12 +128,14 @@ def _cmd_tri_tout(dry_run: bool) -> int:
 
 def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
     dry_run = not args.reel
-    rapport = lancer_run_suppression(run_id, dry_run=dry_run)
-    print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
-    print(formater_console(rapport))
-    print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
-    marquer_fin_run(rapport.statut_global)
-    return 0 if rapport.statut_global == "succes" else 1
+    statut = "interrompu"
+    try:
+        rapport = lancer_run_suppression(run_id, dry_run=dry_run)
+        statut = rapport.statut_global
+        _afficher_rapport(rapport)
+        return 0 if rapport.statut_global == "succes" else 1
+    finally:
+        marquer_fin_run(statut)  # balise fin_run émise aussi en cas d'incident
 
 
 def _cmd_migrate_labels(args: argparse.Namespace) -> int:
@@ -163,13 +173,22 @@ def _cmd_migrate_labels(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     run_id: UUID = args.run_id if getattr(args, "run_id", None) is not None else uuid4()
-    configurer(str(run_id))
+    if not (args.commande == "tri" and getattr(args, "tout", False)):
+        configurer(str(run_id))
+    # En mode --tout, chaque run appelle configurer avec son propre run_id
+    # (re-liaison du run_id + en-tête debut_run par run).
     try:
         if args.commande == "tri":
             return _cmd_tri(args, run_id)
         if args.commande == "suppression":
             return _cmd_suppression(args, run_id)
-        return _cmd_migrate_labels(args)
+        try:
+            rc = _cmd_migrate_labels(args)
+            marquer_fin_run("succes" if rc == 0 else "echec")
+            return rc
+        except Exception:
+            marquer_fin_run("interrompu")
+            raise
     except Exception as erreur:
         print(f"erreur : {erreur}", file=sys.stderr)
         return 1

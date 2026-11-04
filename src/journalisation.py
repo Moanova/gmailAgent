@@ -11,10 +11,19 @@ from structlog.types import Processor
 from env import optionnel
 
 _configure = False
+_run_id_courant: str | None = None
 
 
 def configurer(run_id: str, etape: str | None = None) -> None:
-    global _configure
+    global _configure, _run_id_courant
+    if _configure and run_id != _run_id_courant:
+        # Nouveau run dans un processus déjà configuré (ex. --tout : plusieurs runs
+        # se succèdent) : re-liaison du run_id + nouvel en-tête de run.
+        structlog.contextvars.bind_contextvars(run_id=run_id)
+        if etape is not None:
+            structlog.contextvars.bind_contextvars(etape=etape)
+        _run_id_courant = run_id
+        obtenir_logger("run").info("début de run", evenement="debut_run")
     if _configure:
         return
     _configure = True
@@ -72,6 +81,7 @@ def configurer(run_id: str, etape: str | None = None) -> None:
 
     # En-tête horodatée de run : chaque exécution est encadrée dans le fichier de log
     # par une ligne `debut_run` (le run_id est déjà lié via contextvars ci-dessus).
+    _run_id_courant = run_id
     obtenir_logger("run").info("début de run", evenement="debut_run")
 
 
