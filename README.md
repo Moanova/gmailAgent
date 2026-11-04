@@ -33,7 +33,7 @@ les écritures sont journalisées dans `logs/gmailagent.log`, non exécutées.
 | Commande | Options | Description |
 | --- | --- | --- |
 | `gmailagent tri` | `[--run-id UUID] [--reel]` | Run principal de tri (étapes 0–7 : spam puis classification). Imprime le rapport final JSON puis `run <id> terminé : <statut>`. Code retour 0 si `succes`, 1 sinon. `--run-id` : reprise sur incident depuis les checkpoints (`data/checkpoints/<run_id>.json`). |
-| `gmailagent suppression` | `[--reel]` | Stub phase 7 : affiche la requête prévue (`label:"Agent/traité" older_than:1h label:"Agent/doublon"`), aucune exécution. En v1, la clause `Agent/doublon` est inerte (phase 6 non embarquée, D46). |
+| `gmailagent suppression` | `[--run-id UUID] [--reel]` | Run de suppression T+1h (phase 7) : corbeille uniquement (`TRASH`) sur `label:"Agent/traité" older_than:1h` (+ `Agent/doublon`, inerte en v1 — phase 6 non embarquée, D46). |
 | `gmailagent migrate-labels ANCIEN NOUVEAU` | `[--reel]` | Déplace les messages d'un libellé physique vers un autre (le libellé cible est créé s'il manque). |
 
 `--reel` est accepté avant ou après la sous-commande (`gmailagent --reel tri` ≡ `gmailagent tri --reel`).

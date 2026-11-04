@@ -5,8 +5,7 @@ from uuid import UUID
 import pytest
 
 import cli
-from cli import _parse_args, _requete_suppression, main
-from config import RegistreLibelles
+from cli import _parse_args, main
 from contracts import Meta, RapportFinal
 
 
@@ -91,13 +90,9 @@ class TestParseArgs:
         args = _parse_args(["tri", "--run-id", "12345678-1234-5678-1234-567812345678"])
         assert args.run_id == UUID("12345678-1234-5678-1234-567812345678")
 
-
-class TestRequeteSuppression:
-    def test_construite_depuis_le_registre(self, registre: RegistreLibelles) -> None:
-        assert (
-            _requete_suppression(registre)
-            == 'label:"Agent/traité" older_than:1h label:"Agent/doublon"'
-        )
+    def test_run_id_suppression(self) -> None:
+        args = _parse_args(["suppression", "--run-id", "12345678-1234-5678-1234-567812345678"])
+        assert args.run_id == UUID("12345678-1234-5678-1234-567812345678")
 
 
 class TestMain:
@@ -126,13 +121,36 @@ class TestMain:
         assert main(["--reel", "tri"]) == 0
         assert appels["dry_run"] is False
 
-    def test_suppression_stub_sans_ecriture(
-        self, capsys: pytest.CaptureFixture[str]
+    def test_suppression_dry_run_par_defaut(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        appels: dict[str, Any] = {}
+
+        def faux_run_suppression(
+            run_id: Any = None, *, dry_run: bool, **kwargs: Any
+        ) -> RapportFinal:
+            appels["dry_run"] = dry_run
+            appels["run_id"] = run_id
+            return _rapport_succes()
+
+        monkeypatch.setattr(cli, "lancer_run_suppression", faux_run_suppression)
         assert main(["suppression"]) == 0
-        sortie = capsys.readouterr().out
-        assert "stub phase 7" in sortie
-        assert 'label:"Agent/traité" older_than:1h' in sortie
+        assert appels["dry_run"] is True
+        assert appels["run_id"] is not None
+        assert "succes" in capsys.readouterr().out
+
+    def test_suppression_reel(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        appels: dict[str, Any] = {}
+
+        def faux_run_suppression(
+            run_id: Any = None, *, dry_run: bool, **kwargs: Any
+        ) -> RapportFinal:
+            appels["dry_run"] = dry_run
+            return _rapport_succes()
+
+        monkeypatch.setattr(cli, "lancer_run_suppression", faux_run_suppression)
+        assert main(["--reel", "suppression"]) == 0
+        assert appels["dry_run"] is False
 
     def test_migrate_labels_dry_run(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

@@ -9,6 +9,9 @@ validée ; en cas de crash, relancer avec le même `run_id` saute les étapes d�
 checkpointées (reprise sur incident). L'idempotence est en outre garantie par la
 requête Gmail `is:unread -label:"<libellé traité>"`, construite depuis le registre
 (clé logique `suivi.traite`) — jamais de libellé physique en dur dans le code.
+
+Run de suppression séparé (planifié T+1h, phase 7) : `lancer_run_suppression` —
+corbeille uniquement (TRASH appliqué par l'agent via `label_message`).
 """
 
 from collections.abc import Callable
@@ -25,11 +28,13 @@ from config import RegistreLibelles, charger_registre
 from contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
+    AGENT_SUPPRESSION,
     Meta,
     RapportFinal,
     SyntheseClassification,
     SyntheseEtape,
     SyntheseSpam,
+    SyntheseSuppression,
 )
 from dedup import empreinte_message, normaliser_message_id
 from gmail import ClientGmailAPI, nouveau_client
@@ -39,6 +44,7 @@ from validation import SyntheseInvalideError
 
 CLE_TRAITE = "suivi.traite"
 CLE_VALIDE_SPAM = "suivi.valide-spam"
+CLE_DOUBLON = "suivi.doublon"
 REQUETE_SPAM = "in:spam"
 LABEL_SPAM = "SPAM"
 LABEL_INBOX = "INBOX"
@@ -46,6 +52,8 @@ AGENT_ORCHESTRATEUR = "orchestrateur"
 ETAPE_DEMARRAGE = "demarrage"
 ETAPE_RAPPORT = "rapport"
 ETAPE_FIN = "fin"
+ETAPE_LECTURE_SUPPRESSION = "lecture_suppression"
+ETAPE_VALIDATION_SUPPRESSION = "validation_suppression"
 
 
 class CheckpointError(RuntimeError):
@@ -109,6 +117,35 @@ def _lancer_spam(
     return lance(
         AGENT_SPAM,
         REQUETE_SPAM,
+        meta,
+        client_mistral=mistral,
+        client_gmail=api,
+        registre=reg,
+        dry_run=dry_run,
+    )
+
+
+def _lancer_suppression(
+    rid: UUID,
+    reg: RegistreLibelles,
+    resolveur: ResolveurLibelles,
+    *,
+    dry_run: bool,
+    client_api: ClientGmailAPI | None,
+    client_mistral: Mistral | None,
+    conversation: ConversationFn | None,
+) -> tuple[SyntheseEtape, list[Any]]:
+    api = _api_client(client_api, dry_run)
+    lance = conversation if conversation is not None else lancer_conversation
+    if conversation is None and client_mistral is None:
+        mistral = obtenir_client()
+    else:
+        mistral = cast("Mistral", client_mistral)
+    meta = Meta(run_id=rid, etape=ETAPE_LECTURE_SUPPRESSION, agent=AGENT_SUPPRESSION)
+    requete = requete_suppression(reg, resolveur)
+    return lance(
+        AGENT_SUPPRESSION,
+        requete,
         meta,
         client_mistral=mistral,
         client_gmail=api,
@@ -199,6 +236,22 @@ def requete_non_lus(registre: RegistreLibelles, resolveur: ResolveurLibelles) ->
     """
     resolveur.resoudre(CLE_TRAITE)
     return f'is:unread -label:"{registre.libelle(CLE_TRAITE)}"'
+
+
+def requete_suppression(registre: RegistreLibelles, resolveur: ResolveurLibelles) -> str:
+    """Requête du run de suppression (T+1h) : traités depuis plus d'une heure + doublons.
+
+    Les libellés physiques proviennent du registre (clés logiques `suivi.traite` et
+    `suivi.doublon`) et sont résolus/créés via le resolveur ; jamais de nom de libellé
+    en dur dans le code. La clause `doublon` est inerte en v1 (phase 6 non embarquée,
+    décision D46).
+    """
+    resolveur.resoudre(CLE_TRAITE)
+    resolveur.resoudre(CLE_DOUBLON)
+    return (
+        f'label:"{registre.libelle(CLE_TRAITE)}" older_than:1h '
+        f'label:"{registre.libelle(CLE_DOUBLON)}"'
+    )
 
 
 def _valider_etape(checkpoint: Checkpoint, etape: str, dossier: Path) -> None:
@@ -339,6 +392,114 @@ def lancer_run_tri(
         checkpoint.rapport = RapportFinal(
             meta=meta,
             nb_doublons=0,
+            statut_global="echec_partiel",
+            etape_fautive=etape_courante,
+        )
+        sauvegarder_checkpoint(checkpoint, dossier)
+        raise
+
+    rapport = checkpoint.rapport
+    if rapport is None:
+        raise CheckpointError(f"rapport absent après le run {rid}")
+    return rapport
+
+
+def lancer_run_suppression(
+    run_id: UUID | None = None,
+    *,
+    dry_run: bool = True,
+    client: ClientGmail | None = None,
+    client_api: ClientGmailAPI | None = None,
+    client_mistral: Mistral | None = None,
+    conversation: ConversationFn | None = None,
+    registre: RegistreLibelles | None = None,
+    dossier_checkpoints: Path | None = None,
+) -> RapportFinal:
+    """Run de suppression séparé (planifié T+1h) : conversation agent suppression sur
+    `label:"<traité>" older_than:1h` (+ doublons, inerte en v1, D46).
+
+    Corbeille uniquement : l'agent applique lui-même `TRASH` via `label_message` pendant
+    la conversation (écriture journalisée en dry-run, règle E) ; l'orchestrateur valide
+    (C1–C3 + garde de complétude action, dans `lancer_conversation`) et checkpoint.
+    `dry_run=True` par défaut (règle E). Rejet → `echec_partiel` + `etape_fautive`,
+    checkpoint persisté, exception relancée (arrêt propre). Idempotence : la requête
+    `older_than:1h` et l'exclusion de la corbeille par la recherche Gmail.
+    """
+    rid = run_id if run_id is not None else uuid4()
+    configurer(str(rid))
+    log = obtenir_logger("orchestrateur")
+    reg = registre if registre is not None else charger_registre()
+    dossier = dossier_checkpoints if dossier_checkpoints is not None else _dossier_checkpoints()
+    if client is not None:
+        client_gmail: ClientGmail = client
+    elif client_api is not None:
+        client_gmail = client_api
+    else:
+        client_gmail = nouveau_client(dry_run=dry_run)
+    resolveur = ResolveurLibelles(reg, client_gmail, dry_run=dry_run)
+
+    try:
+        checkpoint = charger_checkpoint(rid, dossier)
+        log.info(
+            "reprise sur incident",
+            run_id=str(rid),
+            etapes_validees=checkpoint.etapes_validees,
+        )
+    except CheckpointError:
+        checkpoint = Checkpoint(run_id=rid, etapes_validees=[])
+
+    etape_courante = ETAPE_DEMARRAGE
+    try:
+        if ETAPE_DEMARRAGE not in checkpoint.etapes_validees:
+            requete = requete_suppression(reg, resolveur)
+            log.info(
+                "run suppression demarre", run_id=str(rid), dry_run=dry_run, requete=requete
+            )
+            _valider_etape(checkpoint, ETAPE_DEMARRAGE, dossier)
+
+        etape_courante = ETAPE_LECTURE_SUPPRESSION
+        if ETAPE_LECTURE_SUPPRESSION not in checkpoint.etapes_validees:
+            synthese, _executions = _lancer_suppression(
+                rid,
+                reg,
+                resolveur,
+                dry_run=dry_run,
+                client_api=client_api,
+                client_mistral=client_mistral,
+                conversation=conversation,
+            )
+            checkpoint.syntheses["suppression"] = synthese
+            _valider_etape(checkpoint, ETAPE_LECTURE_SUPPRESSION, dossier)
+
+        etape_courante = ETAPE_VALIDATION_SUPPRESSION
+        if ETAPE_VALIDATION_SUPPRESSION not in checkpoint.etapes_validees:
+            synthese_s = checkpoint.syntheses.get("suppression")
+            if not isinstance(synthese_s, SyntheseSuppression):
+                raise CheckpointError("synthèse suppression absente du checkpoint")
+            _valider_etape(checkpoint, ETAPE_VALIDATION_SUPPRESSION, dossier)
+
+        etape_courante = ETAPE_RAPPORT
+        if ETAPE_RAPPORT not in checkpoint.etapes_validees:
+            meta = Meta(run_id=rid, etape=ETAPE_RAPPORT, agent=AGENT_ORCHESTRATEUR)
+            synthese_s = checkpoint.syntheses.get("suppression")
+            checkpoint.rapport = RapportFinal(
+                meta=meta,
+                synthese_suppression=(
+                    synthese_s if isinstance(synthese_s, SyntheseSuppression) else None
+                ),
+                statut_global="succes",
+            )
+            _valider_etape(checkpoint, ETAPE_RAPPORT, dossier)
+
+        etape_courante = ETAPE_FIN
+        if ETAPE_FIN not in checkpoint.etapes_validees:
+            _valider_etape(checkpoint, ETAPE_FIN, dossier)
+        log.info("run suppression termine", run_id=str(rid), etapes=checkpoint.etapes_validees)
+    except Exception as erreur:
+        log.error("run interrompu", etape=etape_courante, erreur=repr(erreur))
+        meta = Meta(run_id=rid, etape=etape_courante, agent=AGENT_ORCHESTRATEUR)
+        checkpoint.rapport = RapportFinal(
+            meta=meta,
             statut_global="echec_partiel",
             etape_fautive=etape_courante,
         )

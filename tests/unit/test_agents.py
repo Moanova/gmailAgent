@@ -19,6 +19,7 @@ from contracts import (
     AgentInconnuError,
     Meta,
     SyntheseSpam,
+    SyntheseSuppression,
 )
 from gmail import ClientGmailAPI
 from validation import SyntheseInvalideError
@@ -55,6 +56,11 @@ def meta() -> Meta:
 @pytest.fixture
 def meta_spam(meta: Meta) -> Meta:
     return Meta(run_id=meta.run_id, etape="lecture_spam", agent=AGENT_SPAM)
+
+
+@pytest.fixture
+def meta_suppression(meta: Meta) -> Meta:
+    return Meta(run_id=meta.run_id, etape="lecture_suppression", agent=AGENT_SUPPRESSION)
 
 
 class _Msg:
@@ -416,6 +422,11 @@ def _payload_spam(statut: str = "deplaces", ids: list[str] | None = None) -> str
     return json.dumps({"statut": statut, "messages": messages})
 
 
+def _payload_suppression(statut: str = "supprimes", ids: list[str] | None = None) -> str:
+    ids = ids or []
+    return json.dumps({"statut": statut, "count": len(ids), "ids": ids})
+
+
 class TestCompletudeLecture:
     def test_synthese_refusee_tant_que_threads_non_lus(
         self, registre: RegistreLibelles, meta: Meta
@@ -646,7 +657,7 @@ class TestIdsResultats:
         assert len(synthese.messages) == 2
 
 
-class TestPromptSpam:
+class TestPromptAgents:
     def test_prompt_spam_selectionne(self, registre: RegistreLibelles) -> None:
         from agents import _prompt_systeme
 
@@ -655,11 +666,14 @@ class TestPromptSpam:
         assert "suivi.valide-spam" in prompt
         assert "Agent/" not in prompt
 
-    def test_suppression_toujours_sans_prompt(self, registre: RegistreLibelles) -> None:
+    def test_prompt_suppression_selectionne(self, registre: RegistreLibelles) -> None:
         from agents import _prompt_systeme
 
-        with pytest.raises(AgentInconnuError, match="sans prompt"):
-            _prompt_systeme(AGENT_SUPPRESSION, registre)
+        prompt = _prompt_systeme(AGENT_SUPPRESSION, registre)
+        assert "TRASH" in prompt
+        assert "suivi.traite" in prompt
+        assert "suivi.doublon" in prompt
+        assert "Agent/" not in prompt
 
 
 class TestConversationSpam:
@@ -784,3 +798,188 @@ class TestConversationSpam:
                 client_gmail=client_gmail,
                 registre=registre,
             )
+
+
+REQUETE_SUPPRESSION = 'label:"Agent/traité" older_than:1h label:"Agent/doublon"'
+
+
+class TestConversationSuppression:
+    def test_conversation_suppression_complete(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("label_message", {"messageId": "m1", "addLabelIds": ["TRASH"]})
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m1"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService(threads=["t1"])
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_SUPPRESSION,
+            REQUETE_SUPPRESSION,
+            meta_suppression,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSuppression)
+        assert synthese.statut == "supprimes"
+        assert synthese.count == 1
+        assert synthese.ids == ["m1"]
+        assert any(e.name == "label_message" for e in executions)
+        assert "messages.modify" not in service.appels  # dry-run : journalisé, non exécuté
+        appel0 = mistral.chat.appels[0]
+        assert appel0["response_format"].json_schema.name == "SyntheseSuppression"
+        assert REQUETE_SUPPRESSION in appel0["messages"][1].content
+
+    def test_aucun_message_suppression_accepte(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(_Msg(content=_payload_suppression("aucun_message", []))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_SUPPRESSION,
+            REQUETE_SUPPRESSION,
+            meta_suppression,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSuppression)
+        assert synthese.statut == "aucun_message"
+        assert synthese.count == 0
+        assert synthese.ids == []
+        assert not any(e.name == "label_message" for e in executions)
+
+    def test_rejet_c3_id_non_manipule(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m-inconnu"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1"]), dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="non manipul"):
+            lancer_conversation(
+                AGENT_SUPPRESSION,
+                REQUETE_SUPPRESSION,
+                meta_suppression,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+
+    def test_garde_action_ecart_corbeille_ids_refuse_puis_accepte(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        """m1 est réellement passé à la corbeille (label_message TRASH) mais la synthèse
+        cite m-t2 (réel mais non trashé) : refus, puis accepté après correction."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_thread", {"threadId": "t1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                        _appel("label_message", {"messageId": "m1", "addLabelIds": ["TRASH"]}),
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m-t2"]))),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m1"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SUPPRESSION,
+            REQUETE_SUPPRESSION,
+            meta_suppression,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSuppression)
+        assert synthese.ids == ["m1"]
+
+    def test_abandon_apres_ecarts_action_persistants(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        """La synthèse ne correspond jamais aux mises à la corbeille réelles -> abandon
+        propre après MAX_TENTATIVES_SYNTHESE refus (pas de boucle infinie)."""
+        from agents import MAX_TENTATIVES_SYNTHESE
+
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("get_thread", {"threadId": "t1"}),
+                        _appel("get_thread", {"threadId": "t2"}),
+                        _appel("label_message", {"messageId": "m1", "addLabelIds": ["TRASH"]}),
+                    ]
+                )
+            ),
+        ]
+        scenario += [
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m-t2"])))
+            for _ in range(MAX_TENTATIVES_SYNTHESE + 2)
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="abandon du run"):
+            lancer_conversation(
+                AGENT_SUPPRESSION,
+                REQUETE_SUPPRESSION,
+                meta_suppression,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+        assert len(mistral.chat.appels) == 2 + MAX_TENTATIVES_SYNTHESE + 1
+
+    def test_garde_threads_active_pour_suppression(
+        self, registre: RegistreLibelles, meta_suppression: Meta
+    ) -> None:
+        """Tout thread retourné par search_threads doit être lu via get_thread, même pour
+        la suppression : synthèse après lecture de t1 seul -> refusée, puis acceptée
+        après lecture de t2."""
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(
+                _Msg(
+                    tool_calls=[
+                        _appel("label_message", {"messageId": "m1", "addLabelIds": ["TRASH"]})
+                    ]
+                )
+            ),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m1"]))),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t2"})])),
+            _Reponse(_Msg(content=_payload_suppression("supprimes", ["m1"]))),
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SUPPRESSION,
+            REQUETE_SUPPRESSION,
+            meta_suppression,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSuppression)
+        assert synthese.ids == ["m1"]

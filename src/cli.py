@@ -7,7 +7,7 @@ Règle E de AGENTS.md : aucune écriture Gmail sans `--reel` (en dry-run, les
 
 Usage :
   gmailagent tri [--run-id UUID] [--reel]
-  gmailagent suppression [--reel]              (stub phase 7)
+  gmailagent suppression [--run-id UUID] [--reel]
   gmailagent migrate-labels ANCIEN NOUVEAU [--reel]
 """
 
@@ -16,14 +16,9 @@ import json
 import sys
 from uuid import UUID, uuid4
 
-from config import RegistreLibelles, charger_registre
 from gmail import ClientGmailAPI
 from journalisation import configurer, obtenir_logger
-from orchestrator import lancer_run_tri
-
-CLE_TRAITE = "suivi.traite"
-CLE_DOUBLON = "suivi.doublon"
-
+from orchestrator import lancer_run_suppression, lancer_run_tri
 
 AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures journalisées)"
 
@@ -50,7 +45,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="run_id existant pour reprise sur incident",
     )
-    _sous_commande("suppression", "run de suppression T+1h (stub phase 7)")
+    p_sup = _sous_commande("suppression", "run de suppression T+1h (corbeille uniquement)")
+    p_sup.add_argument(
+        "--run-id",
+        type=UUID,
+        default=None,
+        help="run_id existant pour reprise sur incident",
+    )
     p_mig = _sous_commande(
         "migrate-labels",
         "déplace les messages d'un ancien libellé vers un nouveau",
@@ -58,14 +59,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p_mig.add_argument("ancien", help="libellé physique source (ex. Agent/ancien)")
     p_mig.add_argument("nouveau", help="libellé physique cible (ex. Agent/nouveau)")
     return parser.parse_args(argv)
-
-
-def _requete_suppression(registre: RegistreLibelles) -> str:
-    """Requête du run de suppression, depuis le registre (jamais de libellé en dur)."""
-    return (
-        f'label:"{registre.libelle(CLE_TRAITE)}" older_than:1h '
-        f'label:"{registre.libelle(CLE_DOUBLON)}"'
-    )
 
 
 def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
@@ -76,15 +69,12 @@ def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
     return 0 if rapport.statut_global == "succes" else 1
 
 
-def _cmd_suppression(args: argparse.Namespace) -> int:
-    requete = _requete_suppression(charger_registre())
-    obtenir_logger("cli").warning(
-        "commande suppression : stub phase 7, aucune exécution",
-        requete=requete,
-        dry_run=not args.reel,
-    )
-    print(f"[stub phase 7] requête prévue : {requete}")
-    return 0
+def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
+    dry_run = not args.reel
+    rapport = lancer_run_suppression(run_id, dry_run=dry_run)
+    print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
+    print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
+    return 0 if rapport.statut_global == "succes" else 1
 
 
 def _cmd_migrate_labels(args: argparse.Namespace) -> int:
@@ -127,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.commande == "tri":
             return _cmd_tri(args, run_id)
         if args.commande == "suppression":
-            return _cmd_suppression(args)
+            return _cmd_suppression(args, run_id)
         return _cmd_migrate_labels(args)
     except Exception as erreur:
         print(f"erreur : {erreur}", file=sys.stderr)

@@ -3,7 +3,13 @@ import json
 import pytest
 
 from config import RegistreLibelles
-from prompts import OUTILS_GMAIL, categories, prompt_classification, prompt_spam
+from prompts import (
+    OUTILS_GMAIL,
+    categories,
+    prompt_classification,
+    prompt_spam,
+    prompt_suppression,
+)
 
 
 @pytest.fixture
@@ -116,3 +122,45 @@ class TestPromptSpam:
         assert "UNIQUE objet JSON" in prompt
         assert "`statut`" in prompt
         assert "`messages`" in prompt
+
+
+class TestPromptSuppression:
+    def test_cles_suivi_depuis_le_registre(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        assert "suivi.traite" in prompt
+        assert "suivi.doublon" in prompt
+
+    def test_aucun_libelle_physique_en_dur(self, registre: RegistreLibelles) -> None:
+        assert "Agent/" not in prompt_suppression(registre)
+
+    def test_statuts_champs_et_requete(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        for mot in (
+            "T+1h",
+            "older_than:1h",
+            "supprimes",
+            "aucun_message",
+            "echec_technique",
+            "count",
+            "ids",
+            "véracité",
+        ):
+            assert mot in prompt
+
+    def test_corbeille_uniquement(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        assert "TRASH" in prompt
+        assert "label_message" in prompt
+        assert "JAMAIS de suppression définitive" in prompt
+        assert "ni envoyer ni supprimer définitivement" in prompt
+
+    def test_count_egal_len_ids_si_supprimes(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        assert "égal à `len(ids)`" in prompt
+
+    def test_objet_json_unique_a_la_racine(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        assert "UNIQUE objet JSON" in prompt
+        assert "`statut`" in prompt
+        assert "`count`" in prompt
+        assert "`ids`" in prompt

@@ -1011,3 +1011,328 @@ Aucun.
 - Kanban : **À faire** = T7.1, T7.2, T7.3, T7.4, T3.5 ; phases 1–5 en « Terminé » ; phase 6 reportée post-v1 (D46).
 - Branche `dev` : modifications doc non commitées (kanban, SESSIONS, + celles de la séance D46) — en attente de commit/push sur demande explicite (règle C).
 - Prochaine étape : **T7.1** (prompt agent suppression) sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — commit D46 + plan T7.1
+
+### Contexte
+Demande explicite : commit/push des changements en cours (D46 + découpage phase 7), puis
+établissement du plan d'implémentation de la tâche T7.1.
+
+### Actions réalisées
+
+1. **Vérifications avant commit** : `ruff check src tests` OK, `mypy src` OK (strict,
+   13 fichiers), `pytest tests -q` : **210 passed** ; `git status` : seuls les 7 fichiers
+   prévus modifiés, aucun secret (.env/data) dans le diff.
+2. **Commit + push sur `dev`** (demande explicite, règles C/H) : commit `015d6d1`
+   « docs(projet): D46 phase 6 en option post-v1 + découpage phase 7 (T7.1–T7.4) »
+   (7 fichiers, +132/−18) — poussé : `eb6a659..015d6d1 dev -> dev`.
+3. **Plan T7.1 établi** (étape 2) : `docs/tasks/T7.1_prompt_suppression.md` créé — constats
+   préalables (schéma strict `SyntheseSuppression` déjà construit T2.2, allow-list
+   `OUTILS_GMAIL` réutilisée D41, `TRASH` id système hors registre comme D43, requête
+   CLI déjà depuis le registre) et plan : `prompt_suppression(registre)` dans
+   `src/prompts.py` (run T+1h, véracité, corbeille uniquement via `TRASH`+`label_message`,
+   statuts `supprimes`/`aucun_message`/`echec_technique` avec `count`/`ids`, JSON unique à
+   la racine) + `TestPromptSuppression` (~6 tests) dans `tests/unit/test_prompts.py`.
+4. **Kanban** : T7.1 « À faire » → **« En cours »**.
+
+### Décisions clés
+
+Aucune nouvelle (D35, D41, D43, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` à jour sur origin : `015d6d1`.
+- Modifications non commitées : `docs/tasks/T7.1_prompt_suppression.md` (nouveau), kanban
+  (T7.1 → En cours), `SESSIONS.md` — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **implémentation de T7.1** (prompt suppression + tests) sur demande
+  explicite, puis vérifications ruff/mypy/pytest et kanban → « En revue ».
+
+---
+
+## Séance du 04/11/2026 (suite) — T7.1 implémentée (prompt suppression)
+
+### Contexte
+Implémentation de la tâche **T7.1** (étape 3) sur demande explicite, selon le plan établi
+dans `docs/tasks/T7.1_prompt_suppression.md`.
+
+### Actions réalisées
+
+1. `src/prompts.py` : ajout de `prompt_suppression(registre)` — run de suppression T+1h
+   (requête fournie par l'orchestrateur ; clés `suivi.traite`/`suivi.doublon` injectées depuis
+   le registre, clause `doublon` inerte en v1 D46) ; véracité (lecture de chaque thread via
+   `search_threads`/`get_thread`/`get_message` avant synthèse) ; **corbeille uniquement**
+   via `TRASH` + `label_message` (JAMAIS de suppression définitive, ni envoi) ; statuts
+   `supprimes`/`aucun_message`/`echec_technique` avec `count == len(ids)` si `supprimes` ;
+   sortie = unique objet JSON racine (`statut`, `count`, `ids`). Aucun libellé physique en
+   dur ; schéma strict `SyntheseSuppression` inchangé (déjà construit T2.2) ; allow-list
+   `OUTILS_GMAIL` réutilisée telle quelle (D41).
+2. `tests/unit/test_prompts.py` : `TestPromptSuppression` (6 tests) — clés logiques depuis le
+   registre, aucun `Agent/` en dur, statuts/champs/requête `older_than:1h`, corbeille
+   uniquement, `count == len(ids)`, JSON unique à la racine.
+3. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK
+   (strict, 13 fichiers) ; `pytest tests -q` : **216 passed** (6 nouveaux, tous verts).
+4. **Validation agent (étape 5)** : kanban T7.1 « En cours » → **« En revue »** ; fichier de
+   suivi T7.1 coché. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D41, D43, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1 ; **À faire** = T7.2, T7.3, T7.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (`src/prompts.py`, `tests/unit/test_prompts.py`,
+  kanban, `docs/tasks/T7.1_prompt_suppression.md`, `SESSIONS.md`) — en attente de commit/push
+  sur demande explicite (règle C).
+- Prochaine étape : validation utilisateur de T7.1 (étape 6), puis **T7.2** (branchement
+  `AGENT_SUPPRESSION` dans `_prompt_systeme`, `src/agents.py`) sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — plan T7.2 (branchement runner suppression)
+
+### Contexte
+Poursuite des tâches de la phase 7 avant validation utilisateur (décision utilisateur de
+faire T7.2–T7.4 d'abord). Plan d'implémentation de **T7.2** établi sur demande explicite.
+
+### Actions réalisées
+
+1. **Constats préalables** (code) : `_prompt_systeme` (`src/agents.py:221-226`) lève
+   `AgentInconnuError` pour `AGENT_SUPPRESSION` ; runner générique `lancer_conversation`
+   déjà paramétré par agent (D35) ; `valider_synthese` gère déjà `SyntheseSuppression`
+   (validation.py : non-contradiction, complétude `count == len(ids)`, authenticité C3) ;
+   gardes existantes : threads non lus (tous agents), messages lus non classés
+   (classification seule, D42) ; test `test_suppression_toujours_sans_prompt` à faire évoluer.
+2. **Plan T7.2** : `docs/tasks/T7.2_branchement_runner_suppression.md` créé — branche
+   `AGENT_SUPPRESSION` → `prompt_suppression(registre)` dans `_prompt_systeme` (T7.1) +
+   nouvelle garde de complétude action (tout message passé à la corbeille via
+   `label_message`/`TRASH` doit figurer dans `ids` de la synthèse `supprimes`, et
+   réciproquement ; refus + retry, plafond `MAX_TENTATIVES_SYNTHESE`) + ~6 tests dans
+   `tests/unit/test_agents.py` (prompt sélectionné, conversation `supprimes` mockée avec
+   schéma `SyntheseSuppression`, `aucun_message`, rejet C3, garde action, garde threads).
+3. **Kanban** : T7.2 « À faire » → **« En cours »** (T7.1 reste « En revue »).
+4. Aucun changement de code ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D35, D42, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1 ; **En cours** = T7.2 ; **À faire** = T7.3, T7.4, T3.5.
+- Branche `dev` : non commité (`docs/tasks/T7.2_*.md` nouveau, kanban, SESSIONS, + T7.1
+  en attente) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **implémentation de T7.2** sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T7.2 implémentée (branchement runner suppression)
+
+### Contexte
+Implémentation de la tâche **T7.2** (étape 3) sur demande explicite, selon le plan
+`docs/tasks/T7.2_branchement_runner_suppression.md`.
+
+### Actions réalisées
+
+1. `src/agents.py` :
+   - `_prompt_systeme` : branche `AGENT_SUPPRESSION` → `prompt_suppression(registre)` (T7.1) ;
+     le runner générique `lancer_conversation` est sinon inchangé (D35) ;
+   - nouvelle **garde de complétude action** : collecte des `messageId` des appels
+     `label_message` avec `TRASH` dans `addLabelIds` (`ids_corbeille`, constante
+     `LABEL_TRASH`) ; pour `AGENT_SUPPRESSION`, la synthèse doit satisfaire
+     `set(ids) == ids_corbeille` si `statut == "supprimes"`, et `ids_corbeille` vide sinon —
+     écart → refus + retry (plafond `MAX_TENTATIVES_SYNTHESE`, puis abandon propre
+     `SyntheseInvalideError` « abandon du run »). C1–C3 restent appliqués avant
+     (`valider_synthese` gère déjà `SyntheseSuppression`) ; garde threads active pour tous
+     les agents, garde « messages lus non classés » toujours réservée à la classification
+     (D42).
+2. `tests/unit/test_agents.py` : `TestPromptAgents.test_prompt_suppression_selectionne`
+   (remplace `test_suppression_toujours_sans_prompt`) + `TestConversationSuppression`
+   (6 tests) — conversation `supprimes` complète mockée (schéma `SyntheseSuppression`,
+   requête dans le message utilisateur, `messages.modify` non appelé en dry-run),
+   `aucun_message`, rejet C3 (id non manipulé), garde action (écart corbeille/ids → refus
+   puis accepté après correction), abandon après écarts persistants
+   (`2 + MAX_TENTATIVES_SYNTHESE + 1` appels), garde threads active pour la suppression.
+3. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK
+   (strict, 13 fichiers) ; `pytest tests -q` : **222 passed** (6 nouveaux, tous verts).
+4. **Validation agent (étape 5)** : kanban T7.2 « En cours » → **« En revue »** ; fichier de
+   suivi T7.2 coché. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D35, D42, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1, T7.2 ; **À faire** = T7.3, T7.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (`src/agents.py`, `tests/unit/test_agents.py`,
+  kanban, suivis T7.1/T7.2, SESSIONS, + T7.1) — en attente de commit/push sur demande
+  explicite (règle C).
+- Prochaine étape : **T7.3** (run de suppression dans l'orchestrateur + CLI) — plan à
+  établir sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — plan T7.3 (run de suppression : orchestrateur + CLI)
+
+### Contexte
+Poursuite de la phase 7. Plan d'implémentation de **T7.3** établi sur demande explicite.
+
+### Actions réalisées
+
+1. **Constats préalables** (code) : pattern `lancer_run_tri` à miroir dans
+   `src/orchestrator.py` (checkpoints, injections `client`/`client_api`/`client_mistral`/
+   `conversation`, `ResolveurLibelles`, rapport `echec_partiel` + `etape_fautive`) ;
+   `_requete_suppression` déjà construit depuis le registre dans `src/cli.py` (clause
+   `doublon` inerte en v1, D46) ; `_cmd_suppression` encore un stub ; `--run-id` seulement
+   sur `tri` ; `RapportFinal` sans champ `synthese_suppression` ; runner suppression
+   opérationnel (T7.2) avec C1–C3 + garde action ; `ClientGmailAPI.modifier_libelles` /
+   `corbeille` avec wrapper dry-run (règle E) ; test `test_suppression_stub_sans_ecriture`
+   à faire évoluer.
+2. **Plan T7.3** : `docs/tasks/T7.3_run_suppression_orchestrateur_cli.md` créé —
+   `lancer_run_suppression` dans `src/orchestrator.py` (miroir de `lancer_run_tri` :
+   étapes demarrage → lecture_suppression → validation_suppression → rapport → fin,
+   checkpoints propres, reprise `--run-id`, rejet → `echec_partiel`), nouvelle
+   `requete_suppression(registre, resolveur)` (libellés résolus/créés via le resolveur,
+   jamais en dur), `_lancer_suppression` (modèle `_lancer_classification`),
+   `RapportFinal.synthese_suppression` (champ optionnel, rétro-compatible),
+   `src/cli.py` (`_cmd_suppression` réel + `--run-id` sur `suppression`), TU
+   (`TestRunSuppression` + évolution du test CLI stub), README. L'agent applique TRASH
+   lui-même via `label_message` (journalisé en dry-run) — l'orchestrateur ne fait que
+   valider/checkpointer. Idempotence par la requête `older_than:1h` + exclusion corbeille.
+3. **Kanban** : T7.3 « À faire » → **« En cours »** (T7.1, T7.2 restent « En revue »).
+4. Aucun changement de code ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D35, D42, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1, T7.2 ; **En cours** = T7.3 ; **À faire** = T7.4, T3.5.
+- Branche `dev` : non commité (suivi T7.3 nouveau, kanban, SESSIONS, + T7.1/T7.2 en
+  attente) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **implémentation de T7.3** sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T7.3 implémentée (run de suppression : orchestrateur + CLI)
+
+### Contexte
+Implémentation de la tâche **T7.3** (étape 3) sur demande explicite, selon le plan
+`docs/tasks/T7.3_run_suppression_orchestrateur_cli.md`.
+
+### Actions réalisées
+
+1. `src/orchestrator.py` :
+   - `requete_suppression(registre, resolveur)` — requête `label:"<traité>" older_than:1h`
+     + `label:"<doublon>"` (clause inerte en v1, D46), libellés résolus/créés via le
+     resolveur depuis le registre, jamais en dur (constante `CLE_DOUBLON` ajoutée) ;
+   - `_lancer_suppression` (modèle `_lancer_classification`, agent `AGENT_SUPPRESSION`,
+     `Meta(etape="lecture_suppression")`) ;
+   - `lancer_run_suppression(...)` — miroir de `lancer_run_tri` : étapes `demarrage` →
+     `lecture_suppression` → `validation_suppression` → `rapport` → `fin`, checkpoints
+     propres, reprise `--run-id`, rejet → `echec_partiel` + `etape_fautive` + checkpoint
+     persisté + relance. L'agent applique `TRASH` lui-même via `label_message`
+     (journalisé en dry-run, règle E) ; l'orchestrateur ne fait que valider/checkpointer.
+2. `src/contracts.py` : `RapportFinal.synthese_suppression: SyntheseSuppression | None =
+   None` (rétro-compatible checkpoints).
+3. `src/cli.py` : `_cmd_suppression(args, run_id)` réel (appelle `lancer_run_suppression`,
+   imprime le rapport JSON, code retour selon `statut_global`), `--run-id` ajouté à la
+   sous-commande `suppression`, stub `_requete_suppression` supprimé (construction
+   unique dans l'orchestrateur), docstring à jour, imports nettoyés.
+4. Tests : `test_orchestrator.py` — `TestRequeteSuppression` (requête depuis le registre)
+   + `TestRunSuppression` (bout en bout `supprimes` avec étapes/checkpoint/rapport,
+   `aucun_message`, reprise sans rappel de l'agent (1 appel), rejet → `echec_partiel`
+   + `etape_fautive="lecture_suppression"`) ; `test_cli.py` — `test_suppression_dry_run_par_defaut`
+   / `test_suppression_reel` (monkeypatch `lancer_run_suppression`), `test_run_id_suppression`,
+   suppression de l'ancien test stub et de `TestRequeteSuppression` (déplacé côté orchestrateur).
+5. `README.md` : ligne `gmailagent suppression` (plus un stub, `[--run-id UUID] [--reel]`).
+6. **Vérifications (étape 4, 2 tentatives — 1ʳᵉ : 2 imports inutilisés, corrigés)** :
+   `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ; `pytest tests -q` :
+   **228 passed** (+6 nets, tous verts).
+7. **Validation agent (étape 5)** : kanban T7.3 « En cours » → **« En revue »** ; fichier de
+   suivi T7.3 coché. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D35, D42, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1, T7.2, T7.3 ; **À faire** = T7.4, T3.5 ; « En cours » vide.
+- Branche `dev` : modifications non commitées (T7.1–T7.3 : `src/prompts.py`, `src/agents.py`,
+  `src/orchestrator.py`, `src/contracts.py`, `src/cli.py`, tests, README, kanban, suivis,
+  SESSIONS) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **T7.4** (TI bout en bout `tests/integration/test_agent_suppression.py`
+  + validation dry-run réelle) — plan à établir sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T7.4 implémentée (TI suppression) + commit/push phase 7
+
+### Contexte
+Implémentation directe de **T7.4** sur demande explicite, puis commit/push demandé
+explicitement (règle C levée pour ce commit). La validation utilisateur (dry-run réel +
+petit périmètre réel) sera faite ensuite par l'utilisateur (étape 6).
+
+### Actions réalisées
+
+1. **TI `tests/integration/test_agent_suppression.py`** (6 tests, pile réelle
+   `lancer_run_suppression` → `lancer_conversation`, faux Mistral scénarisé + faux service
+   googleapiclient filtrant la requête `older_than:1h`) : TRASH posé en réel
+   (`messages.modify addLabelIds=["TRASH"]`, schéma `SyntheseSuppression`, étapes
+   checkpointees, requête passée à `threads.list`) ; dry-run sans aucune écriture ; rejet C3
+   → `echec_partiel` + `etape_fautive="lecture_suppression"` ; garde de complétude action
+   (écart corbeille/ids → refus puis accepté) ; `aucun_message` ; idempotence (2 runs, même
+   `run_id`, agent non rappelé).
+2. **Vérifications (étape 4, 3 tentatives — 1ʳᵉ : E501, 2ᵉ : attribut `messages` du faux
+   service masquant sa méthode `messages()`, corrigés)** : `ruff check src tests` OK ;
+   `mypy src` OK (strict, 13 fichiers) ; `pytest tests -q` : **234 passed** (6 nouveaux TI).
+3. **Validation agent (étape 5)** : kanban T7.4 → **« En revue »** (T7.1–T7.4 toutes en
+   « En revue ») ; `docs/tasks/T7.4_tests_validation_bout_en_bout.md` créé et coché.
+4. **Commit + push sur `dev`** (demande explicite) : voir commit ci-dessous — tout le travail
+   T7.1–T7.4 (code + tests + docs) est embarqué.
+
+### Décisions clés
+
+Aucune nouvelle (D35, D42, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1, T7.2, T7.3, T7.4 (phase 7 complète côté code/tests) ;
+  **À faire** = T3.5 ; « En cours » vide. Phase 6 reportée post-v1 (D46).
+- Branche `dev` : poussée (commit phase 7).
+- Reste pour clôturer la phase 7 (étape 6, règle E) : validation utilisateur — dry-run réel
+  `gmailagent suppression` sur la boîte, puis petit périmètre réel `--reel` — puis
+  T7.1–T7.4 → « Terminé » et commit/push des docs de validation sur demande.

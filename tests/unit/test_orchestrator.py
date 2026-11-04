@@ -16,8 +16,10 @@ from orchestrator import (
     Checkpoint,
     CheckpointError,
     charger_checkpoint,
+    lancer_run_suppression,
     lancer_run_tri,
     requete_non_lus,
+    requete_suppression,
     sauvegarder_checkpoint,
 )
 from validation import SyntheseInvalideError, construire_synthese
@@ -525,3 +527,120 @@ class TestEtapes12Spam:
         premier = _run(registre, tmp_path, client_labels, conversation=_compte)
         _run(registre, tmp_path, client_labels, run_id=premier.meta.run_id, conversation=_compte)
         assert appels_spam["n"] == 1
+
+
+class TestRequeteSuppression:
+    def test_construite_depuis_le_registre(self, registre: RegistreLibelles) -> None:
+        resolveur = ResolveurLibelles(registre, _FauxClientGmail(), dry_run=True)
+        requete = requete_suppression(registre, resolveur)
+        attendu = (
+            f'label:"{registre.libelle("suivi.traite")}" older_than:1h '
+            f'label:"{registre.libelle("suivi.doublon")}"'
+        )
+        assert requete == attendu
+        assert "Agent/traité" in requete
+        assert "Agent/doublon" in requete
+
+
+def _faux_conversation_suppression(agent: str, requete: str, meta: object, **kwargs: object):
+    synthese = construire_synthese(
+        agent, {"statut": "supprimes", "count": 1, "ids": ["m1"]}, meta  # type: ignore[arg-type]
+    )
+    return synthese, []
+
+
+def _faux_conversation_suppression_vide(
+    agent: str, requete: str, meta: object, **kwargs: object
+):
+    synthese = construire_synthese(
+        agent, {"statut": "aucun_message", "count": 0, "ids": []}, meta  # type: ignore[arg-type]
+    )
+    return synthese, []
+
+
+def _run_suppression(
+    registre: RegistreLibelles,
+    tmp_path: Path,
+    client: _FauxClientGmail,
+    *,
+    run_id=None,
+    dry_run: bool = True,
+    conversation=None,
+):
+    return lancer_run_suppression(
+        run_id=run_id,
+        dry_run=dry_run,
+        client=client,
+        client_api=ClientGmailAPI(_ServiceVide(), dry_run=dry_run),
+        conversation=conversation or _faux_conversation_suppression,
+        registre=registre,
+        dossier_checkpoints=tmp_path,
+    )
+
+
+class TestRunSuppression:
+    def test_run_suppression_de_bout_en_bout(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        rid = uuid4()
+        rapport = _run_suppression(registre, tmp_path, _FauxClientGmail(), run_id=rid)
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_suppression is not None
+        assert rapport.synthese_suppression.statut == "supprimes"
+        assert rapport.synthese_suppression.ids == ["m1"]
+        checkpoint = charger_checkpoint(rid, tmp_path)
+        assert checkpoint.etapes_validees == [
+            "demarrage",
+            "lecture_suppression",
+            "validation_suppression",
+            "rapport",
+            "fin",
+        ]
+        assert "suppression" in checkpoint.syntheses
+
+    def test_aucun_message_suppression(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        rapport = _run_suppression(
+            registre,
+            tmp_path,
+            _FauxClientGmail(),
+            conversation=_faux_conversation_suppression_vide,
+        )
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_suppression is not None
+        assert rapport.synthese_suppression.statut == "aucun_message"
+        assert rapport.synthese_suppression.count == 0
+
+    def test_reprise_ne_rappelle_pas_lagent(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        appels: list[str] = []
+
+        def compteur(agent: str, requete: str, meta: object, **kwargs: object):
+            appels.append(requete)
+            return _faux_conversation_suppression(agent, requete, meta, **kwargs)
+
+        rid = uuid4()
+        _run_suppression(registre, tmp_path, _FauxClientGmail(), run_id=rid, conversation=compteur)
+        rapport2 = _run_suppression(
+            registre, tmp_path, _FauxClientGmail(), run_id=rid, conversation=compteur
+        )
+        assert len(appels) == 1
+        assert rapport2.statut_global == "succes"
+
+    def test_rejet_arrete_proprement_et_persiste(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        def rejette(agent: str, requete: str, meta: object, **kwargs: object):
+            raise SyntheseInvalideError("synthèse rejetée (C3)")
+
+        rid = uuid4()
+        with pytest.raises(SyntheseInvalideError, match="C3"):
+            _run_suppression(
+                registre, tmp_path, _FauxClientGmail(), run_id=rid, conversation=rejette
+            )
+        checkpoint = charger_checkpoint(rid, tmp_path)
+        assert checkpoint.rapport is not None
+        assert checkpoint.rapport.statut_global == "echec_partiel"
+        assert checkpoint.rapport.etape_fautive == "lecture_suppression"

@@ -104,6 +104,7 @@ class RapportFinal(BaseModel):
     meta: Meta
     synthese_spam: SyntheseSpam | None = None
     synthese_classification: SyntheseClassification | None = None
+    synthese_suppression: SyntheseSuppression | None = None
     nb_doublons: int = Field(default=0, ge=0)
     statut_global: Literal["succes", "echec_partiel"]
     etape_fautive: str | None = None

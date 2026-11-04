@@ -31,14 +31,16 @@ from config import RegistreLibelles
 from contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
+    AGENT_SUPPRESSION,
     AgentInconnuError,
     Meta,
     SyntheseEtape,
+    SyntheseSuppression,
     response_format_agent,
 )
 from gmail import ClientGmailAPI
 from journalisation import obtenir_logger
-from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam
+from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam, prompt_suppression
 from validation import (
     SyntheseInvalideError,
     collecter_ids_reels,
@@ -52,6 +54,7 @@ MAX_TOKENS_PAR_DEFAUT = 4000
 PLAFOND_APPELS_OUTILS = 50
 MAX_TENTATIVES_SYNTHESE = 3
 MAX_THREADS_PAR_RUN = 25
+LABEL_TRASH = "TRASH"
 
 Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
 AppelOutil = ToolExecutionEntry | FunctionCallEntry
@@ -223,6 +226,8 @@ def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
         return prompt_classification(registre)
     if agent == AGENT_SPAM:
         return prompt_spam(registre)
+    if agent == AGENT_SUPPRESSION:
+        return prompt_suppression(registre)
     raise AgentInconnuError(f"agent sans prompt : {agent!r}")
 
 
@@ -260,6 +265,7 @@ def lancer_conversation(
     threads_lus: set[str] = set()
     messages_lus: set[str] = set()
     ids_resultats: set[str] = set()
+    ids_corbeille: set[str] = set()
     while True:
         reponse: ChatCompletionResponse = avec_retry(
             lambda: client_mistral.chat.complete(
@@ -311,6 +317,10 @@ def lancer_conversation(
                                 ids_resultats.add(m["id"])
                 if appel.name == "get_message":
                     messages_lus.add(str(args.get("messageId", "")))
+                if appel.name == "label_message" and LABEL_TRASH in [
+                    str(x) for x in args.get("addLabelIds", [])
+                ]:
+                    ids_corbeille.add(str(args.get("messageId", "")))
                 if appel.name == "search_threads" and isinstance(resultat, dict):
                     ids_resultats.update(
                         t for t in resultat.get("threads", []) if isinstance(t, str)
@@ -359,6 +369,39 @@ def lancer_conversation(
         synthese = construire_synthese(agent, payload, meta)
         ids_reels = collecter_ids_reels(list(executions)) | ids_resultats
         valider_synthese(synthese, ids_reels)
+        if agent == AGENT_SUPPRESSION and isinstance(synthese, SyntheseSuppression):
+            ecart = ids_corbeille.symmetric_difference(set(synthese.ids))
+            if synthese.statut != "supprimes":
+                ecart |= ids_corbeille
+            if ecart:
+                tentatives_synthese += 1
+                if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+                    raise SyntheseInvalideError(
+                        f"synthèse incohérente avec les mises à la corbeille réelles "
+                        f"après {MAX_TENTATIVES_SYNTHESE} tentatives — écart : "
+                        f"{sorted(ecart)[:10]} — abandon du run"
+                    )
+                log.warning(
+                    "synthese refusee : ecart corbeille reelle / ids",
+                    ecart=sorted(ecart)[:10],
+                    total=len(ecart),
+                    tentative=tentatives_synthese,
+                )
+                messages.append(AssistantMessage(role="assistant", content=contenu_final))
+                messages.append(
+                    UserMessage(
+                        content=(
+                            "Synthèse incohérente : "
+                            f"{len(ecart)} id(s) en écart entre les messages réellement "
+                            "passés à la corbeille (label_message avec TRASH) et le champ "
+                            f"`ids` de ta synthèse (ids : {', '.join(sorted(ecart)[:10])}). "
+                            "Corrige `ids` et `count` pour qu'ils correspondent exactement "
+                            "aux messages mis à la corbeille."
+                        ),
+                        role="user",
+                    )
+                )
+                continue
         ids_synthese = {
             m.id for m in getattr(synthese, "messages", []) if hasattr(m, "id")
         }
