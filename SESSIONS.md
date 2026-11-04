@@ -1675,3 +1675,50 @@ Aucun.
 
 - Kanban : inchangé (**En revue** = T7.1–T7.4, T8.1–T8.3 ; **À faire** = T3.5).
 - Branche `dev` : poussée (commit bornes de run).
+
+---
+
+## Séance du 04/11/2026 (suite) — T9.1 : plan de tests + critères d'acceptation (CI écartée, D48)
+
+### Contexte
+Phase 9 (Tests). Question utilisateur sur la logique d'un plan de test rédigé après les
+tests : réponse — le plan amont était distribué (plan macro + critères par tâche au
+kanban, tests écrits par phase avec le code) ; le document de phase 9 est une
+consolidation/traçabilité + audit de couverture honnête. La CI (GitHub Actions) est
+écartée sur décision utilisateur : projet réduit, commandes de qualité lancées
+manuellement.
+
+### Actions réalisées
+
+1. **Kanban** : T9.1 inscrite (plan de tests consolidé + critères d'acceptation ; CI
+   écartée D48), passée « En cours » puis **« En revue »** ; note d'en-tête phase 9.
+2. **`tests/plan_tests.md`** (nouveau) : conventions (fixtures mockées, aucun appel
+   réseau, dry-run, secrets, commandes de qualité manuelles), recensement fidèle par
+   fichier — 235 TU + 21 TI = 256 tests (vérifié par `pytest --collect-only`) — mapping
+   fichier ↔ tâches ↔ critères, couverture par critère transverse, hors-périmètre
+   (validation réelle manuelle, règle E ; phase 6 post-v1 D46).
+3. **`docs/test/acceptation.md`** (nouveau) : critères de sortie par phase avec état de
+   validation au 04/11/2026 (phases 1–5 validées ; 6 = option post-v1 D46 ; 7 = code/tests
+   ✔, validation réelle en attente du délai 24 h D47 ; 8 = code/tests ✔ + dry-run réel
+   constaté ; 9 = ce document ; 10 = hors périmètre v1) + critères transverses (règle E,
+   corbeille uniquement, UNREAD jamais retiré D47, registre, véracité C1–C6, idempotence,
+   qualité ruff/mypy/pytest 256 tests).
+4. **Vérifications** : décompte doc conforme (`pytest --collect-only` : 235 + 21 = 256) ;
+   `pytest tests -q` : **256 passed**. **Aucun commit** (règle C — pas de demande).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D48 | CI (GitHub Actions) écartée : commandes de qualité (`ruff`, `mypy`, `pytest`) lancées manuellement | Projet réduit, mono-développeur ; la CI n'apporte pas de valeur ici. Phase 9 = doc de test seule (T9.1). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4 (attente T+24h, D47), T8.1–T8.3, T9.1 ; **À faire** = T3.5.
+- Branche `dev` : non commité (`tests/plan_tests.md`, `docs/test/acceptation.md`, kanban,
+  SESSIONS) — en attente de commit/push sur demande explicite (règle C). Dernier push :
+  `a109d61`.
