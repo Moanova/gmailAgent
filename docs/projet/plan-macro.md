@@ -70,7 +70,7 @@ gmailAgent/
 | **4. Agent spam** | Conversation éphémère, prompt conservatoire, schéma `deplaces`/`aucun_message`/`echec_technique`, validation, apposition `Agent/valide-spam` | Étapes 1–2 du pipeline opérationnelles |
 | **5. Agent classification** | Conversation éphémère, schéma enrichi (`message_id_rfc`, `empreinte`), validation IDs + complétude | Étapes 3–4 opérationnelles |
 | **6. Dédoublonnage** *(option post-v1 — non embarquée dans la v1, décision D46)* | Normalisation (Message-ID, sujet, corps), SHA-256, groupement déterministe, recalcul/validation des empreintes, pose `Agent/doublon` | Étape 5 opérationnelle, testée unitairement |
-| **7. Agent suppression** | Run séparé T+1h, requête `label:"Agent/traité" older_than:1h` + `Agent/doublon`, corbeille uniquement | Pipeline complet |
+| **7. Agent suppression** | Run séparé T+24h, requête `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` (notification seule éligible — D47), corbeille uniquement | Pipeline complet |
 | **8. Rapport et restitution** | Agrégation des synthèses validées, rapport final JSON + résumé console | Étape 6 |
 | **9. Tests** | Unitaires (validation, normalisation, empreintes, registre), fixtures de conversations mockées, mode **dry-run** (aucun appel d'écriture Gmail) | CI verte |
 | **10. Déploiement** | Secrets (env), cron/timer, journalisation des métriques (appels outils, tokens, latences) pour ajuster les plafonds | Exécution quotidienne autonome |
@@ -98,7 +98,9 @@ réutilisées telles quelles lors de la reprise post-v1.
   préalable de la synthèse (un libellé posé à tort est pénible à défaire à
   grande échelle).
 - **Jamais de suppression définitive** : corbeille uniquement, avec délai de
-  grâce d'une heure.
+  grâce de 24 h ; seules les notifications (`Agent/notification`) traitées sont
+  éligibles (D47). Le libellé UNREAD n'est jamais retiré par le pipeline (action
+  utilisateur).
 - **Règles de véracité** : les synthèses ne mentionnent que des messages
   réellement lus via les outils ; l'orchestrateur recalcule les empreintes de
   dédoublonnage à partir des sorties réelles de `get_thread`.

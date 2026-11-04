@@ -800,7 +800,10 @@ class TestConversationSpam:
             )
 
 
-REQUETE_SUPPRESSION = 'label:"Agent/traité" older_than:1h label:"Agent/doublon"'
+REQUETE_SUPPRESSION = (
+    'label:"Agent/traité" label:"Agent/notification" older_than:24h '
+    'OR label:"Agent/doublon"'
+)
 
 
 class TestConversationSuppression:

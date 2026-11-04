@@ -45,7 +45,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="run_id existant pour reprise sur incident",
     )
-    p_sup = _sous_commande("suppression", "run de suppression T+1h (corbeille uniquement)")
+    p_sup = _sous_commande(
+        "suppression", "run de suppression T+24h (notifications uniquement, corbeille)"
+    )
     p_sup.add_argument(
         "--run-id",
         type=UUID,

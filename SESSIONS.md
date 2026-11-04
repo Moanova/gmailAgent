@@ -1336,3 +1336,61 @@ Aucun.
 - Reste pour clôturer la phase 7 (étape 6, règle E) : validation utilisateur — dry-run réel
   `gmailagent suppression` sur la boîte, puis petit périmètre réel `--reel` — puis
   T7.1–T7.4 → « Terminé » et commit/push des docs de validation sur demande.
+
+---
+
+## Séance du 04/11/2026 (suite) — décision D47 : périmètre et délai de la suppression
+
+### Contexte
+Questionnement utilisateur sur la base de sélection de l'agent de suppression (test réel
+rendu `aucun_message`). Constats : (1) bug de syntaxe — la requête
+`label:"Agent/traité" older_than:1h label:"Agent/doublon"` combine les deux libellés en
+**AND** côté Gmail, donc inerte en v1 (aucun `Agent/doublon`, D46) ; (2) aucun garde-fou
+sur l'état lu ni sur la catégorie — un message `a-repondre` traité serait éligible ;
+(3) le libellé UNREAD n'est jamais retiré par le pipeline. Réponses utilisateur : UNREAD
+conservé volontairement (action utilisateur) ; **seule la catégorie `Agent/notification`
+est éligible** ; **délai de grâce porté à 24 h** (fonctionnement actuel basé sur la date du
+message conservé) ; corbeille uniquement conservé. Correction du AND → OR incluse.
+
+### Actions réalisées
+
+1. **Code** :
+   - `src/orchestrator.py` : `requete_suppression` →
+     `label:"<traité>" label:"<notification>" older_than:24h OR label:"<doublon>"`
+     (constantes `CLE_NOTIFICATION = "classification.notification"`,
+     `DELAI_GRACE_SUPPRESSION = "24h"`) — correction du AND→OR + notification seule
+     éligible + 24 h ;
+   - `src/prompts.py` : `prompt_suppression` — rôle T+24h, requête fournie (notification
+     seule éligible, D47, ne JAMAIS trash `classification.a-repondre`/`information`,
+     UNREAD jamais retiré), clés logiques injectées depuis le registre ;
+   - `src/cli.py` : aide « run de suppression T+24h (notifications uniquement, corbeille) ».
+2. **Tests** : `TestRequeteSuppression` (requête exacte, `older_than:24h`, `Agent/notification`,
+   `older_than:1h` absent) ; `TestPromptSuppression` (+`test_categorie_notification_seule_eligible`,
+   T+24h/older_than:24h) ; constantes `REQUETE_SUPPRESSION` mises à jour (TU agents + TI) ;
+   TI : libellé `Agent/notification` servi, assertion `older_than:24h` + `Agent/notification`
+   dans la requête.
+3. **Docs** : `conception.md` (tableau agents, §2.2 run séparé T+24h + requête OR +
+   notification seule éligible + UNREAD jamais retiré, §2.6 idempotence/planification,
+   §3 délai 24 h, §4 lissage T+24h) ; `workflow.md` (sous-graphe T+24h, délai 24 h, ligne
+   requête) ; `plan-macro.md` (phase 7, §5 précautions) ; `kanban.md` (note phase 7, T7.1,
+   T7.3, T7.4) ; `README.md` (ligne `suppression`) ; suivis T3.3/T7.1/T7.3/T7.4.
+4. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (strict, 13 fichiers) ;
+   `pytest tests -q` : **235 passed** (+1 test). **Aucun commit** (règle C — pas de demande).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D47 | Suppression : requête `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` — seule la catégorie `notification` est éligible ; délai de grâce 24 h (date du message, fonctionnement conservé) ; UNREAD jamais retiré par le pipeline (action utilisateur) ; corbeille uniquement conservé. Corrige le bug AND→OR (la clause `doublon`, inerte en v1, rendait la requête vide). | Ne pas risquer de mettre à la corbeille des messages non lus ou auxquels il faut répondre ; 24 h de grâce au lieu d'1 h ; un message déjà en corbeille n'est plus sélectionné (idempotence). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : inchangé (**En revue** = T7.1–T7.4 ; **À faire** = T3.5).
+- Branche `dev` : modifications D47 non commitées (code + tests + docs) — en attente de
+  commit/push sur demande explicite (règle C). Dernier push : `91577eb`.
+- Validation utilisateur en attente : dry-run réel `gmailagent suppression` (vérifier que
+  seules les notifications traitées > 24 h sont sélectionnées), puis petit périmètre réel.

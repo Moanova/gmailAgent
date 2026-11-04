@@ -129,6 +129,7 @@ class TestPromptSuppression:
         prompt = prompt_suppression(registre)
         assert "suivi.traite" in prompt
         assert "suivi.doublon" in prompt
+        assert "classification.notification" in prompt
 
     def test_aucun_libelle_physique_en_dur(self, registre: RegistreLibelles) -> None:
         assert "Agent/" not in prompt_suppression(registre)
@@ -136,8 +137,8 @@ class TestPromptSuppression:
     def test_statuts_champs_et_requete(self, registre: RegistreLibelles) -> None:
         prompt = prompt_suppression(registre)
         for mot in (
-            "T+1h",
-            "older_than:1h",
+            "T+24h",
+            "older_than:24h",
             "supprimes",
             "aucun_message",
             "echec_technique",
@@ -157,6 +158,14 @@ class TestPromptSuppression:
     def test_count_egal_len_ids_si_supprimes(self, registre: RegistreLibelles) -> None:
         prompt = prompt_suppression(registre)
         assert "égal à `len(ids)`" in prompt
+
+    def test_categorie_notification_seule_eligible(self, registre: RegistreLibelles) -> None:
+        prompt = prompt_suppression(registre)
+        assert "classification.notification" in prompt
+        assert "classification.a-repondre" in prompt
+        assert "classification.information" in prompt
+        assert "JAMAIS" in prompt
+        assert "UNREAD" in prompt
 
     def test_objet_json_unique_a_la_racine(self, registre: RegistreLibelles) -> None:
         prompt = prompt_suppression(registre)

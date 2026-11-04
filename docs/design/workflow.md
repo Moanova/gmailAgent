@@ -45,7 +45,7 @@ flowchart TD
         A6 --> A7
     end
 
-    subgraph SUP["Run de suppression — planifié T+1h, indépendant"]
+    subgraph SUP["Run de suppression — planifié T+24h, indépendant"]
         direction TB
         S0(["Démarrage du run de suppression"])
         S1[/"Lecture des messages traités<br/>conversation agent suppression (LLM + outils Gmail)"/]:::agent
@@ -62,7 +62,7 @@ flowchart TD
         S3 --> S4
     end
 
-    A7 -. "délai de grâce d'une heure<br/>(état persistant : libellés Gmail)" .-> S0
+    A7 -. "délai de grâce de 24 h<br/>(état persistant : libellés Gmail)" .-> S0
 
     classDef agent fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#1e3a8a;
     classDef prog fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#14532d;
@@ -84,14 +84,14 @@ flowchart TD
 | 6 | Agrégation et restitution (rapport final) | Programmatique | Dédoublonnage terminé |
 | 7 | Fin du run, checkpoint final | Programmatique | — |
 
-### Run de suppression (T+1h)
+### Run de suppression (T+24h)
 
 | # | Étape | Type | Condition de passage |
 | --- | --- | --- | --- |
 | 0 | Démarrage du run de suppression | Programmatique | Déclencheur temporel (planifié, indépendant du run principal) |
 | 1 | Lecture des messages traités — conversation agent suppression | **Agentique** | Synthèse produite |
 | 2 | Validation | Programmatique | `ok` / `rejet` (mêmes règles) |
-| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" older_than:1h` et `label:"doublon"` *(clause inerte en v1 — D46)* |
+| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" label:"notification" older_than:24h OR label:"doublon"` *(notification seule éligible — D47 ; clause `doublon` inerte en v1 — D46)* |
 | 4 | Fin du run | Programmatique | — |
 
 ### Couplage entre les deux runs
@@ -100,7 +100,7 @@ Les deux runs sont **indépendants** (processus séparés, planifiés séparéme
 Le seul canal de coordination est **Gmail lui-même**, via les libellés posés
 durant le run principal (`traité` ; `doublon` uniquement post-v1, D46) : c'est l'état persistant qui
 permet au run de suppression de sélectionner les messages ayant dépassé le
-délai de grâce d'une heure. Aucun état n'est transmis directement entre les
+délai de grâce de 24 h. Aucun état n'est transmis directement entre les
 deux exécutions.
 
 ## Mécanismes transverses (non représentés pour la lisibilité)

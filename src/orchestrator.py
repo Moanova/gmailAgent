@@ -10,8 +10,9 @@ checkpointées (reprise sur incident). L'idempotence est en outre garantie par l
 requête Gmail `is:unread -label:"<libellé traité>"`, construite depuis le registre
 (clé logique `suivi.traite`) — jamais de libellé physique en dur dans le code.
 
-Run de suppression séparé (planifié T+1h, phase 7) : `lancer_run_suppression` —
-corbeille uniquement (TRASH appliqué par l'agent via `label_message`).
+Run de suppression séparé (planifié T+24h, phase 7) : `lancer_run_suppression` —
+corbeille uniquement (TRASH appliqué par l'agent via `label_message`), notifications
+traitées seules éligibles (D47).
 """
 
 from collections.abc import Callable
@@ -45,6 +46,8 @@ from validation import SyntheseInvalideError
 CLE_TRAITE = "suivi.traite"
 CLE_VALIDE_SPAM = "suivi.valide-spam"
 CLE_DOUBLON = "suivi.doublon"
+CLE_NOTIFICATION = "classification.notification"
+DELAI_GRACE_SUPPRESSION = "24h"
 REQUETE_SPAM = "in:spam"
 LABEL_SPAM = "SPAM"
 LABEL_INBOX = "INBOX"
@@ -239,17 +242,24 @@ def requete_non_lus(registre: RegistreLibelles, resolveur: ResolveurLibelles) ->
 
 
 def requete_suppression(registre: RegistreLibelles, resolveur: ResolveurLibelles) -> str:
-    """Requête du run de suppression (T+1h) : traités depuis plus d'une heure + doublons.
+    """Requête du run de suppression (T+24h) : notifications traitées depuis plus de
+    24 h, ou doublons.
 
-    Les libellés physiques proviennent du registre (clés logiques `suivi.traite` et
-    `suivi.doublon`) et sont résolus/créés via le resolveur ; jamais de nom de libellé
-    en dur dans le code. La clause `doublon` est inerte en v1 (phase 6 non embarquée,
-    décision D46).
+    `label:"<traité>" label:"<notification>" older_than:24h OR label:"<doublon>"` — seules
+    les messages de catégorie `notification` (clé logique `classification.notification`)
+    sont éligibles (décision D47) ; le délai de grâce est de 24 h (D47). Les libellés
+    physiques proviennent du registre et sont résolus/créés via le resolveur ; jamais de
+    nom de libellé en dur dans le code. La clause `doublon` est inerte en v1 (phase 6 non
+    embarquée, D46). Le libellé UNREAD n'est jamais retiré par le pipeline (action
+    utilisateur).
     """
     resolveur.resoudre(CLE_TRAITE)
+    resolveur.resoudre(CLE_NOTIFICATION)
     resolveur.resoudre(CLE_DOUBLON)
     return (
-        f'label:"{registre.libelle(CLE_TRAITE)}" older_than:1h '
+        f'label:"{registre.libelle(CLE_TRAITE)}" '
+        f'label:"{registre.libelle(CLE_NOTIFICATION)}" '
+        f"older_than:{DELAI_GRACE_SUPPRESSION} OR "
         f'label:"{registre.libelle(CLE_DOUBLON)}"'
     )
 
@@ -415,15 +425,16 @@ def lancer_run_suppression(
     registre: RegistreLibelles | None = None,
     dossier_checkpoints: Path | None = None,
 ) -> RapportFinal:
-    """Run de suppression séparé (planifié T+1h) : conversation agent suppression sur
-    `label:"<traité>" older_than:1h` (+ doublons, inerte en v1, D46).
+    """Run de suppression séparé (planifié T+24h) : conversation agent suppression sur
+    `label:"<traité>" label:"<notification>" older_than:24h OR label:"<doublon>"`
+    (notifications seules éligibles, délai 24 h — D47 ; clause doublon inerte en v1, D46).
 
     Corbeille uniquement : l'agent applique lui-même `TRASH` via `label_message` pendant
     la conversation (écriture journalisée en dry-run, règle E) ; l'orchestrateur valide
     (C1–C3 + garde de complétude action, dans `lancer_conversation`) et checkpoint.
     `dry_run=True` par défaut (règle E). Rejet → `echec_partiel` + `etape_fautive`,
     checkpoint persisté, exception relancée (arrêt propre). Idempotence : la requête
-    `older_than:1h` et l'exclusion de la corbeille par la recherche Gmail.
+    `older_than:24h` et l'exclusion de la corbeille par la recherche Gmail.
     """
     rid = run_id if run_id is not None else uuid4()
     configurer(str(rid))

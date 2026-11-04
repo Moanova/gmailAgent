@@ -534,12 +534,16 @@ class TestRequeteSuppression:
         resolveur = ResolveurLibelles(registre, _FauxClientGmail(), dry_run=True)
         requete = requete_suppression(registre, resolveur)
         attendu = (
-            f'label:"{registre.libelle("suivi.traite")}" older_than:1h '
-            f'label:"{registre.libelle("suivi.doublon")}"'
+            f'label:"{registre.libelle("suivi.traite")}" '
+            f'label:"{registre.libelle("classification.notification")}" '
+            f'older_than:24h OR label:"{registre.libelle("suivi.doublon")}"'
         )
         assert requete == attendu
         assert "Agent/traité" in requete
+        assert "Agent/notification" in requete
         assert "Agent/doublon" in requete
+        assert "older_than:24h" in requete
+        assert "older_than:1h" not in requete
 
 
 def _faux_conversation_suppression(agent: str, requete: str, meta: object, **kwargs: object):

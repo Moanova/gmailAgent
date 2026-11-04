@@ -20,7 +20,10 @@ from gmail import ClientGmailAPI
 from orchestrator import charger_checkpoint, lancer_run_suppression
 from validation import SyntheseInvalideError
 
-REQUETE_SUPPRESSION = 'label:"Agent/traité" older_than:1h label:"Agent/doublon"'
+REQUETE_SUPPRESSION = (
+    'label:"Agent/traité" label:"Agent/notification" older_than:24h '
+    'OR label:"Agent/doublon"'
+)
 
 ETAPES_SUPPRESSION = [
     "demarrage",
@@ -60,7 +63,7 @@ class _Requete:
 
 class _FauxService:
     """Faux service googleapiclient : ne sert que la requête de suppression
-    (`older_than:1h`) ; les messages sont servis par thread."""
+    (`older_than:24h`) ; les messages sont servis par thread."""
 
     def __init__(
         self,
@@ -98,12 +101,14 @@ class _FauxService:
                 {
                     "labels": [
                         {"id": "L_traite", "name": "Agent/traité"},
+                        {"id": "L_notif", "name": "Agent/notification"},
                         {"id": "L_doublon", "name": "Agent/doublon"},
                     ]
                 }
             )
         self.queries.append(str(kwargs.get("q", "")))
-        assert "older_than:1h" in self.queries[-1]
+        assert "older_than:24h" in self.queries[-1]
+        assert "Agent/notification" in self.queries[-1]
         return _Requete({"threads": [{"id": t} for t in self.liste_threads_suppression]})
 
     def get(self, **kwargs: Any) -> _Requete:

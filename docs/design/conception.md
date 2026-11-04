@@ -18,7 +18,7 @@ Trois agents spécialisés sont constitués :
 | -------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Agent classification | Lire les messages non lus, les classer, évaluer l'urgence, appliquer les libellés de classement | search_threads, get_thread, label_message, list_labels                                 |
 | Agent spam           | Lire le dossier spam, évaluer la légitimité, replacer si nécessaire                             | search_threads, get_thread, label_message, list_labels                                 |
-| Agent suppression    | Mettre à la corbeille les messages traités, après délai de grâce d'une heure                    | search_threads, label_message, list_labels (mise à la corbeille via le libellé TRASH)  |
+| Agent suppression    | Mettre à la corbeille les messages de catégorie `Agent/notification` traités, après délai de grâce de 24 h (D47)                    | search_threads, label_message, list_labels (mise à la corbeille via le libellé TRASH)  |
 
 Chaque agent suit les principes transverses établis :
 
@@ -68,7 +68,7 @@ Un orchestrateur Python pilote séquentiellement les trois agents sous forme de 
 
 L'ordre est imposé : le spam est traité avant la classification, afin que les messages replacés rejoignent le pool des non lus à classer.
 
-L'étape de suppression fait l'objet d'un **run séparé**, planifié (T+1h) : conversation avec l'agent suppression, portant sur les messages `label:"Agent/traité" older_than:1h`, suivie de sa propre validation. Le délai de grâce d'une heure s'applique aussi aux doublons étiquetés `Agent/doublon`. *(En v1, décision D46 : la phase 6 n'est pas embarquée, aucun message ne porte ce libellé — la clause est inerte.)*
+L'étape de suppression fait l'objet d'un **run séparé**, planifié (T+24h) : conversation avec l'agent suppression, portant sur les messages `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` — **seules les notifications traitées sont éligibles** (décision D47) — suivie de sa propre validation. Le délai de grâce de 24 h s'applique aussi aux doublons étiquetés `Agent/doublon`. Le libellé UNREAD n'est jamais retiré par le pipeline (cela reste une action utilisateur). *(En v1, décision D46 : la phase 6 n'est pas embarquée, aucun message ne porte le libellé `Agent/doublon` — la clause est inerte.)*
 
 ### 2.3 Agents permanents ou éphémères ?
 
@@ -112,9 +112,9 @@ Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais rest
 ### 2.6 Reprise sur incident et planification
 
 - **Checkpoints** : après chaque étape validée, l'état du run (run_id, étapes, statuts, identifiants) est persisté dans un fichier JSON local.
-- **Idempotence** : la recherche de l'agent classification porte sur `is:unread -label:"Agent/traité"` ; un run interrompu puis relancé ne retraite pas les messages déjà traités. La suppression porte sur `label:"Agent/traité" older_than:1h`.
+- **Idempotence** : la recherche de l'agent classification porte sur `is:unread -label:"Agent/traité"` ; un run interrompu puis relancé ne retraite pas les messages déjà traités. La suppression porte sur `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` (notification seule éligible, délai de grâce 24 h — D47).
 - **Reprise** : en cas de crash, le run est relancé ; les étapes déjà checkpointées sont sautées. Une erreur transitoire (429, 5xx) est retentée selon la politique de backoff (§4).
-- **Planification** : le pipeline est un exécutable Python, déclenché manuellement ou par cron / timer systemd (quotidien, en heures creuses). Le run de suppression est planifié indépendamment (T+1h). Si le pipeline est hébergé sur un serveur, il ne dépend pas du poste local.
+- **Planification** : le pipeline est un exécutable Python, déclenché manuellement ou par cron / timer systemd (quotidien, en heures creuses). Le run de suppression est planifié indépendamment (T+24h). Si le pipeline est hébergé sur un serveur, il ne dépend pas du poste local.
 - **Rattrapage d'un retard volumineux (option prévue, tâche T3.5)** : `gmailagent tri --tout` enchaîne les runs tant que la recherche renvoie des non lus, avec un plafond de runs par invocation (garde-fou) et un `run_id` distinct par run. C'est une **alternative ponctuelle au cron** pour vider un retard ; le cron reste le mode de fonctionnement quotidien (phase 10). Sans `--tout`, un run traite un seul lot borné (§4.1).
 
 ### 2.7 Limites connues
@@ -141,7 +141,7 @@ Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais rest
 
 **Calcul et validation.** L'agent classification, qui lit déjà le contenu complet des messages, déclare `message_id_rfc` et `empreinte` dans sa synthèse. L'orchestrateur **recalcule** ces valeurs à partir des sorties réelles de `get_thread` (qu'il collecte déjà pour la validation) et rejette la synthèse en cas d'écart — même principe de véracité que pour les identifiants.
 
-**Politique.** Pour chaque groupe de doublons, la copie arrivée la plus ancienne (`internalDate` minimale) est conservée ; les autres reçoivent le libellé `Agent/doublon`. L'agent suppression les met à la corbeille après le délai de grâce d'une heure. Aucune suppression définitive ; les originaux dans les messageries d'origine ne sont pas touchés.
+**Politique.** Pour chaque groupe de doublons, la copie arrivée la plus ancienne (`internalDate` minimale) est conservée ; les autres reçoivent le libellé `Agent/doublon`. L'agent suppression les met à la corbeille après le délai de grâce de 24 h (D47). Aucune suppression définitive ; les originaux dans les messageries d'origine ne sont pas touchés.
 
 **Pourquoi du code et pas du LLM.** Le dédoublonnage est une comparaison déterministe : le faire en Python évite des appels de modèle, est reproductible et testable unitairement. L'agent classification se contente de fournir les deux champs ; toute l'intelligence de groupe reste dans l'orchestrateur.
 
@@ -158,7 +158,7 @@ Mesures retenues :
 3. **Garde-fou anti-boucle** : plafond d'appels sur les outils de consultation (`search_threads`, `list_labels`), repris du script `02` ; au-delà, abandon propre du run avec statut `echec_technique`.
 4. **Cache intra-run** : `list_labels` appelé une seule fois par agent et par run ; threads lus conservés en mémoire.
 5. **Mode incrémental** : si le volume devient significatif, remplacer le scan `is:unread` par `history.list` (à partir du `historyId` mémorisé au run précédent) pour ne lire que les deltas.
-6. **Lissage de charge** : le run de suppression est séparé (T+1h) ; la planification est placée en heures creuses.
+6. **Lissage de charge** : le run de suppression est séparé (T+24h) ; la planification est placée en heures creuses.
 7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capsés (1500 pour la classification, 2000 si création de libellés), timeout HTTP explicite (300 s) — déjà en place dans les scripts de référence.
 8. **Observabilité** : journaliser par run le nombre d'appels d'outils, les tokens consommés et les latences, afin d'ajuster les plafonds sur des données réelles.
 
