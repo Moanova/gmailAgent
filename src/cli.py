@@ -17,7 +17,7 @@ import sys
 from uuid import UUID, uuid4
 
 from gmail import ClientGmailAPI
-from journalisation import configurer, obtenir_logger
+from journalisation import configurer, marquer_fin_run, obtenir_logger
 from orchestrator import lancer_run_suppression, lancer_run_tri
 from report import formater_console
 
@@ -70,6 +70,7 @@ def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
     print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
+    marquer_fin_run(rapport.statut_global)
     return 0 if rapport.statut_global == "succes" else 1
 
 
@@ -79,6 +80,7 @@ def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
     print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
+    marquer_fin_run(rapport.statut_global)
     return 0 if rapport.statut_global == "succes" else 1
 
 

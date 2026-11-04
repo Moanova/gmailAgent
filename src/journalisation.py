@@ -70,6 +70,15 @@ def configurer(run_id: str, etape: str | None = None) -> None:
         cache_logger_on_first_use=True,
     )
 
+    # En-tête horodatée de run : chaque exécution est encadrée dans le fichier de log
+    # par une ligne `debut_run` (le run_id est déjà lié via contextvars ci-dessus).
+    obtenir_logger("run").info("début de run", evenement="debut_run")
+
+
+def marquer_fin_run(statut: str) -> None:
+    """Pied de page horodaté de run (séparation des exécutions dans le fichier de log)."""
+    obtenir_logger("run").info("fin de run", evenement="fin_run", statut=statut)
+
 
 def obtenir_logger(nom: str) -> structlog.stdlib.BoundLogger:
     logger: structlog.stdlib.BoundLogger = structlog.get_logger(nom)

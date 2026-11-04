@@ -1636,3 +1636,42 @@ Aucun.
 - Branche `dev` : poussée (commit phase 8).
 - Validation utilisateur en attente : dry-run réel `gmailagent tri` (vérifier JSON + résumé
   console) et `gmailagent suppression` (dry-run), puis T8.1–T8.3 → « Terminé » sur demande.
+
+---
+
+## Séance du 04/11/2026 (suite) — journalisation : bornes de run dans gmailagent.log
+
+### Contexte
+Demande utilisateur (modification mineure) : `logs/gmailagent.log` est unique pour toutes
+les exécutions ; introduire une séparation lisible. Variante retenue après discussion :
+conserver le fichier unique et encadrer chaque run par une ligne d'en-tête et une ligne de
+pied de page horodatées (plutôt que des fichiers par run).
+
+### Actions réalisées
+
+1. `src/journalisation.py` : `configurer(run_id)` émet désormais une ligne
+   `evenement="debut_run"` (le `run_id` est déjà lié via contextvars, timestamp ISO déjà
+   présent) ; nouvelle fonction `marquer_fin_run(statut)` émettant
+   `evenement="fin_run", statut=...`.
+2. `src/cli.py` : `marquer_fin_run(rapport.statut_global)` appelé en fin de `_cmd_tri` et
+   `_cmd_suppression`.
+3. Test : `tests/unit/test_journalisation.py` (nouveau) — en-tête `debut_run` en première
+   ligne avec `run_id` + timestamp, pied `fin_run` avec `statut` en dernière ligne, lignes
+   de run au milieu.
+4. `README.md` : note sur les bornes de run filtrables (`jq select(.evenement==...)`).
+5. **Vérifications (2 tentatives — 1ʳᵉ : E741 variable `l`, renommée)** : `ruff check src
+   tests` OK ; `mypy src` OK (strict, 14 fichiers) ; `pytest tests -q` : **256 passed** (+1).
+6. **Commit + push sur `dev`** (demande explicite) : voir commit ci-dessous.
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : inchangé (**En revue** = T7.1–T7.4, T8.1–T8.3 ; **À faire** = T3.5).
+- Branche `dev` : poussée (commit bornes de run).
