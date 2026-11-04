@@ -30,6 +30,10 @@ La commande `gmailagent` est alors disponible (point d'entrée `cli:main`).
 **Dry-run par défaut** (règle E) : aucune écriture Gmail sans `--reel` — en dry-run,
 les écritures sont journalisées dans `logs/gmailagent.log`, non exécutées.
 
+Chaque run est encadré dans `logs/gmailagent.log` par des lignes d'événements
+`debut_run` / `fin_run` horodatées (chaque ligne JSON porte aussi `run_id`) :
+`jq 'select(.evenement=="debut_run" or .evenement=="fin_run")' logs/gmailagent.log`.
+
 | Commande | Options | Description |
 | --- | --- | --- |
 | `gmailagent tri` | `[--run-id UUID] [--reel]` | Run principal de tri (étapes 0–7 : spam puis classification). Imprime le rapport final JSON puis `run <id> terminé : <statut>`. Code retour 0 si `succes`, 1 sinon. `--run-id` : reprise sur incident depuis les checkpoints (`data/checkpoints/<run_id>.json`). |
