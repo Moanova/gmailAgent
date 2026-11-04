@@ -1394,3 +1394,245 @@ Aucun.
   commit/push sur demande explicite (règle C). Dernier push : `91577eb`.
 - Validation utilisateur en attente : dry-run réel `gmailagent suppression` (vérifier que
   seules les notifications traitées > 24 h sont sélectionnées), puis petit périmètre réel.
+
+---
+
+## Séance du 04/11/2026 (suite) — découpage de la phase 8 (T8.1–T8.3)
+
+### Contexte
+La phase 7 (T7.1–T7.4) est maintenue en « En revue » en attendant le test de suppression à
+T+24h (délai de grâce, D47) — décision utilisateur. Passage à la **phase 8 (Rapport et
+restitution)** : découpage en tâches demandé. Constat : `RapportFinal` existe déjà
+(synthèses + `nb_doublons` + statut), le CLI imprime le JSON + une ligne de statut, mais
+il n'existe ni module `src/report.py` (emplacement prévu par le plan macro §2), ni résumé
+agrégé (`resume`).
+
+### Actions réalisées
+
+1. **Kanban** : T8.1–T8.3 ajoutées en « À faire » (avant T3.5) ; note d'en-tête : phase 8
+   découpée (critère de sortie : étape 6 opérationnelle — rapport final JSON + résumé
+   console), phase 7 maintenue en « En revue » (test T+24h, D47) ; descriptions détaillées :
+   - **T8.1** — contrat : modèle `ResumeRun` (comptes par catégorie/urgence, spam, doublons,
+     corbeille, statut) + `RapportFinal.resume` (rétro-compatible) + TU contrats ;
+   - **T8.2** — `src/report.py` nouveau (`aggreger` déterministe, `formater_console`),
+     branchement étape 6 de `lancer_run_tri`/`lancer_run_suppression`, restitution console
+     dans `cli.py` (`_cmd_tri`, `_cmd_suppression`) + TU ;
+   - **T8.3** — TU/TI (rapport avec `resume` cohérent, rejet → étape fautive, boîtes vides)
+     + validation dry-run réelle. Critère de sortie phase 8 : étape 6 opérationnelle.
+2. Aucun changement de code ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4 (attente test T+24h, D47) ; **À faire** = T8.1, T8.2, T8.3, T3.5.
+- Branche `dev` : à jour sur origin (`dad0edb`) ; kanban + SESSIONS non commités — en
+  attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : plan détaillé puis implémentation de **T8.1** sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — plan T8.1 (contrat du résumé agrégé)
+
+### Contexte
+Phase 8 (Rapport et restitution). Plan d'implémentation de **T8.1** établi sur demande
+explicite. Constats : `RapportFinal` existe (synthèses + `nb_doublons` + statut,
+`extra="forbid"`) — un champ optionnel `resume` y est rétro-compatible ; `MessageClasse`
+a `categorie` (pattern clé logique) et `urgence` (Literal haute/moyenne/basse) ; style
+de tests `test_contracts.py` (classe par modèle, round-trip, rejets) ; `contracts` déjà
+dans `py-modules`.
+
+### Actions réalisées
+
+1. **Plan T8.1** : `docs/tasks/T8.1_contrat_resume_agrege.md` créé — modèle `ResumeRun`
+   (`extra="forbid"`) : `par_categorie` (clés logiques validées par pattern, valeurs
+   `ge=0`), `par_urgence` (haute/moyenne/basse), `spam_deplaces`, `doublons` (0 en v1, D46),
+   `corbeille` (ge=0) ; `RapportFinal.resume: ResumeRun | None = None` (rétro-compatible
+   checkpoints) + tests `TestResumeRun`/`TestRapportFinal` (round-trip, rejets, rétro-compat).
+2. **Kanban** : T8.1 « À faire » → **« En cours »** (T7.1–T7.4 restent « En revue »).
+3. Aucun changement de code ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En cours** = T8.1 ; **En revue** = T7.1–T7.4 ; **À faire** = T8.2, T8.3, T3.5.
+- Branche `dev` : à jour sur origin (`dad0edb`) ; suivi T8.1 + kanban + SESSIONS non
+  commités — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **implémentation de T8.1** sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T8.1 implémentée (contrat du résumé agrégé)
+
+### Contexte
+Implémentation de **T8.1** (étape 3) sur demande explicite, selon
+`docs/tasks/T8.1_contrat_resume_agrege.md`.
+
+### Actions réalisées
+
+1. `src/contracts.py` : modèle `ResumeRun` (`extra="forbid"`) — `par_categorie` (clés
+   logiques validées par `_PATTERN_CLE_LOGIQUE` via `field_validator`, valeurs `ge=0`),
+   `par_urgence` (clés validées contre `Urgence`, valeurs `ge=0`), `spam_deplaces`,
+   `doublons` (0 en v1, D46), `corbeille` (ge=0) ; + `RapportFinal.resume:
+   ResumeRun | None = None` — rétro-compatible avec les checkpoints existants.
+2. `tests/unit/test_contracts.py` : `TestResumeRun` (6 tests : construction minimale,
+   valeurs négatives rejetées, champ interdit rejeté, clé de catégorie invalide, urgence
+   invalide, round-trip JSON) + 2 tests `TestRapportFinal` (`resume` absent par défaut =
+   rétro-compat, `resume` renseigné → round-trip).
+3. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK
+   (strict, 13 fichiers) ; `pytest tests -q` : **243 passed** (+8, tous verts).
+4. **Validation agent (étape 5)** : kanban T8.1 « En cours » → **« En revue »** ; suivi T8.1
+   coché. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4, T8.1 ; **À faire** = T8.2, T8.3, T3.5 ; « En cours » vide.
+- Branche `dev` : non commité (`src/contracts.py`, `tests/unit/test_contracts.py`, kanban,
+  suivi T8.1, SESSIONS) — en attente de commit/push sur demande explicite (règle C).
+  Dernier push : `dad0edb`.
+- Prochaine étape : plan puis implémentation de **T8.2** (`src/report.py` + étape 6 +
+  restitution console CLI) sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — plan T8.2 (report.py : agrégation + restitution)
+
+### Contexte
+Phase 8. Plan d'implémentation de **T8.2** établi sur demande explicite. Constats :
+`ResumeRun` + `RapportFinal.resume` livrés en T8.1 ; les étapes `ETAPE_RAPPORT` de
+`lancer_run_tri`/`lancer_run_suppression` construisent déjà le `RapportFinal` ;
+`py-modules` à compléter (`report`) ; CLI imprime JSON + ligne de statut.
+
+### Actions réalisées
+
+1. **Plan T8.2** : `docs/tasks/T8.2_report_agregation_restitution.md` créé —
+   `src/report.py` nouveau : `aggreger(syntheses, nb_doublons) -> ResumeRun` (déterministe :
+   classification → par_categorie/par_urgence, spam deplaces → spam_deplaces, suppression
+   supprimes → corbeille, doublons = nb_doublons) et `formater_console(rapport) -> str`
+   (résumé lisible, statut + étape fautive si rejet, aucun libellé physique en dur) ;
+   `pyproject.toml` += "report" ; orchestrateur : étape `ETAPE_RAPPORT` des deux runs avec
+   `resume=aggreger(...)` ; `cli.py` : `_cmd_tri`/`_cmd_suppression` impriment le résumé
+   console après le JSON ; TU (`test_report.py` nouveau + orchestrateur + CLI).
+2. **Kanban** : T8.2 « À faire » → **« En cours »** (T7.1–T7.4, T8.1 restent « En revue »).
+3. Aucun changement de code ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En cours** = T8.2 ; **En revue** = T7.1–T7.4, T8.1 ; **À faire** = T8.3, T3.5.
+- Branche `dev` : suivi T8.2 + kanban + SESSIONS non commités — en attente de commit/push
+  sur demande explicite (règle C). Dernier push : `dad0edb`.
+- Prochaine étape : **implémentation de T8.2** sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T8.2 implémentée (report.py : agrégation + restitution console)
+
+### Contexte
+Implémentation de **T8.2** (étape 3) sur demande explicite, selon
+`docs/tasks/T8.2_report_agregation_restitution.md`.
+
+### Actions réalisées
+
+1. `src/report.py` (nouveau, `py-modules += "report"`) : `aggreger(syntheses,
+   nb_doublons) -> ResumeRun` (déterministe : classification → par_categorie/par_urgence,
+   spam `deplaces` → spam_deplaces, suppression `supprimes` → corbeille, doublons) ;
+   `formater_console(rapport) -> str` (résumé lisible : statut + étape fautive si rejet,
+   spam/classés par catégorie et urgence/corbeille/doublons — clés logiques uniquement,
+   aucun `Agent/` en dur).
+2. `src/orchestrator.py` : étape `ETAPE_RAPPORT` de `lancer_run_tri` et
+   `lancer_run_suppression` → `resume=aggreger(checkpoint.syntheses, nb_doublons=0)`.
+3. `src/cli.py` : `_cmd_tri` / `_cmd_suppression` impriment `formater_console(rapport)`
+   après le JSON (ligne `run <id> terminé : <statut>` conservée).
+4. Tests : `tests/unit/test_report.py` (8 tests : aggreger tri complet/aucun_message/
+   suppression/echec, formater succes/echec_partiel/sans resume/corbeille, pas de `Agent/`
+   en dur) ; `test_orchestrator.py` `TestResumeRapport` (2 tests : resume des deux runs) ;
+   `test_cli.py` `TestResumeConsole` (2 tests : résumé affiché pour `tri` et `suppression`).
+5. **Vérifications (étape 4, 2 tentatives — 1ʳᵉ : E501 sur une signature, corrigé)** :
+   `ruff check src tests` OK ; `mypy src` OK (strict, 14 fichiers) ; `pytest tests -q` :
+   **255 passed** (+12, tous verts).
+6. **Validation agent (étape 5)** : kanban T8.2 « En cours » → **« En revue »** ; suivi T8.2
+   coché. **Aucun commit** (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4, T8.1, T8.2 ; **À faire** = T8.3, T3.5 ; « En cours » vide.
+- Branche `dev` : non commité (T8.1+T8.2 : `src/contracts.py`, `src/report.py`,
+  `src/orchestrator.py`, `src/cli.py`, `pyproject.toml`, tests, kanban, suivis, SESSIONS) —
+  en attente de commit/push sur demande explicite (règle C). Dernier push : `dad0edb`.
+- Prochaine étape : **T8.3** (TU/TI de bout en bout du rapport + validation dry-run réelle)
+  sur demande explicite.
+
+---
+
+## Séance du 04/11/2026 (suite) — T8.3 implémentée + commit/push phase 8
+
+### Contexte
+Implémentation directe de **T8.3** sur demande explicite, puis commit/push demandé
+explicitement (règle C levée pour ce commit). Validation utilisateur (dry-run réel) à faire
+ensuite par l'utilisateur (étape 6).
+
+### Actions réalisées
+
+1. **TI complétés** (assertions `resume` dans les rapports) : `test_agent_classification.py`
+   (`par_categorie == {"classification.a-repondre": 1}`, `par_urgence == {"haute": 1}` ;
+   boîte vide → resume à zéro) ; `test_agent_spam.py` (`spam_deplaces == 1`,
+   `par_categorie == {}`) ; `test_agent_suppression.py` (`corbeille == 1`).
+2. **Vérifications (étape 4, 1ère tentative)** : `ruff check src tests` OK ; `mypy src` OK
+   (strict, 14 fichiers) ; `pytest tests -q` : **255 passed**.
+3. **Validation agent (étape 5)** : kanban T8.3 → **« En revue »** (phase 8 complète côté
+   code/tests : T8.1–T8.3) ; `docs/tasks/T8.3_tests_validation_bout_en_bout.md` créé et coché.
+4. **Commit + push sur `dev`** (demande explicite) : voir commit ci-dessous — T8.1–T8.3
+   embarqués.
+
+### Décisions clés
+
+Aucune nouvelle (D46, D47 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **En revue** = T7.1–T7.4 (attente test suppression T+24h, D47), T8.1, T8.2, T8.3 ;
+  **À faire** = T3.5 ; « En cours » vide. Phase 6 reportée post-v1 (D46).
+- Branche `dev` : poussée (commit phase 8).
+- Validation utilisateur en attente : dry-run réel `gmailagent tri` (vérifier JSON + résumé
+  console) et `gmailagent suppression` (dry-run), puis T8.1–T8.3 → « Terminé » sur demande.

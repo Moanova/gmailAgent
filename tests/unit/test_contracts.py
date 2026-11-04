@@ -15,6 +15,7 @@ from contracts import (
     MessageLu,
     Meta,
     RapportFinal,
+    ResumeRun,
     SyntheseClassification,
     SyntheseSpam,
     SyntheseSuppression,
@@ -193,6 +194,64 @@ class TestRapportFinal:
     def test_statut_global_invalide_rejete(self, meta: Meta) -> None:
         with pytest.raises(ValidationError):
             RapportFinal(meta=meta, statut_global="partiel")
+
+    def test_resume_absent_par_defaut_retro_compatible(self, meta: Meta) -> None:
+        r = RapportFinal(meta=meta, statut_global="succes")
+        assert r.resume is None
+        restaure = RapportFinal.model_validate(r.model_dump(mode="json"))
+        assert restaure.resume is None
+
+    def test_resume_renseigne_round_trip(self, meta: Meta) -> None:
+        resume = ResumeRun(
+            par_categorie={"classification.notification": 3},
+            par_urgence={"haute": 1, "moyenne": 2},
+            spam_deplaces=1,
+            corbeille=2,
+        )
+        r = RapportFinal(meta=meta, statut_global="succes", resume=resume)
+        restaure = RapportFinal.model_validate(r.model_dump(mode="json"))
+        assert restaure.resume is not None
+        assert restaure.resume.par_categorie == {"classification.notification": 3}
+        assert restaure.resume.par_urgence == {"haute": 1, "moyenne": 2}
+        assert restaure.resume.spam_deplaces == 1
+        assert restaure.resume.corbeille == 2
+
+
+class TestResumeRun:
+    def test_construction_minimale(self) -> None:
+        r = ResumeRun()
+        assert r.par_categorie == {}
+        assert r.par_urgence == {}
+        assert r.spam_deplaces == 0
+        assert r.doublons == 0
+        assert r.corbeille == 0
+
+    def test_valeur_negative_rejetee(self) -> None:
+        with pytest.raises(ValidationError):
+            ResumeRun(spam_deplaces=-1)
+        with pytest.raises(ValidationError):
+            ResumeRun(par_categorie={"classification.notification": -1})
+
+    def test_champ_interdit_rejete(self) -> None:
+        with pytest.raises(ValidationError):
+            ResumeRun.model_validate({"spam_deplaces": 1, "inconnu": 2})
+
+    def test_cle_categorie_invalide_rejetee(self) -> None:
+        with pytest.raises(ValidationError):
+            ResumeRun(par_categorie={"Agent/notification": 1})
+
+    def test_urgence_invalide_rejetee(self) -> None:
+        with pytest.raises(ValidationError):
+            ResumeRun(par_urgence={"critique": 1})
+
+    def test_round_trip_json(self) -> None:
+        r = ResumeRun(
+            par_categorie={"classification.a-repondre": 2},
+            par_urgence={"basse": 2},
+            spam_deplaces=1,
+        )
+        restaure = ResumeRun.model_validate(r.model_dump(mode="json"))
+        assert restaure == r
 
 
 class TestSchemaAgent:

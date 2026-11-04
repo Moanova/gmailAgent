@@ -41,6 +41,7 @@ from dedup import empreinte_message, normaliser_message_id
 from gmail import ClientGmailAPI, nouveau_client
 from journalisation import configurer, obtenir_logger
 from labels import ClientGmail, ResolveurLibelles
+from report import aggreger
 from validation import SyntheseInvalideError
 
 CLE_TRAITE = "suivi.traite"
@@ -388,6 +389,7 @@ def lancer_run_tri(
                     synthese_c if isinstance(synthese_c, SyntheseClassification) else None
                 ),
                 nb_doublons=0,
+                resume=aggreger(checkpoint.syntheses, nb_doublons=0),
                 statut_global="succes",
             )
             _valider_etape(checkpoint, ETAPE_RAPPORT, dossier)
@@ -498,6 +500,7 @@ def lancer_run_suppression(
                 synthese_suppression=(
                     synthese_s if isinstance(synthese_s, SyntheseSuppression) else None
                 ),
+                resume=aggreger(checkpoint.syntheses, nb_doublons=0),
                 statut_global="succes",
             )
             _valider_etape(checkpoint, ETAPE_RAPPORT, dossier)

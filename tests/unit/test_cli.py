@@ -178,3 +178,46 @@ class TestMain:
         monkeypatch.setattr(cli, "ClientGmailAPI", _FauxAPI)
         assert main(["migrate-labels", "Agent/inconnu", "Agent/nouveau"]) == 1
         assert "inconnu" in capsys.readouterr().err
+
+
+class TestResumeConsole:
+    def test_tri_affiche_resume_console(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from contracts import ResumeRun
+
+        meta = Meta(
+            run_id=UUID("12345678-1234-5678-1234-567812345678"),
+            etape="rapport",
+            agent="orchestrateur",
+        )
+        rapport = RapportFinal(
+            meta=meta,
+            statut_global="succes",
+            resume=ResumeRun(
+                par_categorie={"classification.notification": 2}, spam_deplaces=1
+            ),
+        )
+        monkeypatch.setattr(cli, "lancer_run_tri", lambda *a, **k: rapport)
+        assert main(["tri"]) == 0
+        sortie = capsys.readouterr().out
+        assert "classification.notification : 2" in sortie
+        assert "spam : 1 message(s) replacé(s)" in sortie
+        assert "Agent/" not in sortie
+
+    def test_suppression_affiche_resume_console(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from contracts import ResumeRun
+
+        meta = Meta(
+            run_id=UUID("12345678-1234-5678-1234-567812345678"),
+            etape="rapport",
+            agent="orchestrateur",
+        )
+        rapport = RapportFinal(
+            meta=meta, statut_global="succes", resume=ResumeRun(corbeille=3)
+        )
+        monkeypatch.setattr(cli, "lancer_run_suppression", lambda *a, **k: rapport)
+        assert main(["suppression"]) == 0
+        assert "corbeille : 3 message(s)" in capsys.readouterr().out

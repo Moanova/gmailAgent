@@ -1,9 +1,10 @@
 import copy
+import re
 from datetime import UTC, datetime
-from typing import Annotated, Any, Final, Literal
+from typing import Annotated, Any, Final, Literal, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from config import RegistreLibelles, charger_registre
 
@@ -96,6 +97,38 @@ SyntheseEtape = Annotated[
 ]
 
 
+_EntiersNonNegatifs = Annotated[int, Field(ge=0)]
+
+
+class ResumeRun(BaseModel):
+    """Résumé agrégé d'un run, calculé déterministement depuis les synthèses validées."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    par_categorie: dict[str, _EntiersNonNegatifs] = Field(default_factory=dict)
+    par_urgence: dict[str, _EntiersNonNegatifs] = Field(default_factory=dict)
+    spam_deplaces: int = Field(default=0, ge=0)
+    doublons: int = Field(default=0, ge=0)
+    corbeille: int = Field(default=0, ge=0)
+
+    @field_validator("par_categorie")
+    @classmethod
+    def _cles_logiques(cls, valeur: dict[str, int]) -> dict[str, int]:
+        for cle in valeur:
+            if re.fullmatch(_PATTERN_CLE_LOGIQUE, cle) is None:
+                raise ValueError(f"clé de catégorie invalide : {cle!r}")
+        return valeur
+
+    @field_validator("par_urgence")
+    @classmethod
+    def _urgences_valides(cls, valeur: dict[str, int]) -> dict[str, int]:
+        valides = set(get_args(Urgence))
+        for cle in valeur:
+            if cle not in valides:
+                raise ValueError(f"urgence invalide : {cle!r}")
+        return valeur
+
+
 class RapportFinal(BaseModel):
     """Rapport agrégé du run de tri, restitué à l'utilisateur."""
 
@@ -106,6 +139,7 @@ class RapportFinal(BaseModel):
     synthese_classification: SyntheseClassification | None = None
     synthese_suppression: SyntheseSuppression | None = None
     nb_doublons: int = Field(default=0, ge=0)
+    resume: ResumeRun | None = None
     statut_global: Literal["succes", "echec_partiel"]
     etape_fautive: str | None = None
 

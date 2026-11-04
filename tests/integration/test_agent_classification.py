@@ -235,6 +235,9 @@ class TestAgentClassificationBoutEnBout:
         assert rapport.statut_global == "succes"
         assert rapport.synthese_classification is not None
         assert len(rapport.synthese_classification.messages) == 1
+        assert rapport.resume is not None
+        assert rapport.resume.par_categorie == {"classification.a-repondre": 1}
+        assert rapport.resume.par_urgence == {"haute": 1}
         assert service.modifications == [("m1", ["L_arep", "L_traite"], [])]
         checkpoint = charger_checkpoint(rapport.meta.run_id, tmp_path)
         assert checkpoint.etapes_validees == ETAPES_COMPLETES
@@ -290,6 +293,9 @@ class TestAgentClassificationBoutEnBout:
         assert rapport.statut_global == "succes"
         assert rapport.synthese_classification is not None
         assert rapport.synthese_classification.statut == "aucun_message"
+        assert rapport.resume is not None
+        assert rapport.resume.par_categorie == {}
+        assert rapport.resume.spam_deplaces == 0
 
     def test_idempotence_agent_non_rappele(
         self, registre: RegistreLibelles, tmp_path: Path

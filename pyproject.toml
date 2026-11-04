@@ -33,7 +33,7 @@ gmailagent = "cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator", "cli", "prompts", "agents", "dedup"]
+py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator", "cli", "prompts", "agents", "dedup", "report"]
 
 [tool.ruff]
 line-length = 100

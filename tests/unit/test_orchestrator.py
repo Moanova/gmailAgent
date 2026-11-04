@@ -648,3 +648,20 @@ class TestRunSuppression:
         assert checkpoint.rapport is not None
         assert checkpoint.rapport.statut_global == "echec_partiel"
         assert checkpoint.rapport.etape_fautive == "lecture_suppression"
+
+
+class TestResumeRapport:
+    def test_run_tri_rapport_contient_resume(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        rapport = _run(registre, tmp_path, _FauxClientGmail())
+        assert rapport.resume is not None
+        assert rapport.resume.spam_deplaces == 0
+        assert rapport.resume.par_categorie == {}
+
+    def test_run_suppression_rapport_contient_resume(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        rapport = _run_suppression(registre, tmp_path, _FauxClientGmail())
+        assert rapport.resume is not None
+        assert rapport.resume.corbeille == 1

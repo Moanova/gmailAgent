@@ -233,6 +233,9 @@ class TestAgentSpamBoutEnBout:
         assert rapport.synthese_spam is not None
         assert rapport.synthese_spam.statut == "deplaces"
         assert [m.id for m in rapport.synthese_spam.messages] == ["m-spam1"]
+        assert rapport.resume is not None
+        assert rapport.resume.spam_deplaces == 1
+        assert rapport.resume.par_categorie == {}
         assert service.modifications == [
             ("m-spam1", ["L_valspam", "L_traite", "INBOX"], ["SPAM"])
         ]

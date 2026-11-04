@@ -242,6 +242,8 @@ class TestAgentSuppressionBoutEnBout:
         assert rapport.synthese_suppression.statut == "supprimes"
         assert rapport.synthese_suppression.count == 1
         assert rapport.synthese_suppression.ids == ["m-t-sup1"]
+        assert rapport.resume is not None
+        assert rapport.resume.corbeille == 1
         assert service.modifications == [("m-t-sup1", ["TRASH"], [])]
         assert REQUETE_SUPPRESSION in service.queries[0]
         appel0 = mistral.chat.appels[0]

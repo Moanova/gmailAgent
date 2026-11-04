@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 from gmail import ClientGmailAPI
 from journalisation import configurer, obtenir_logger
 from orchestrator import lancer_run_suppression, lancer_run_tri
+from report import formater_console
 
 AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures journalisées)"
 
@@ -67,6 +68,7 @@ def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
     dry_run = not args.reel
     rapport = lancer_run_tri(run_id, dry_run=dry_run)
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
+    print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
     return 0 if rapport.statut_global == "succes" else 1
 
@@ -75,6 +77,7 @@ def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
     dry_run = not args.reel
     rapport = lancer_run_suppression(run_id, dry_run=dry_run)
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
+    print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
     return 0 if rapport.statut_global == "succes" else 1
 
