@@ -69,7 +69,7 @@ gmailAgent/
 | **3. Orchestrateur squelette** | Cycle de run (run_id, checkpoints JSON, idempotence `is:unread -label:"Agent/traité"`), CLI (`tri`, `suppression`, `migrate-labels`), planification cron | Un run vide qui tourne de bout en bout |
 | **4. Agent spam** | Conversation éphémère, prompt conservatoire, schéma `deplaces`/`aucun_message`/`echec_technique`, validation, apposition `Agent/valide-spam` | Étapes 1–2 du pipeline opérationnelles |
 | **5. Agent classification** | Conversation éphémère, schéma enrichi (`message_id_rfc`, `empreinte`), validation IDs + complétude | Étapes 3–4 opérationnelles |
-| **6. Dédoublonnage** | Normalisation (Message-ID, sujet, corps), SHA-256, groupement déterministe, recalcul/validation des empreintes, pose `Agent/doublon` | Étape 5 opérationnelle, testée unitairement |
+| **6. Dédoublonnage** *(option post-v1 — non embarquée dans la v1, décision D46)* | Normalisation (Message-ID, sujet, corps), SHA-256, groupement déterministe, recalcul/validation des empreintes, pose `Agent/doublon` | Étape 5 opérationnelle, testée unitairement |
 | **7. Agent suppression** | Run séparé T+1h, requête `label:"Agent/traité" older_than:1h` + `Agent/doublon`, corbeille uniquement | Pipeline complet |
 | **8. Rapport et restitution** | Agrégation des synthèses validées, rapport final JSON + résumé console | Étape 6 |
 | **9. Tests** | Unitaires (validation, normalisation, empreintes, registre), fixtures de conversations mockées, mode **dry-run** (aucun appel d'écriture Gmail) | CI verte |
@@ -78,11 +78,17 @@ gmailAgent/
 ## 4. Ordre de développement
 
 1 → 2 → 3 (squelette qui tourne à vide) → 5 (classification, cœur du système)
-→ 4 (spam) → 6 (dédoublonnage) → 7 (suppression) → 8 → 9 → 10.
+→ 4 (spam) → 7 (suppression) → 8 → 9 → 10 pour la **v1**.
 
 La classification (phase 5) est volontairement placée avant le spam (phase 4) :
 c'est l'agent le plus représentatif du pattern commun, et il valide les
 contrats et la validation programmatique avant leur réutilisation.
+
+La **phase 6 (dédoublonnage) est conservée comme option post-v1** (décision D46) : en v1,
+l'étape 5 reste un stub no-op (`nb_doublons=0` dans le rapport, aucun libellé
+`Agent/doublon` posé — la clause du run de suppression est alors inerte). Ses fondations
+sont déjà en place (normalisation + empreintes, T5.3 ; recalcul C6 à l'étape 4) et seront
+réutilisées telles quelles lors de la reprise post-v1.
 
 ## 5. Précautions transverses
 

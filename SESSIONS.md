@@ -924,3 +924,90 @@ Aucun.
 - Kanban : **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.4, T4.1–T4.4, T5.1–T5.5 (phases 1, 2, 3, 4 et 5) ; **À faire** = T3.5 ; « En cours »/« En revue » vides.
 - Branche `dev` : derniers pushs `111032e` (fix D44) + `c40b31f` (docs) ; modifications doc de validation non commitées (kanban, suivis T4.x, SESSIONS) — en attente de commit/push sur demande explicite (règle C).
 - Prochaine séance : **T3.5** (option `gmailagent tri --tout`) ou découpage de la **phase 6 (dédoublonnage, étape 5)** — au choix de l'utilisateur.
+
+---
+
+## Séance du 04/11/2026 — décision D46 : phase 6 en option post-v1
+
+### Contexte
+Reprise du projet **gmailAgent** après validation des phases 4 et 5. Questionnement sur la
+justification de la phase 6 (dédoublonnage) : l'utilisateur confirme que les originaux
+restent sur leurs serveurs d'origine (laposte.net, orange.fr) et en local (Thunderbird) ;
+un doublon intra-Gmail n'apparaît que si un même message RFC entre dans Gmail par deux
+chemins (ex. re-routé depuis deux messageries). Décision de passer directement à la phase 7
+pour la v1, la phase 6 restant documentée comme option post-v1.
+
+### Actions réalisées
+
+1. **Reprise de contexte** : branche `dev` à jour (`eb6a659`), lecture de `AGENTS.md`,
+   `docs/projet/plan-macro.md`, `docs/projet/kanban.md`, `docs/design/conception.md`,
+   `docs/design/workflow.md`, `SESSIONS.md`, `README.md`, `src/orchestrator.py`.
+2. **Modifications (aucun commit, règle C)** :
+   - `docs/projet/plan-macro.md` : phase 6 annotée « option post-v1 » (§3) ; ordre v1 =
+     7 → 8 → 9 → 10, phase 6 insérée après (§4), avec rappel des fondations déjà en place ;
+   - `docs/design/conception.md` : §3 coiffée d'une note de statut v1 ; tableau §2.2
+     (étape 5 = no-op en v1, libellé posé post-v1) ; §2.2 run de suppression (clause
+     `Agent/doublon` inerte en v1) ; §1.2 (libellé `Agent/doublon` non posé en v1) ;
+   - `docs/design/workflow.md` : nœud A5, tableau du run principal (étape 5), tableau du run
+     de suppression (clause inerte en v1) et paragraphe de couplage ;
+   - `docs/projet/kanban.md` : note — phase 6 reportée post-v1, aucune tâche T6.x, prochaine
+     phase à découper = phase 7 (T7.x) ;
+   - `README.md` : présentation, ligne `suppression`, référence aux décisions D1…D46 ;
+   - `src/orchestrator.py` : docstring du module + log du stub de l'étape 5
+     (« option post-v1, decision D46 »).
+3. **Conservés tels quels** (fondations de la phase 6, réutilisées post-v1) : `src/dedup.py`
+   et `tests/unit/test_dedup.py` (T5.3), contrôle C6 `_recalculer_empreintes`
+   (`src/orchestrator.py`), champs `message_id_rfc`/`empreinte` de `MessageClasse` et
+   `nb_doublons` de `RapportFinal` (`src/contracts.py`), déclaration d'empreinte dans le
+   prompt classification (`src/prompts.py`), `suivi.doublon` dans `config/labels.yaml`,
+   tests associés. Le stub de l'étape 5 (`src/orchestrator.py`) valide l'étape sans rien
+   faire : `nb_doublons=0` dans le rapport en v1.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D46 | Phase 6 (dédoublonnage) conservée comme option post-v1 : v1 = phases 1–5 + 7–10 ; étape 5 = stub no-op (`nb_doublons=0`), clause `Agent/doublon` du run de suppression inerte en v1 | Tant qu'un même message n'entre pas deux fois dans Gmail, aucun doublon intra-Gmail ; la phase 6 reste un calcul déterministe local et réversible, reportée pour livrer la v1 plus tôt. Fondations (T5.3, C6) déjà en place pour la reprise. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : inchangé (**À faire** = T3.5 ; phases 1–5 en « Terminé ») + note D46 (phase 6
+  reportée post-v1, prochaine phase = 7).
+- Branche `dev` : modifications non commitées (6 documents + `src/orchestrator.py`) — en
+  attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : découpage de la **phase 7 (Agent suppression)** en tâches T7.x sur
+  demande explicite (T3.5 à choix avant ou après).
+
+---
+
+## Séance du 04/11/2026 (suite) — découpage de la phase 7 (T7.1–T7.4)
+
+### Contexte
+Après la décision D46 (phase 6 en option post-v1), découpage de la **phase 7 (Agent suppression)** en tâches, sur demande explicite. Constats préalables : schéma strict `SyntheseSuppression` déjà construit (T2.2 — statuts `supprimes`/`aucun_message`/`echec_technique`, champs `count`/`ids`) ; runner générique `lancer_conversation` paramétré par agent (D35) mais `AGENT_SUPPRESSION` lève encore `AgentInconnuError` dans `_prompt_systeme` ; requête de suppression déjà construite depuis le registre dans `src/cli.py` (`_requete_suppression`, clause `doublon` inerte en v1, D46) ; `ClientGmailAPI.corbeille` + wrapper dry-run (règle E) en place ; commande CLI `suppression` encore un stub.
+
+### Actions réalisées
+
+1. **Kanban** : T7.1–T7.4 ajoutées en « À faire » (avant T3.5) ; note d'en-tête mise à jour (phase 7 découpée, T3.5 à choix avant/après) ; descriptions détaillées en fin de document :
+   - **T7.1** — prompt `prompt_suppression(registre)` dans `src/prompts.py` (corbeille uniquement via `TRASH` + outil `label_message`, schéma strict `SyntheseSuppression`, allow-list `OUTILS_GMAIL` réutilisée D41, libellés depuis le registre) + tests `test_prompts.py` ;
+   - **T7.2** — branche `AGENT_SUPPRESSION` dans `_prompt_systeme` (`src/agents.py`), runner D35 réutilisé tel quel, garde de complétude `count == len(ids)` + C3 + tests `test_agents.py` ;
+   - **T7.3** — `lancer_run_suppression` dans `src/orchestrator.py` (run séparé, checkpoints propres, requête depuis le registre, validation C1–C3 + complétude, rejet → `echec_partiel`, reprise `--run-id`, idempotence `older_than:1h`) et remplacement du stub `_cmd_suppression` dans `src/cli.py` (dry-run par défaut, règle E) + tests `test_orchestrator.py`/`test_cli.py` ;
+   - **T7.4** — TI `tests/integration/test_agent_suppression.py` de bout en bout (TRASH réel/journalisé, `aucun_message`, rejet C3, idempotence 2 runs) + validation dry-run réelle puis petit périmètre réel. Critère de sortie phase 7 : pipeline complet.
+2. **Aucun changement de code** ; aucun commit (règle C).
+
+### Décisions clés
+
+Aucune nouvelle (D35, D41, D46 appliquées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Kanban : **À faire** = T7.1, T7.2, T7.3, T7.4, T3.5 ; phases 1–5 en « Terminé » ; phase 6 reportée post-v1 (D46).
+- Branche `dev` : modifications doc non commitées (kanban, SESSIONS, + celles de la séance D46) — en attente de commit/push sur demande explicite (règle C).
+- Prochaine étape : **T7.1** (prompt agent suppression) sur demande explicite.

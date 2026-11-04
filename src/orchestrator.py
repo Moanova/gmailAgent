@@ -2,7 +2,7 @@
 
 Étapes 0–7 du run principal (docs/design/workflow.md). Les étapes 1–2 (spam) et
 3–4 (classification) sont réelles (phases 4–5) ; le dédoublonnage (étape 5) reste
-un stub (phase 6).
+un stub no-op en v1 (option post-v1, décision D46 — phase 6).
 
 Checkpoints : JSON persistés dans `data/checkpoints/<run_id>.json` à chaque étape
 validée ; en cas de crash, relancer avec le même `run_id` saute les étapes déjà
@@ -305,9 +305,9 @@ def lancer_run_tri(
         etape_courante = "dedoublonnage"
         if "dedoublonnage" not in checkpoint.etapes_validees:
             log.warning(
-                "etape en stub (squelette phase 3)",
+                "etape en stub (option post-v1, decision D46)",
                 etape="dedoublonnage",
-                implementee_en="phase 6",
+                implementee_en="phase 6 (post-v1)",
             )
             _valider_etape(checkpoint, "dedoublonnage", dossier)
 

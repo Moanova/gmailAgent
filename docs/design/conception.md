@@ -34,7 +34,7 @@ Les libellés Gmail servent de canal de coordination entre agents et entre exéc
 
 - `Agent/traité` : apposé par l'agent classification ou l'agent spam une fois le message traité et validé ;
 - `Agent/a-repondre`, `Agent/information`, `Agent/notification` : libellés de classement ;
-- `Agent/doublon` : apposé sur les copies redondantes identifiées par le dédoublonnage (§3) ;
+- `Agent/doublon` : apposé sur les copies redondantes identifiées par le dédoublonnage (§3) — **non posé en v1** (option post-v1, D46) ;
 - `Agent/valide-spam` : apposé par l'agent spam sur les messages replacés depuis le spam.
 
 La corbeille (jamais la suppression définitive) est le seul moyen d'éliminer les copies redondantes. Les originaux demeurent dans les messageries d'origine.
@@ -63,12 +63,12 @@ Un orchestrateur Python pilote séquentiellement les trois agents sous forme de 
 | 2   | validation spam           | code Python                             | synthèse_spam, exécutions d'outils    | ok / rejet (interrompt le run)  |
 | 3   | lecture non lus           | conversation agent classification       | —                                     | synthèse_classification (JSON)  |
 | 4   | validation classification | code Python                             | synthèse_classification, exécutions   | ok / rejet (interrompt le run)  |
-| 5   | dédoublonnage             | code Python déterministe (§3)           | synthèse_classification, empreintes   | libellé `Agent/doublon` posé    |
+| 5   | dédoublonnage — **no-op en v1** (option post-v1, D46)             | code Python déterministe (§3)           | synthèse_classification, empreintes   | libellé `Agent/doublon` posé (post-v1) |
 | 6   | agrégation et restitution | code Python                             | synthèses validées                    | rapport final                   |
 
 L'ordre est imposé : le spam est traité avant la classification, afin que les messages replacés rejoignent le pool des non lus à classer.
 
-L'étape de suppression fait l'objet d'un **run séparé**, planifié (T+1h) : conversation avec l'agent suppression, portant sur les messages `label:"Agent/traité" older_than:1h`, suivie de sa propre validation. Le délai de grâce d'une heure s'applique aussi aux doublons étiquetés `Agent/doublon`.
+L'étape de suppression fait l'objet d'un **run séparé**, planifié (T+1h) : conversation avec l'agent suppression, portant sur les messages `label:"Agent/traité" older_than:1h`, suivie de sa propre validation. Le délai de grâce d'une heure s'applique aussi aux doublons étiquetés `Agent/doublon`. *(En v1, décision D46 : la phase 6 n'est pas embarquée, aucun message ne porte ce libellé — la clause est inerte.)*
 
 ### 2.3 Agents permanents ou éphémères ?
 
@@ -125,7 +125,12 @@ Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais rest
 
 ---
 
-## 3. Gestion des doublons
+## 3. Gestion des doublons *(option post-v1 — non embarquée dans la v1)*
+
+> **Statut v1 (décision D46)** : l'étape 5 du pipeline est un stub no-op (`nb_doublons=0`,
+> aucun libellé `Agent/doublon` posé). Cette section reste la spécification de référence pour
+> la reprise post-v1 ; les fondations (normalisation + empreintes T5.3, recalcul C6 à
+> l'étape 4) sont déjà en place.
 
 **Origine.** Les messages reroutés depuis d'autres messageries (via Thunderbird) coexistent avec leurs originaux : mêmes contenus, threads Gmail distincts, identifiants de message différents.
 

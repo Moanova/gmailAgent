@@ -28,7 +28,7 @@ flowchart TD
         A2{"Étape 2 — Validation spam<br/>cohérence, authenticité, complétude"}
         A3[/"Étape 3 — Lecture non lus<br/>conversation agent classification (LLM + outils Gmail)"/]:::agent
         A4{"Étape 4 — Validation classification<br/>IDs, complétude, empreintes recalculées"}
-        A5["Étape 5 — Dédoublonnage<br/>Message-ID + SHA-256, pose du libellé doublon"]
+        A5["Étape 5 — Dédoublonnage<br/>no-op en v1 (option post-v1, D46)"]
         A6["Étape 6 — Agrégation et restitution<br/>rapport final JSON"]
         A7(["Fin du run<br/>checkpoint final"])
         RJ[/"Journalisation du motif de rejet<br/>arrêt du run — statut échec"/]
@@ -80,7 +80,7 @@ flowchart TD
 | 2 | Validation spam | Programmatique | `ok` si statut cohérent, IDs authentifiés, synthèse complète ; `rejet` sinon |
 | 3 | Lecture non lus — conversation agent classification | **Agentique** | Validation spam passée (ordre imposé : spam avant classification) |
 | 4 | Validation classification | Programmatique | `ok` si cohérence + authenticité + complétude + empreintes recalculées conformes ; `rejet` sinon |
-| 5 | Dédoublonnage (Message-ID, SHA-256, pose `doublon`) | Programmatique | Validation classification passée |
+| 5 | Dédoublonnage — **no-op en v1** (option post-v1, D46 : stub, `nb_doublons=0`) | Programmatique | Validation classification passée |
 | 6 | Agrégation et restitution (rapport final) | Programmatique | Dédoublonnage terminé |
 | 7 | Fin du run, checkpoint final | Programmatique | — |
 
@@ -91,14 +91,14 @@ flowchart TD
 | 0 | Démarrage du run de suppression | Programmatique | Déclencheur temporel (planifié, indépendant du run principal) |
 | 1 | Lecture des messages traités — conversation agent suppression | **Agentique** | Synthèse produite |
 | 2 | Validation | Programmatique | `ok` / `rejet` (mêmes règles) |
-| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" older_than:1h` et `label:"doublon"` |
+| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" older_than:1h` et `label:"doublon"` *(clause inerte en v1 — D46)* |
 | 4 | Fin du run | Programmatique | — |
 
 ### Couplage entre les deux runs
 
 Les deux runs sont **indépendants** (processus séparés, planifiés séparément).
 Le seul canal de coordination est **Gmail lui-même**, via les libellés posés
-durant le run principal (`traité`, `doublon`) : c'est l'état persistant qui
+durant le run principal (`traité` ; `doublon` uniquement post-v1, D46) : c'est l'état persistant qui
 permet au run de suppression de sélectionner les messages ayant dépassé le
 délai de grâce d'une heure. Aucun état n'est transmis directement entre les
 deux exécutions.
