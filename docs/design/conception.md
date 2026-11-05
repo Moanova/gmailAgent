@@ -55,6 +55,8 @@ Les scripts fournis (`agent01a`, `agent01b`, `agent01c`, `agent02`, `agent02b`, 
 
 Un orchestrateur Python pilote séquentiellement les trois agents sous forme de conversations. Chaque étape produit une synthèse structurée, validée programmatiquement avant de passer à la suivante. L'état est explicite : en mémoire pendant le run, persisté par checkpoints entre les étapes, et dans Gmail via les libellés (canal persistant entre les runs).
 
+**Configuration.** Deux fichiers YAML dans `config/` : `labels.yaml` (registre des libellés `Agent/*` — clé logique vers libellé physique, seule source de vérité pour les libellés, aucun nom physique en dur dans le code) et `settings.yaml` (paramètres du pipeline : chemins, modèle par défaut, plafonds et garde-fous, délai de grâce de la suppression, requête spam). Priorité de résolution : variable d'environnement (`MISTRAL_MODEL`, `LOG_FILE`, ...) > `settings.yaml` > défaut du code (modèle `Parametres` de `src/config.py`, `extra="forbid"` ; sans `settings.yaml`, les défauts du code s'appliquent). Restent volontairement dans le code : les libellés système `TRASH`/`SPAM`/`INBOX` (ids stables de l'API Gmail, D43), les prompts et schémas d'outils (versionnés avec le code, D2) et les contrats de validation (statuts, enums d'urgence, empreintes). Le modèle effectivement utilisé est journalisé à chaque conversation (`conversation lancee` dans `logs/gmailagent.log`).
+
 ### 2.2 Étapes du pipeline
 
 | #   | Étape                     | Implémentation                          | Entrées                               | Sorties                         |
@@ -69,6 +71,8 @@ Un orchestrateur Python pilote séquentiellement les trois agents sous forme de 
 L'ordre est imposé : le spam est traité avant la classification, afin que les messages replacés rejoignent le pool des non lus à classer.
 
 L'étape de suppression fait l'objet d'un **run séparé**, planifié (T+24h) : conversation avec l'agent suppression, portant sur les messages `label:"Agent/traité" label:"Agent/notification" older_than:24h OR label:"Agent/doublon"` — **seules les notifications traitées sont éligibles** (décision D47) — suivie de sa propre validation. Le délai de grâce de 24 h s'applique aussi aux doublons étiquetés `Agent/doublon`. Le libellé UNREAD n'est jamais retiré par le pipeline (cela reste une action utilisateur). *(En v1, décision D46 : la phase 6 n'est pas embarquée, aucun message ne porte le libellé `Agent/doublon` — la clause est inerte.)*
+
+> **Note de conception (05/11/2026) — évolution potentielle, non retenue en v1** : l'état lu/non lu n'est **pas** un critère du run de suppression (D47) — l'éligibilité repose sur la catégorie `notification`, le libellé `traité` et le délai de grâce de 24 h. Évolution envisagée à terme : n'autoriser la corbeille que pour des messages **lus par l'utilisateur**, en ajoutant `-is:unread` à la clause notification de la requête (`label:"Agent/traité" label:"Agent/notification" older_than:24h -is:unread OR label:"Agent/doublon"`). C'est rendu possible précisément par la décision « UNREAD jamais retiré par le pipeline » : l'étiquette UNREAD reflète alors fidèlement l'action de lecture de l'utilisateur (à l'inverse, si le pipeline retirait UNREAD à la classification, `-is:unread` serait inopérant, tout message traité apparaîtrait comme « lu »). Nuance : un message lu avant le run de tri n'est pas sélectionné par `is:unread -label:"Agent/traité"` à l'étape 3 — il ne sera donc jamais classé ni éligible à la suppression. À réévaluer avec des données réelles avant toute implémentation.
 
 ### 2.3 Agents permanents ou éphémères ?
 
@@ -153,13 +157,13 @@ Deux familles de quotas sont en jeu : l'API Mistral (RPM/TPM selon le tier, erre
 
 Mesures retenues :
 
-1. **Bornage par run** : la recherche `search_threads` est paginée avec `max_results` (plafond conseillé : 50 messages par run ; implémenté : 25 threads par run, `MAX_THREADS_PAR_RUN`). Les non lus restants le restent et sont absorbés au run suivant — la pagination Gmail garantit la reprise naturelle (ou immédiatement dans la même invocation avec l'option `--tout`, §2.6).
+1. **Bornage par run** : la recherche `search_threads` est paginée avec `max_results` (plafond conseillé : 50 messages par run ; implémenté : 25 threads par run, `limites.max_threads_par_run` dans `config/settings.yaml`). Les non lus restants le restent et sont absorbés au run suivant — la pagination Gmail garantit la reprise naturelle (ou immédiatement dans la même invocation avec l'option `--tout`, §2.6).
 2. **Backoff exponentiel avec jitter** : 3 tentatives, base de 2 secondes, sur les 429 et 5xx, applicable aux appels Mistral comme aux appels d'outils Gmail.
 3. **Garde-fou anti-boucle** : plafond d'appels sur les outils de consultation (`search_threads`, `list_labels`), repris du script `02` ; au-delà, abandon propre du run avec statut `echec_technique`.
 4. **Cache intra-run** : `list_labels` appelé une seule fois par agent et par run ; threads lus conservés en mémoire.
 5. **Mode incrémental** : si le volume devient significatif, remplacer le scan `is:unread` par `history.list` (à partir du `historyId` mémorisé au run précédent) pour ne lire que les deltas.
 6. **Lissage de charge** : le run de suppression est séparé (T+24h) ; la planification est placée en heures creuses.
-7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capé à 8000 (relevé le 04/11/2026 après incident réel `tri --reel --tout` sur ~50 messages : à 4000, la synthèse était tronquée, la garde de complétude rejetait 3 fois puis abandonnait le run), timeout HTTP explicite (300 s).
+7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capé à 8000 (`limites.max_tokens` dans `config/settings.yaml` ; relevé le 04/11/2026 après incident réel `tri --reel --tout` sur ~50 messages : à 4000, la synthèse était tronquée, la garde de complétude rejetait 3 fois puis abandonnait le run), timeout HTTP explicite (300 s, `limites.timeout_http_ms`).
 8. **Observabilité** : journaliser par run le nombre d'appels d'outils, les tokens consommés et les latences, afin d'ajuster les plafonds sur des données réelles.
 
 ---
