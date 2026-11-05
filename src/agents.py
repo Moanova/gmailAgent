@@ -319,6 +319,12 @@ def lancer_conversation(
                     )
                 executions.append(appel)
                 args = _arguments_outil(appel)
+                if appel.name == "search_threads" and str(args.get("query", "")) != requete:
+                    recu = str(args.get("query", ""))
+                    raise SyntheseInvalideError(
+                        f"requête de recherche modifiée par l'agent (attendu {requete!r}, "
+                        f"reçu {recu!r}) — abandon du run"
+                    )
                 resultat = executer_outil(appel.name, args, client_gmail)
                 if appel.name == "search_threads" and isinstance(resultat, dict):
                     threads_trouves.update(
@@ -342,7 +348,12 @@ def lancer_conversation(
                     ids_resultats.update(
                         t for t in resultat.get("threads", []) if isinstance(t, str)
                     )
-                log.debug("outil execute", outil=appel.name, dry_run=dry_run)
+                log.info(
+                    "outil execute",
+                    outil=appel.name,
+                    args=_borner_reponse(args),
+                    dry_run=dry_run,
+                )
                 messages.append(
                     ToolMessage(
                         role="tool",

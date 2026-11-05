@@ -110,6 +110,7 @@ Les fonctions de validation des scripts de référence sont appliquées par l'or
 - `collecter_ids_reels` : parcours des exécutions d'outils réelles pour recueillir les identifiants réellement manipulés (messages, threads, libellés) ;
 - `valider_synthese` : contrôle de non-contradiction (statut d'échec sans messages), d'authenticité (identifiants connus) et de complétude ;
 - `extraire_json` : extraction robuste du premier objet JSON bien formé.
+- **garde de périmètre** : tout appel `search_threads` doit utiliser exactement la requête fournie par l'orchestrateur — toute autre requête provoque l'abandon propre du run (incident réel 05/11/2026 : dérive de requête observée avec `mistral-small-latest` en dry-run, rendue visible par la journalisation des arguments d'outils).
 
 Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais restitué tel quel à l'utilisateur. S'y ajoute le contrôle des empreintes de dédoublonnage (§3).
 
@@ -164,7 +165,7 @@ Mesures retenues :
 5. **Mode incrémental** : si le volume devient significatif, remplacer le scan `is:unread` par `history.list` (à partir du `historyId` mémorisé au run précédent) pour ne lire que les deltas.
 6. **Lissage de charge** : le run de suppression est séparé (T+24h) ; la planification est placée en heures creuses.
 7. **Plafonds de modèle** : `temperature: 0.0` et `max_tokens` capé à 8000 (`limites.max_tokens` dans `config/settings.yaml` ; relevé le 04/11/2026 après incident réel `tri --reel --tout` sur ~50 messages : à 4000, la synthèse était tronquée, la garde de complétude rejetait 3 fois puis abandonnait le run), timeout HTTP explicite (300 s, `limites.timeout_http_ms`).
-8. **Observabilité** : journaliser par run le nombre d'appels d'outils, les tokens consommés et les latences, afin d'ajuster les plafonds sur des données réelles.
+8. **Observabilité** : journaliser par run le nombre d'appels d'outils, les tokens consommés et les latences, afin d'ajuster les plafonds sur des données réelles. Chaque exécution d'outil est journalisée avec ses arguments bornés (`outil execute` avec `outil`, `args`, `dry_run` dans `logs/gmailagent.log`) : la piste d'audit d'un run est ainsi complète (requêtes de recherche utilisées, threads lus, écritures journalisées en dry-run).
 
 ---
 

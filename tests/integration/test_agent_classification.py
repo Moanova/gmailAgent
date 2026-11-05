@@ -18,6 +18,8 @@ from gmail import ClientGmailAPI
 from orchestrator import charger_checkpoint, lancer_run_tri
 from validation import SyntheseInvalideError
 
+REQUETE_NON_LUS = 'is:unread -label:"Agent/traité"'
+
 ETAPES_COMPLETES = [
     "demarrage",
     "lecture_spam",
@@ -166,7 +168,9 @@ def _scenario_spam_vide() -> list[_Reponse]:
 
 def _scenario_classification(empreinte: str) -> list[_Reponse]:
     return _scenario_spam_vide() + [
-        _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+        _Reponse(
+            _Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_NON_LUS})])
+        ),
         _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
         _Reponse(_Msg(tool_calls=[_appel("get_message", {"messageId": "m1"})])),
         _Reponse(
@@ -279,7 +283,9 @@ class TestAgentClassificationBoutEnBout:
         service = _FauxService(threads=[])
         api = ClientGmailAPI(service, dry_run=True)
         scenario = _scenario_spam_vide() + [
-            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(
+                _Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_NON_LUS})])
+            ),
             _Reponse(_Msg(content=json.dumps({"statut": "aucun_message", "messages": []}))),
         ]
         mistral = _FauxMistral(scenario)

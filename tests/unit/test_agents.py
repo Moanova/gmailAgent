@@ -641,6 +641,86 @@ class TestModele:
         assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
 
 
+class TestGardeRequete:
+    def test_requete_modifiee_abandon_propre(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Garde de périmètre : search_threads avec une requête différente de celle
+        fournie par l'orchestrateur -> abandon propre, aucun outil exécuté."""
+        mistral = _FauxMistral(
+            [_Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "older_than:24h"})]))]
+        )
+        service = _FauxService()
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="requête de recherche modifiée"):
+            lancer_conversation(
+                AGENT_CLASSIFICATION,
+                "is:unread",
+                meta,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+        assert service.appels == []
+
+    def test_requete_conforme_executee(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "aucun_message"
+
+    def test_arguments_outils_journalises(
+        self,
+        registre: RegistreLibelles,
+        meta: Meta,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import journalisation
+
+        monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
+        monkeypatch.setattr(journalisation, "_configure", False)
+        monkeypatch.setattr(journalisation, "_run_id_courant", None)
+        journalisation.configurer(str(meta.run_id))
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        lignes = [
+            json.loads(ligne)
+            for ligne in (tmp_path / "gmailagent.log").read_text(encoding="utf-8").splitlines()
+            if ligne.strip()
+        ]
+        outils = [ligne for ligne in lignes if ligne.get("event") == "outil execute"]
+        assert outils
+        assert any("is:unread" in str(ligne.get("args", "")) for ligne in outils)
+
+
 class TestBornageParRun:
     def test_search_threads_borne_a_25(self) -> None:
         from agents import executer_outil

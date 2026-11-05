@@ -1915,3 +1915,48 @@ Aucun.
 
 - Commit + push sur `dev` (demande explicite de l'utilisateur — règle C levée pour cette
   action uniquement).
+
+---
+
+## Séance du 05/11/2026 (suite) — garde de périmètre sur la requête + journalisation des arguments d'outils (D52, D53)
+
+### Contexte
+Test à blanc de l'utilisateur (`suppression` en dry-run) : ~18 messages journalisés en TRASH
+alors qu'aucune étiquette `Agent/*` n'existait. Diagnostic : la requête D47 ne matche rien sans
+étiquettes (AND implicite prioritaire sur OR) — le modèle (`mistral-small-latest`) avait appelé
+`search_threads` avec une autre requête, non contrôlée par le code (`lancer_conversation`
+exécutait `args["query"]` sans comparaison avec la requête fournie). Aucun message touché
+(dry-run : écritures seulement journalisées). Questions préalables tranchées : le `message_id`
+vient de Gmail (relayé par le modèle dans l'argument d'outil, puis par le code tel quel) ;
+l'observabilité native couvrait le run et les écritures dry-run, mais pas les arguments des
+appels d'outils.
+
+### Actions réalisées
+
+1. **Garde de périmètre** (`src/agents.py`, boucle de `lancer_conversation`) : tout appel
+   `search_threads` doit utiliser exactement la requête fournie par l'orchestrateur ; sinon
+   `SyntheseInvalideError` et abandon propre du run (même traitement que le garde-fou
+   anti-boucle). Aucun outil n'est exécuté hors périmètre.
+2. **Observabilité** (`src/agents.py`) : chaque exécution d'outil est journalisée en INFO avec
+   ses arguments bornés — `outil execute {outil, args, dry_run}` dans `logs/gmailagent.log`.
+3. **Tests** : `TestGardeRequete` (requête modifiée → abandon + aucun appel exécuté ; requête
+   conforme → OK ; arguments relus dans le fichier de log) ; fixtures TI mises à jour (requête
+   factice = requête exacte `is:unread -label:"Agent/traité"`).
+4. **Doc** : `conception.md` §2.5 (garde de périmètre) et §4.8 (piste d'audit complète).
+5. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (14 fichiers) ;
+   `pytest tests -q` : **278 passed**.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D52 | Garde dure de périmètre : `query` de `search_threads` == requête fournie par l'orchestrateur, sinon abandon propre du run (tous agents) | Incident réel 05/11 : dérive de requête du modèle constatée en dry-run ; la véracité exige un contrôle programmatique, pas seulement une consigne de prompt. |
+| D53 | Journalisation INFO de chaque exécution d'outil avec arguments bornés (`outil execute`) | Audit complet de ce que l'agent a fait (requêtes utilisées, lectures, écritures dry-run), indépendant du modèle. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Commit + push sur `dev` (demande explicite de l'utilisateur).
