@@ -16,6 +16,7 @@ import json
 import sys
 from uuid import UUID, uuid4
 
+from config import parametres_courants
 from contracts import RapportFinal
 from gmail import ClientGmailAPI
 from journalisation import configurer, marquer_fin_run, obtenir_logger
@@ -23,11 +24,14 @@ from orchestrator import lancer_run_suppression, lancer_run_tri
 from report import formater_console
 
 AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures journalisées)"
-PLAFOND_RUNS_TOUT = 10
-AIDE_TOUT = (
-    f"boucle de runs jusqu'à épuisement des non lus (plafond {PLAFOND_RUNS_TOUT} runs, "
-    "run_id distinct par run ; en dry-run : un seul run, les libellés n'étant pas posés)"
-)
+
+
+def _aide_tout() -> str:
+    plafond = parametres_courants().limites.plafond_runs_tout
+    return (
+        f"boucle de runs jusqu'à épuisement des non lus (plafond {plafond} runs, "
+        "run_id distinct par run ; en dry-run : un seul run, les libellés n'étant pas posés)"
+    )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -52,7 +56,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="run_id existant pour reprise sur incident",
     )
-    p_tri.add_argument("--tout", action="store_true", help=AIDE_TOUT)
+    p_tri.add_argument("--tout", action="store_true", help=_aide_tout())
     p_sup = _sous_commande(
         "suppression", "run de suppression T+24h (notifications uniquement, corbeille)"
     )
@@ -96,8 +100,9 @@ def _cmd_tri_tout(dry_run: bool) -> int:
     non lus, avec plafond de runs (garde-fou). En dry-run : un seul run (les libellés
     ne sont pas posés, la boucle ne pourrait pas progresser)."""
     log = obtenir_logger("cli")
+    plafond = parametres_courants().limites.plafond_runs_tout
     nb_runs = 0
-    for _ in range(PLAFOND_RUNS_TOUT):
+    for _ in range(plafond):
         statut = "interrompu"
         try:
             rapport = lancer_run_tri(uuid4(), dry_run=dry_run)
@@ -120,7 +125,7 @@ def _cmd_tri_tout(dry_run: bool) -> int:
             break
     else:
         log.warning(
-            "plafond de runs atteint (--tout)", plafond=PLAFOND_RUNS_TOUT, nb_runs=nb_runs
+            "plafond de runs atteint (--tout)", plafond=plafond, nb_runs=nb_runs
         )
     print(f"--tout : {nb_runs} run(s) exécuté(s)")
     return 0

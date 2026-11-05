@@ -328,9 +328,11 @@ class TestExecuterOutil:
 
 class TestApercuBorne:
     def test_corps_tronque_et_empreinte_fournie(self) -> None:
-        from agents import LIMITE_CORPS_APERCU, _apercu_message
+        from agents import _apercu_message
+        from config import parametres_courants
 
-        corps_long = "x" * (LIMITE_CORPS_APERCU + 500)
+        limite_corps = parametres_courants().limites.limite_corps_apercu
+        corps_long = "x" * (limite_corps + 500)
         import base64 as _b64
 
         message = {
@@ -349,17 +351,19 @@ class TestApercuBorne:
             },
         }
         apercu = _apercu_message(message)
-        assert len(apercu["corps"]) <= LIMITE_CORPS_APERCU + len("…[tronqué]")
+        assert len(apercu["corps"]) <= limite_corps + len("…[tronqué]")
         assert apercu["corps"].endswith("…[tronqué]")
         assert apercu["message_id_rfc"] == "a@b.fr"
         assert len(apercu["empreinte"]) == 64
         assert set(apercu["entetes"]) == {"Message-ID", "Subject", "From"}
 
     def test_borner_reponse(self) -> None:
-        from agents import LIMITE_REPONSE_OUTIL, _borner_reponse
+        from agents import _borner_reponse
+        from config import parametres_courants
 
-        texte = _borner_reponse({"data": "y" * (LIMITE_REPONSE_OUTIL + 100)})
-        assert len(texte) <= LIMITE_REPONSE_OUTIL + len('…["tronqué"]')
+        limite = parametres_courants().limites.limite_reponse_outil
+        texte = _borner_reponse({"data": "y" * (limite + 100)})
+        assert len(texte) <= limite + len('…["tronqué"]')
 
 
 class TestNormaliserPayload:
@@ -513,8 +517,8 @@ class TestCompletudeMessages:
 class TestLimiteTentativesSynthese:
     def test_abandon_apres_3_refus(self, registre: RegistreLibelles, meta: Meta) -> None:
         """Le modèle produit indéfiniment une synthèse incomplète -> abandon propre
-        après MAX_TENTATIVES_SYNTHESE refus (pas de boucle infinie)."""
-        from agents import MAX_TENTATIVES_SYNTHESE
+        après max_tentatives_synthese refus (pas de boucle infinie)."""
+        from config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
@@ -531,7 +535,7 @@ class TestLimiteTentativesSynthese:
         ]
         scenario += [
             _Reponse(_Msg(content=_payload_classification([_msg_classifie("m1")])))
-            for _ in range(MAX_TENTATIVES_SYNTHESE + 2)
+            for _ in range(parametres_courants().limites.max_tentatives_synthese + 2)
         ]
         mistral = _FauxMistral(scenario)
         service = _FauxService(threads=["t1", "t2"])
@@ -545,7 +549,8 @@ class TestLimiteTentativesSynthese:
                 client_gmail=client_gmail,
                 registre=registre,
             )
-        assert len(mistral.chat.appels) == 2 + MAX_TENTATIVES_SYNTHESE + 1
+        tentatives = parametres_courants().limites.max_tentatives_synthese
+        assert len(mistral.chat.appels) == 2 + tentatives + 1
 
 
 class TestMaxTokens:
@@ -554,7 +559,7 @@ class TestMaxTokens:
     ) -> None:
         """max_tokens par défaut relevé à 8000 (incident réel 04/11 : synthèse tronquée
         à 4000 sur ~50 messages, garde de complétude puis abandon du run)."""
-        from agents import MAX_TOKENS_PAR_DEFAUT
+        from config import parametres_courants
 
         mistral = _FauxMistral(
             [
@@ -571,13 +576,75 @@ class TestMaxTokens:
             client_gmail=client_gmail,
             registre=registre,
         )
-        assert MAX_TOKENS_PAR_DEFAUT == 8000
+        assert parametres_courants().limites.max_tokens == 8000
         assert mistral.chat.appels[0]["max_tokens"] == 8000
+
+
+class TestModele:
+    def _conversation_vide(self) -> list[_Reponse]:
+        return [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+        ]
+
+    def _lancer(
+        self,
+        registre: RegistreLibelles,
+        meta: Meta,
+        mistral: _FauxMistral,
+        **kwargs: Any,
+    ) -> None:
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+            **kwargs,
+        )
+
+    def test_modele_par_defaut_est_small(
+        self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agents import modele_effectif
+        from config import parametres_courants
+
+        monkeypatch.delenv("MISTRAL_MODEL", raising=False)
+        assert parametres_courants().modele.defaut == "mistral-small-latest"
+        assert modele_effectif(None) == "mistral-small-latest"
+        mistral = _FauxMistral(self._conversation_vide())
+        self._lancer(registre, meta, mistral)
+        assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
+
+    def test_modele_surcharge_par_env(
+        self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agents import modele_effectif
+
+        monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4")
+        assert modele_effectif(None) == "mistral-large-4"
+        mistral = _FauxMistral(self._conversation_vide())
+        self._lancer(registre, meta, mistral)
+        assert mistral.chat.appels[0]["model"] == "mistral-large-4"
+
+    def test_modele_explicite_prioritaire_sur_env(
+        self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agents import modele_effectif
+
+        monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4")
+        assert modele_effectif("mistral-small-latest") == "mistral-small-latest"
+        mistral = _FauxMistral(self._conversation_vide())
+        self._lancer(registre, meta, mistral, modele="mistral-small-latest")
+        assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
 
 
 class TestBornageParRun:
     def test_search_threads_borne_a_25(self) -> None:
-        from agents import MAX_THREADS_PAR_RUN, executer_outil
+        from agents import executer_outil
+        from config import parametres_courants
 
         class _ServiceLarges:
             def users(self) -> "_ServiceLarges":
@@ -587,13 +654,13 @@ class TestBornageParRun:
                 return self
 
             def list(self, userId: str, q: str, maxResults: int) -> "_Requete":
-                assert maxResults == MAX_THREADS_PAR_RUN
+                assert maxResults == parametres_courants().limites.max_threads_par_run
                 return _Requete({"threads": [{"id": f"t{i}"} for i in range(50)]})
 
         client_gmail = ClientGmailAPI(_ServiceLarges(), dry_run=True)
         args = {"query": "is:unread", "maxResults": 50}
         resultat = executer_outil("search_threads", args, client_gmail)
-        assert MAX_THREADS_PAR_RUN == 25
+        assert parametres_courants().limites.max_threads_par_run == 25
         # le plafond porte sur maxResults passé au service (25), pas sur la réponse
         assert len(resultat["threads"]) == 50
 
@@ -923,8 +990,8 @@ class TestConversationSuppression:
         self, registre: RegistreLibelles, meta_suppression: Meta
     ) -> None:
         """La synthèse ne correspond jamais aux mises à la corbeille réelles -> abandon
-        propre après MAX_TENTATIVES_SYNTHESE refus (pas de boucle infinie)."""
-        from agents import MAX_TENTATIVES_SYNTHESE
+        propre après max_tentatives_synthese refus (pas de boucle infinie)."""
+        from config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
@@ -940,7 +1007,7 @@ class TestConversationSuppression:
         ]
         scenario += [
             _Reponse(_Msg(content=_payload_suppression("supprimes", ["m-t2"])))
-            for _ in range(MAX_TENTATIVES_SYNTHESE + 2)
+            for _ in range(parametres_courants().limites.max_tentatives_synthese + 2)
         ]
         mistral = _FauxMistral(scenario)
         client_gmail = ClientGmailAPI(_FauxService(threads=["t1", "t2"]), dry_run=True)
@@ -953,7 +1020,8 @@ class TestConversationSuppression:
                 client_gmail=client_gmail,
                 registre=registre,
             )
-        assert len(mistral.chat.appels) == 2 + MAX_TENTATIVES_SYNTHESE + 1
+        tentatives = parametres_courants().limites.max_tentatives_synthese
+        assert len(mistral.chat.appels) == 2 + tentatives + 1
 
     def test_garde_threads_active_pour_suppression(
         self, registre: RegistreLibelles, meta_suppression: Meta

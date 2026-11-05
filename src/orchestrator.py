@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from agents import lancer_conversation
 from client import obtenir_client
-from config import RegistreLibelles, charger_registre
+from config import RACINE_PROJET, RegistreLibelles, charger_registre, parametres_courants
 from contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
@@ -48,8 +48,6 @@ CLE_TRAITE = "suivi.traite"
 CLE_VALIDE_SPAM = "suivi.valide-spam"
 CLE_DOUBLON = "suivi.doublon"
 CLE_NOTIFICATION = "classification.notification"
-DELAI_GRACE_SUPPRESSION = "24h"
-REQUETE_SPAM = "in:spam"
 LABEL_SPAM = "SPAM"
 LABEL_INBOX = "INBOX"
 AGENT_ORCHESTRATEUR = "orchestrateur"
@@ -120,7 +118,7 @@ def _lancer_spam(
     meta = Meta(run_id=rid, etape="lecture_spam", agent=AGENT_SPAM)
     return lance(
         AGENT_SPAM,
-        REQUETE_SPAM,
+        parametres_courants().spam.requete,
         meta,
         client_mistral=mistral,
         client_gmail=api,
@@ -209,7 +207,7 @@ class Checkpoint(BaseModel):
 
 
 def _dossier_checkpoints() -> Path:
-    return Path(__file__).resolve().parent.parent / "data" / "checkpoints"
+    return RACINE_PROJET / parametres_courants().chemins.checkpoints
 
 
 def _fichier_checkpoint(run_id: UUID, dossier: Path) -> Path:
@@ -260,7 +258,7 @@ def requete_suppression(registre: RegistreLibelles, resolveur: ResolveurLibelles
     return (
         f'label:"{registre.libelle(CLE_TRAITE)}" '
         f'label:"{registre.libelle(CLE_NOTIFICATION)}" '
-        f"older_than:{DELAI_GRACE_SUPPRESSION} OR "
+        f"older_than:{parametres_courants().suppression.delai_grace} OR "
         f'label:"{registre.libelle(CLE_DOUBLON)}"'
     )
 

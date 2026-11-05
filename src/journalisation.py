@@ -8,6 +8,7 @@ import structlog.processors
 import structlog.stdlib
 from structlog.types import Processor
 
+from config import parametres_courants
 from env import optionnel
 
 _configure = False
@@ -49,7 +50,7 @@ def configurer(run_id: str, etape: str | None = None) -> None:
         )
     )
 
-    chemin_log = optionnel("LOG_FILE", "logs/gmailagent.log")
+    chemin_log = optionnel("LOG_FILE", parametres_courants().chemins.journal)
     Path(chemin_log).parent.mkdir(parents=True, exist_ok=True)
     fichier = logging.FileHandler(chemin_log, encoding="utf-8")
     fichier.setFormatter(

@@ -18,12 +18,11 @@ from typing import Any, cast
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
+from config import RACINE_PROJET, parametres_courants
 from journalisation import obtenir_logger
 from labels import ClientGmail, LibelleGmail
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
-PLAFOND_LECTURES = 100
-MAX_RESULTATS_DEFAUT = 50
 
 
 class TokenGmailError(RuntimeError):
@@ -35,7 +34,7 @@ class PlafondLecturesAtteintError(RuntimeError):
 
 
 def _chemin_token_par_defaut() -> Path:
-    return Path(__file__).resolve().parent.parent / "data" / "gmail_token.json"
+    return RACINE_PROJET / parametres_courants().chemins.token_gmail
 
 
 def charger_credentials(chemin: str | Path | None = None) -> Credentials:
@@ -64,11 +63,15 @@ class ClientGmailAPI:
         service: Any,
         *,
         dry_run: bool = False,
-        plafond_lectures: int = PLAFOND_LECTURES,
+        plafond_lectures: int | None = None,
     ) -> None:
         self._service = service
         self._dry_run = dry_run
-        self._plafond = plafond_lectures
+        self._plafond = (
+            plafond_lectures
+            if plafond_lectures is not None
+            else parametres_courants().limites.plafond_lectures
+        )
         self._lectures = 0
         self._log = obtenir_logger("gmail")
 
@@ -115,7 +118,9 @@ class ClientGmailAPI:
         brut = cast(dict[str, str], reponse)
         return LibelleGmail(id=brut["id"], name=brut["name"])
 
-    def search_threads(self, query: str, max_results: int = MAX_RESULTATS_DEFAUT) -> list[str]:
+    def search_threads(self, query: str, max_results: int | None = None) -> list[str]:
+        if max_results is None:
+            max_results = parametres_courants().limites.max_resultats
         self._compter_lecture("search_threads")
         reponse = (
             self._service.users()

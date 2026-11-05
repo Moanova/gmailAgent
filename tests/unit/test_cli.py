@@ -6,6 +6,7 @@ import pytest
 
 import cli
 from cli import _parse_args, main
+from config import parametres_courants
 from contracts import Meta, RapportFinal, SyntheseClassification
 
 
@@ -271,8 +272,9 @@ class TestTout:
     ) -> None:
         runs = self._faux_runs(monkeypatch, ["synthese"], message_classe, meta)
         assert main(["tri", "--tout", "--reel"]) == 0
-        assert len(runs) == cli.PLAFOND_RUNS_TOUT
-        assert f"--tout : {cli.PLAFOND_RUNS_TOUT} run(s)" in capsys.readouterr().out
+        plafond = parametres_courants().limites.plafond_runs_tout
+        assert len(runs) == plafond
+        assert f"--tout : {plafond} run(s)" in capsys.readouterr().out
 
     def test_tout_dry_run_un_seul_run(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],

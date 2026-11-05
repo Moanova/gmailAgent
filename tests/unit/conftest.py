@@ -2,8 +2,14 @@ from uuid import UUID, uuid4
 
 import pytest
 
+import config
 from config import RegistreLibelles
 from contracts import MessageClasse, MessageLu, Meta
+
+
+@pytest.fixture(autouse=True)
+def _reset_parametres(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "_parametres_courants", None)
 
 
 @pytest.fixture

@@ -12,6 +12,7 @@ workflow : [docs/design/workflow.md](docs/design/workflow.md).
 
 - Python ≥ 3.11
 - Clé API Mistral dans la variable d'environnement `MISTRAL_API_KEY` (voir `.env.example`)
+- Modèle Mistral optionnel via `MISTRAL_MODEL` (défaut : `mistral-small-latest`, ex. `mistral-large-4`) ; chaque appel est journalisé avec le modèle utilisé dans `logs/gmailagent.log`
 - Token Gmail dans `data/gmail_token.json`, généré une seule fois par
   `python scripts/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
   [docs/projet/kanban.md](docs/projet/kanban.md))
@@ -24,6 +25,13 @@ python -m venv .venv
 ```
 
 La commande `gmailagent` est alors disponible (point d'entrée `cli:main`).
+
+## Configuration
+
+- `config/labels.yaml` : registre des libellés `Agent/*` (clé logique → libellé physique).
+- `config/settings.yaml` : paramètres du pipeline (chemins, modèle par défaut, plafonds et
+  garde-fous, délai de grâce de la suppression T+24h, requête spam). Priorité :
+  variable d'environnement (`MISTRAL_MODEL`, `LOG_FILE`) > `settings.yaml` > défaut du code.
 
 ## Usage
 

@@ -27,7 +27,7 @@ from mistralai.client.models import (
 )
 
 from client import avec_retry
-from config import RegistreLibelles
+from config import RegistreLibelles, parametres_courants
 from contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
@@ -38,6 +38,7 @@ from contracts import (
     SyntheseSuppression,
     response_format_agent,
 )
+from env import optionnel
 from gmail import ClientGmailAPI
 from journalisation import obtenir_logger
 from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam, prompt_suppression
@@ -49,17 +50,15 @@ from validation import (
     valider_synthese,
 )
 
-MODELE_PAR_DEFAUT = "mistral-large-latest"
-# Relevé à 8000 le 04/11/2026 après incident réel (--tout --reel, ~50 messages) :
-# à 4000, la synthèse était tronquée et la garde de complétude abandonnait le run.
-MAX_TOKENS_PAR_DEFAUT = 8000
-PLAFOND_APPELS_OUTILS = 50
-MAX_TENTATIVES_SYNTHESE = 3
-MAX_THREADS_PAR_RUN = 25
+NOM_VAR_ENV_MODELE = "MISTRAL_MODEL"
 LABEL_TRASH = "TRASH"
 
 Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
 AppelOutil = ToolExecutionEntry | FunctionCallEntry
+
+
+def modele_effectif(modele: str | None) -> str:
+    return modele or optionnel(NOM_VAR_ENV_MODELE, parametres_courants().modele.defaut)
 
 
 class GardeFouAtteintError(RuntimeError):
@@ -125,8 +124,6 @@ def _normaliser_tool_call(brut: Any) -> FunctionCallEntry:
     raise ValueError(f"appel d'outil inattendu : {type(brut).__name__}")
 
 
-LIMITE_CORPS_APERCU = 2000
-LIMITE_REPONSE_OUTIL = 20000
 _ENTETES_APERCU = ("message-id", "subject", "from", "to", "date")
 
 
@@ -150,8 +147,9 @@ def _apercu_message(message: dict[str, Any]) -> dict[str, Any]:
 
     corps = _collecter_texte(payload)
     empreinte = empreinte_message(message)[1]
-    if len(corps) > LIMITE_CORPS_APERCU:
-        corps = corps[:LIMITE_CORPS_APERCU] + "…[tronqué]"
+    limite_corps = parametres_courants().limites.limite_corps_apercu
+    if len(corps) > limite_corps:
+        corps = corps[:limite_corps] + "…[tronqué]"
     return {
         "id": message.get("id"),
         "threadId": message.get("threadId"),
@@ -174,8 +172,9 @@ def _apercu_thread(thread: dict[str, Any]) -> dict[str, Any]:
 
 def _borner_reponse(resultat: dict[str, Any]) -> str:
     texte = json.dumps(resultat, ensure_ascii=False)
-    if len(texte) > LIMITE_REPONSE_OUTIL:
-        texte = texte[:LIMITE_REPONSE_OUTIL] + '…["tronqué"]'
+    limite = parametres_courants().limites.limite_reponse_outil
+    if len(texte) > limite:
+        texte = texte[:limite] + '…["tronqué"]'
     return texte
 
 
@@ -186,7 +185,10 @@ def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> di
     pour ne pas dépasser le contexte du modèle.
     """
     if nom == "search_threads":
-        max_results = min(int(args.get("maxResults", 50)), MAX_THREADS_PAR_RUN)
+        limites = parametres_courants().limites
+        max_results = min(
+            int(args.get("maxResults", limites.max_resultats)), limites.max_threads_par_run
+        )
         ids = client.search_threads(str(args["query"]), max_results=max_results)
         return {"threads": ids}
     if nom == "get_thread":
@@ -242,12 +244,25 @@ def lancer_conversation(
     client_gmail: ClientGmailAPI,
     registre: RegistreLibelles,
     dry_run: bool = True,
-    plafond_appels: int = PLAFOND_APPELS_OUTILS,
-    modele: str = MODELE_PAR_DEFAUT,
-    max_tokens: int = MAX_TOKENS_PAR_DEFAUT,
+    plafond_appels: int | None = None,
+    modele: str | None = None,
+    max_tokens: int | None = None,
 ) -> tuple[SyntheseEtape, list[AppelOutil]]:
     """Lance une conversation éphémère et retourne (synthèse validée, exécutions outils)."""
     log = obtenir_logger("agents")
+    limites = parametres_courants().limites
+    modele = modele_effectif(modele)
+    if max_tokens is None:
+        max_tokens = limites.max_tokens
+    if plafond_appels is None:
+        plafond_appels = limites.plafond_appels_outils
+    log.info(
+        "conversation lancee",
+        agent=agent,
+        modele=modele,
+        max_tokens=max_tokens,
+        dry_run=dry_run,
+    )
     messages: list[Message] = [
         SystemMessage(content=_prompt_systeme(agent, registre), role="system"),
         UserMessage(
@@ -343,9 +358,9 @@ def lancer_conversation(
         manquants = sorted(threads_trouves - threads_lus)
         if manquants:
             tentatives_synthese += 1
-            if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+            if tentatives_synthese > limites.max_tentatives_synthese:
                 raise SyntheseInvalideError(
-                    f"synthèse incomplète après {MAX_TENTATIVES_SYNTHESE} tentatives : "
+                    f"synthèse incomplète après {limites.max_tentatives_synthese} tentatives : "
                     f"{len(manquants)} thread(s) non lus — abandon du run"
                 )
             log.warning(
@@ -377,10 +392,10 @@ def lancer_conversation(
                 ecart |= ids_corbeille
             if ecart:
                 tentatives_synthese += 1
-                if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+                if tentatives_synthese > limites.max_tentatives_synthese:
                     raise SyntheseInvalideError(
                         f"synthèse incohérente avec les mises à la corbeille réelles "
-                        f"après {MAX_TENTATIVES_SYNTHESE} tentatives — écart : "
+                        f"après {limites.max_tentatives_synthese} tentatives — écart : "
                         f"{sorted(ecart)[:10]} — abandon du run"
                     )
                 log.warning(
@@ -414,9 +429,9 @@ def lancer_conversation(
             and synthese.statut not in ("aucun_message", "echec_technique")
         ):
             tentatives_synthese += 1
-            if tentatives_synthese > MAX_TENTATIVES_SYNTHESE:
+            if tentatives_synthese > limites.max_tentatives_synthese:
                 raise SyntheseInvalideError(
-                    f"synthèse incomplète après {MAX_TENTATIVES_SYNTHESE} tentatives : "
+                    f"synthèse incomplète après {limites.max_tentatives_synthese} tentatives : "
                     f"{len(messages_manquants)} message(s) lus non classés — abandon du run"
                 )
             log.warning(

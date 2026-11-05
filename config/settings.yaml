@@ -1,0 +1,30 @@
+# Paramètres du pipeline gmailAgent (complément du registre de libellés labels.yaml).
+# Priorité : variable d'environnement (MISTRAL_MODEL, LOG_FILE, ...) > ce fichier > défaut du code.
+# Restent volontairement dans le code : libellés système TRASH/SPAM/INBOX (D43), prompts et
+# schémas d'outils (D2), contrats de validation (statuts, enums, empreintes).
+
+chemins:
+  token_gmail: data/gmail_token.json
+  checkpoints: data/checkpoints
+  journal: logs/gmailagent.log   # LOG_FILE prioritaire si définie
+
+modele:
+  defaut: mistral-small-latest    # MISTRAL_MODEL prioritaire si définie (ex. mistral-large-4)
+
+limites:
+  max_tokens: 8000                # relevé de 4000 à 8000 le 04/11/2026 après incident réel (--tout --reel, ~50 messages : synthèse tronquée, run abandonné)
+  plafond_appels_outils: 50       # garde-fou anti-boucle de la conversation
+  max_tentatives_synthese: 3      # rejets avant abandon propre du run
+  max_threads_par_run: 25         # bornage par run (D39)
+  plafond_lectures: 100           # garde-fou anti-boucle côté client Gmail
+  max_resultats: 50               # maxResults par défaut de search_threads
+  limite_corps_apercu: 2000       # troncature des aperçus de messages
+  limite_reponse_outil: 20000     # troncature des réponses d'outils
+  plafond_runs_tout: 10           # plafond de runs pour `tri --tout` (D38)
+  timeout_http_ms: 300000         # timeout HTTP du client Mistral
+
+suppression:
+  delai_grace: 24h                # délai de grâce du run de suppression T+24h (D47)
+
+spam:
+  requete: in:spam

@@ -7,6 +7,7 @@ from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 from mistralai.client.errors import SDKError
 
+from config import parametres_courants
 from env import requis
 from journalisation import obtenir_logger
 
@@ -19,7 +20,10 @@ _log = obtenir_logger("client")
 def obtenir_client() -> Mistral:
     global _client
     if _client is None:
-        _client = Mistral(api_key=requis("MISTRAL_API_KEY"), timeout_ms=300_000)
+        _client = Mistral(
+            api_key=requis("MISTRAL_API_KEY"),
+            timeout_ms=parametres_courants().limites.timeout_http_ms,
+        )
     return _client
 
 

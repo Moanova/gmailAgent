@@ -1862,3 +1862,56 @@ Aucun.
   Dernier push : `a3fb593`.
 - À retester côté utilisateur : `gmailagent tri --reel --tout` sur le même périmètre
   (50 non lus + 3 spam).
+
+---
+
+## Séance du 05/11/2026 — note de conception (évolution lu/non lu), modèle configurable, externalisation des paramètres
+
+### Contexte
+Revue des règles de classement/suppression après test réel `--reel` (messages bien passés en
+TRASH, aucune suppression définitive — conforme à D47). Questions traitées : évolution
+potentielle `-is:unread` dans la requête de suppression ; choix du modèle (`mistral-large-latest`
+= Large 3, déprécié le 31/10/2026, retrait prévu 30/04/2027 ; Large 4 en preview ;
+Medium 3.5 également déprécié) ; revue du « en dur » dans `src/` à déporter en configuration.
+
+### Actions réalisées
+
+1. **Note de conception corrigée** (`docs/design/conception.md` §2.2) : évolution potentielle
+   « corbeille réservée aux messages lus par l'utilisateur » = ajouter `-is:unread` à la clause
+   notification de la requête D47. La première version de la note était erronée : `-is:unread` ne
+   vide PAS la requête — c'est précisément la décision « UNREAD jamais retiré par le pipeline »
+   qui rend le signal fidèle (l'étiquette UNREAD reflète alors exactement l'action de lecture de
+   l'utilisateur). Non retenue en v1.
+2. **Modèle configurable** (`src/agents.py`) : défaut `mistral-small-latest`, résolution
+   paramètre explicite > env `MISTRAL_MODEL` > `settings.yaml` > défaut code ; chaque
+   conversation journalise le modèle utilisé (`conversation lancee` dans `logs/gmailagent.log`).
+   `.env.example` et `README.md` mis à jour.
+3. **Externalisation des paramètres** : nouveau `config/settings.yaml` + modèle `Parametres`
+   (`src/config.py`, `extra="forbid"`, `charger_parametres()` / `parametres_courants()`) :
+   chemins (token, checkpoints, journal), limites et garde-fous (max_tokens, plafonds,
+   bornes d'aperçus, timeout HTTP), `suppression.delai_grace: 24h` (D47), `spam.requete: in:spam`.
+   Câblage : `agents.py`, `gmail.py`, `orchestrator.py`, `cli.py`, `client.py`,
+   `journalisation.py`. Restent en dur par décision : libellés système TRASH/SPAM/INBOX (D43),
+   prompts et schémas d'outils (D2), contrats de validation (statuts, enum Urgence, empreintes).
+4. **Doc** : `conception.md` §2.1 (paragraphe Configuration) et §4 (références settings) ;
+   `README.md` (section Configuration).
+5. **Tests** : `tests/unit/test_config.py` (9 tests), fixture de reset du singleton dans
+   `conftest.py`, `test_agents.py` / `test_cli.py` mis à jour.
+6. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (14 fichiers) ;
+   `pytest tests -q` : **275 passed** ; smoke `gmailagent --help` / `tri --help` OK.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D50 | Modèle par défaut `mistral-small-latest` (Small 4, GA, Apache 2.0) ; surchargeable via `MISTRAL_MODEL` puis `settings.yaml` | `mistral-large-latest` = Large 3, déprécié le 31/10/2026 (retrait 30/04/2027) ; tâches de classification simples + validation programmatique (C1–C6, empreintes, gardes) : pas besoin d'un modèle large ; Large 4 (`mistral-large-4`) testable en dry-run via `MISTRAL_MODEL`. Medium 3.5 aussi déprécié — à éviter. |
+| D51 | Paramètres externalisés dans `config/settings.yaml` (modèle `Parametres`, priorité env > fichier > défaut code) ; libellés système, prompts/schemas et contrats restent dans le code (D43, D2) | Ajustements (délai de grâce, plafonds, chemins, modèle) sans toucher au code ; les invariants de sécurité (corbeille uniquement, anti-boucle) restent visibles et testés. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Commit + push sur `dev` (demande explicite de l'utilisateur — règle C levée pour cette
+  action uniquement).
