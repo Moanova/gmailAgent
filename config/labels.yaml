@@ -2,7 +2,7 @@
 # -> libellé physique Gmail (changeant).
 # Renommage : éditer ce fichier uniquement, aucune migration de code.
 classification:
-  a-repondre:  "Agent/a-repondre"
+  a-repondre:  "Agent/pour-réponse"
   information:  "Agent/information"
   notification: "Agent/notification"
 suivi:
