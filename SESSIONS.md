@@ -2003,3 +2003,37 @@ Aucun.
 ### État en fin de séance
 
 - Commit + push sur `dev` (demande explicite de l'utilisateur).
+
+---
+
+## Séance du 05/11/2026 (suite 3) — note de conception : version alternative hébergée Mistral Studio (D55)
+
+### Contexte
+Question utilisateur : le projet pourrait-il être déployé sur un compte Mistral via Studio Apps
+(doc consultée : https://docs.mistral.ai/studio/apps/overview). Réponse : techniquement possible
+par réécriture partielle (app/workflow + connecteur Gmail + triggers), pas par copier-coller ;
+Apps en public preview au 05/11/2026, plan incluant Apps requis (hors Free).
+
+### Actions réalisées
+
+- `docs/design/conception-studio-apps.md` (nouveau) : note de conception de la version
+  alternative hébergée — objectif (exécution 24/7 sans machine locale), correspondance
+  composant par composant, invariants de sécurité à re-porter (C1–C6, gardes, dry-run,
+  substitution de requête D54, corbeille uniquement), confidentialité (endpoints UE/ZDR),
+  risques (preview, plan payant) et plan de migration indicatif en 6 étapes.
+- `docs/design/conception.md` §6 : renvoi vers cette note.
+- Webhooks/triggers : à rediscuter le moment venu (décision utilisateur).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D55 | Version hébergée Studio Apps documentée comme piste alternative (non retenue en v1) ; webhooks à rediscuter | Objet de formation de l'utilisateur ; la v1 reste l'orchestrateur Python local + cron (conception §2). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Commit + push sur `dev` (demande explicite). Fin de séance.

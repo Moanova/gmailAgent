@@ -185,3 +185,7 @@ Mesures retenues :
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Scénario A — handoffs conversationnels | Pas d'état partagé de premier ordre, pas de reprise sur incident (état partiel possible), validation cantonnée au script appelant, planification externe. Remplacé par l'orchestration programmatique, qui garde la simplicité sans ces faiblesses. |
 | Scénario B — Workflows Mistral Studio  | Fonctionnalité en Public Preview (interface susceptible d'évoluer), dépendance à une orchestration externe au code, pour un bénéfice (durabilité, planification) que l'orchestrateur Python + checkpoints + cron reproduit de façon versionnée et testable.              |
+
+> **Piste alternative documentée** (05/11/2026, non retenue en v1) : une version hébergée sur
+> Mistral Studio (Apps/Workflows, déploiement serveur sans dépendance à la machine locale) est
+> décrite dans [conception-studio-apps.md](conception-studio-apps.md).
