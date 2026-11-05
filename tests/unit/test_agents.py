@@ -641,27 +641,68 @@ class TestModele:
         assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
 
 
-class TestGardeRequete:
-    def test_requete_modifiee_abandon_propre(
-        self, registre: RegistreLibelles, meta: Meta
+class _ServiceQ:
+    """Faux service Gmail qui enregistre les requêtes de recherche exécutées."""
+
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def users(self) -> "_ServiceQ":
+        return self
+
+    def threads(self) -> "_ServiceQ":
+        return self
+
+    def list(self, userId: str, q: str, maxResults: int) -> _Requete:
+        self.queries.append(q)
+        return _Requete({"threads": []})
+
+
+class TestSubstitutionRequete:
+    def test_requete_modifiee_substituee_par_orchestrateur(
+        self,
+        registre: RegistreLibelles,
+        meta: Meta,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Garde de périmètre : search_threads avec une requête différente de celle
-        fournie par l'orchestrateur -> abandon propre, aucun outil exécuté."""
+        """Périmètre : si le modèle modifie la requête, c'est la requête fournie par
+        l'orchestrateur qui est exécutée, la dérive étant journalisée."""
+        import journalisation
+
+        monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
+        monkeypatch.setattr(journalisation, "_configure", False)
+        monkeypatch.setattr(journalisation, "_run_id_courant", None)
+        journalisation.configurer(str(meta.run_id))
         mistral = _FauxMistral(
-            [_Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "older_than:24h"})]))]
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "older_than:24h"})])),
+                _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+            ]
         )
-        service = _FauxService()
+        service = _ServiceQ()
         client_gmail = ClientGmailAPI(service, dry_run=True)
-        with pytest.raises(SyntheseInvalideError, match="requête de recherche modifiée"):
-            lancer_conversation(
-                AGENT_CLASSIFICATION,
-                "is:unread",
-                meta,
-                client_mistral=mistral,  # type: ignore[arg-type]
-                client_gmail=client_gmail,
-                registre=registre,
-            )
-        assert service.appels == []
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "aucun_message"
+        assert service.queries == ["is:unread"]
+        lignes = [
+            json.loads(ligne)
+            for ligne in (tmp_path / "gmailagent.log").read_text(encoding="utf-8").splitlines()
+            if ligne.strip()
+        ]
+        substitutions = [
+            ligne for ligne in lignes if ligne.get("event") == "requete search_remplacee"
+        ]
+        assert len(substitutions) == 1
+        assert substitutions[0]["tentee"] == "older_than:24h"
+        assert substitutions[0]["executee"] == "is:unread"
 
     def test_requete_conforme_executee(
         self, registre: RegistreLibelles, meta: Meta
@@ -687,8 +728,8 @@ class TestGardeRequete:
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
         """Dérive de formatage constatée en réel (05/11 18:39) : le modèle retire les
-        guillemets autour des libellés (équivalent côté Gmail) -> la garde ne doit pas
-        déclencher."""
+        guillemets autour des libellés (équivalent côté Gmail) -> laissée telle quelle,
+        aucune substitution."""
         requete = 'label:"Agent/traité" label:"Agent/notification" older_than:24h'
         requete_sans_guillemets = (
             "label:Agent/traité label:Agent/notification older_than:24h"
@@ -703,7 +744,8 @@ class TestGardeRequete:
                 _Reponse(_Msg(content=_payload_suppression("aucun_message", []))),
             ]
         )
-        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        service = _ServiceQ()
+        client_gmail = ClientGmailAPI(service, dry_run=True)
         synthese, _ = lancer_conversation(
             AGENT_SUPPRESSION,
             requete,
@@ -713,6 +755,7 @@ class TestGardeRequete:
             registre=registre,
         )
         assert synthese.statut == "aucun_message"
+        assert service.queries == [requete_sans_guillemets]
 
     def test_arguments_outils_journalises(
         self,

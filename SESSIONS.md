@@ -1960,3 +1960,46 @@ Aucun.
 ### État en fin de séance
 
 - Commit + push sur `dev` (demande explicite de l'utilisateur).
+
+---
+
+## Séance du 05/11/2026 (suite 2) — substitution de la requête de recherche par l'orchestrateur (D54)
+
+### Contexte
+Retest utilisateur après D52 : la garde (abandon propre sur écart de requête) a encore
+abandonné le run deux fois de suite — le modèle (`mistral-small-latest`, température 0.0, donc
+dérive systématique et non aléatoire) avait supprimé la clause `OR label:"Agent/doublon"`
+(sémantiquement inerte en v1, D46, mais indiscernable d'une dérive dangereuse par une
+comparaison de chaînes). Conclusion : ne pas dépendre de la conformité du modèle pour le
+périmètre.
+
+### Actions réalisées
+
+1. **Substitution au lieu d'abandon** (`src/agents.py`, boucle de `lancer_conversation`) : pour
+   tout appel `search_threads`, si la requête du modèle diffère de celle fournie après
+   normalisation (`_normalise_requete` : guillemets retirés, espaces normalisés), elle est
+   remplacée par la requête de l'orchestrateur et un warning `requete search_remplacee`
+   (`tentee`, `executee`, `agent`) est journalisé. Requête conforme -> exécutée telle quelle.
+   Le périmètre est ainsi imposé par le code, pas par le modèle. Les validations existantes
+   (C3 sur ids des résultats réels, complétude des threads lus, écart corbeille/ids) sont
+   inchangées et portent sur les résultats de la requête exécutée.
+2. **Tests** : `TestGardeRequete` -> `TestSubstitutionRequete` — requête modifiée substituée
+   (le service reçoit exactement la requête fournie + warning relu dans le log), requête
+   équivalente sans guillemets laissée telle quelle, journalisation des arguments conservée.
+3. **Doc** : `conception.md` §2.5 (périmètre imposé par le code).
+4. **Vérifications** : `ruff check src tests` OK ; `mypy src` OK (14 fichiers) ;
+   `pytest tests -q` : **279 passed**.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D54 | Substitution systématique : la requête `search_threads` exécutée est toujours celle fournie par l'orchestrateur (remplace l'abandon propre de D52 en cas d'écart) ; dérive journalisée via `requete search_remplacee` | Dérives systématiques du petit modèle constatées en réel (05/11 18:39 et retest) : le périmètre ne doit pas dépendre de la conformité du modèle ; les validations existantes couvrent déjà l'authenticité des résultats. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Commit + push sur `dev` (demande explicite de l'utilisateur).

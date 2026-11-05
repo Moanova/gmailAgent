@@ -65,7 +65,7 @@ def _normalise_requete(requete: str) -> str:
     """Normalise une requête Gmail pour comparaison : guillemets retirés, espaces normalisés.
 
     `label:"Agent/traité"` et `label:Agent/traité` sont équivalents côté Gmail (pas d'espace
-    dans le nom) — la dérive de formatage du modèle ne doit pas déclencher la garde.
+    dans le nom) — la dérive de formatage du modèle ne doit pas déclencher de substitution.
     """
     return " ".join(requete.replace('"', "").split())
 
@@ -328,14 +328,16 @@ def lancer_conversation(
                     )
                 executions.append(appel)
                 args = _arguments_outil(appel)
-                if appel.name == "search_threads" and _normalise_requete(
-                    str(args.get("query", ""))
-                ) != _normalise_requete(requete):
-                    recu = str(args.get("query", ""))
-                    raise SyntheseInvalideError(
-                        f"requête de recherche modifiée par l'agent (attendu {requete!r}, "
-                        f"reçu {recu!r}) — abandon du run"
-                    )
+                if appel.name == "search_threads":
+                    tentee = str(args.get("query", ""))
+                    if _normalise_requete(tentee) != _normalise_requete(requete):
+                        log.warning(
+                            "requete search_remplacee",
+                            tentee=tentee,
+                            executee=requete,
+                            agent=agent,
+                        )
+                        args["query"] = requete
                 resultat = executer_outil(appel.name, args, client_gmail)
                 if appel.name == "search_threads" and isinstance(resultat, dict):
                     threads_trouves.update(
