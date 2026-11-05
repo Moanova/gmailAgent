@@ -110,7 +110,7 @@ Les fonctions de validation des scripts de référence sont appliquées par l'or
 - `collecter_ids_reels` : parcours des exécutions d'outils réelles pour recueillir les identifiants réellement manipulés (messages, threads, libellés) ;
 - `valider_synthese` : contrôle de non-contradiction (statut d'échec sans messages), d'authenticité (identifiants connus) et de complétude ;
 - `extraire_json` : extraction robuste du premier objet JSON bien formé.
-- **garde de périmètre** : tout appel `search_threads` doit utiliser exactement la requête fournie par l'orchestrateur — toute autre requête provoque l'abandon propre du run (incident réel 05/11/2026 : dérive de requête observée avec `mistral-small-latest` en dry-run, rendue visible par la journalisation des arguments d'outils).
+- **garde de périmètre** : tout appel `search_threads` doit utiliser la requête fournie par l'orchestrateur, comparée après normalisation (guillemets retirés, espaces normalisés — `label:"Agent/traité"` et `label:Agent/traité` sont équivalents côté Gmail) ; toute requête réellement différente provoque l'abandon propre du run (incident réel 05/11/2026 : dérive de requête observée avec `mistral-small-latest` en dry-run, rendue visible par la journalisation des arguments d'outils).
 
 Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais restitué tel quel à l'utilisateur. S'y ajoute le contrôle des empreintes de dédoublonnage (§3).
 

@@ -683,6 +683,37 @@ class TestGardeRequete:
         )
         assert synthese.statut == "aucun_message"
 
+    def test_requete_equivalente_sans_guillemets_acceptee(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Dérive de formatage constatée en réel (05/11 18:39) : le modèle retire les
+        guillemets autour des libellés (équivalent côté Gmail) -> la garde ne doit pas
+        déclencher."""
+        requete = 'label:"Agent/traité" label:"Agent/notification" older_than:24h'
+        requete_sans_guillemets = (
+            "label:Agent/traité label:Agent/notification older_than:24h"
+        )
+        mistral = _FauxMistral(
+            [
+                _Reponse(
+                    _Msg(
+                        tool_calls=[_appel("search_threads", {"query": requete_sans_guillemets})]
+                    )
+                ),
+                _Reponse(_Msg(content=_payload_suppression("aucun_message", []))),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SUPPRESSION,
+            requete,
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "aucun_message"
+
     def test_arguments_outils_journalises(
         self,
         registre: RegistreLibelles,

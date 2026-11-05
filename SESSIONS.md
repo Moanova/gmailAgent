@@ -1950,7 +1950,7 @@ appels d'outils.
 
 | # | Décision | Justification |
 | --- | --- | --- |
-| D52 | Garde dure de périmètre : `query` de `search_threads` == requête fournie par l'orchestrateur, sinon abandon propre du run (tous agents) | Incident réel 05/11 : dérive de requête du modèle constatée en dry-run ; la véracité exige un contrôle programmatique, pas seulement une consigne de prompt. |
+| D52 | Garde dure de périmètre : `query` de `search_threads` == requête fournie par l'orchestrateur (comparaison après normalisation : guillemets retirés, espaces normalisés), sinon abandon propre du run (tous agents) | Incident réel 05/11 : dérive de requête du modèle constatée en dry-run ; la véracité exige un contrôle programmatique, pas seulement une consigne de prompt. Retest 05/11 18:39 : le modèle avait retiré les guillemets des libellés (requête sémantiquement identique) — la comparaison stricte créait un faux positif, d'où la normalisation. |
 | D53 | Journalisation INFO de chaque exécution d'outil avec arguments bornés (`outil execute`) | Audit complet de ce que l'agent a fait (requêtes utilisées, lectures, écritures dry-run), indépendant du modèle. |
 
 ### Blocages
