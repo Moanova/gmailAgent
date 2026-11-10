@@ -18,15 +18,7 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 ## En cours
 
 ## En revue
-T7.1
-T7.2
-T7.3
-T7.4
-T8.1
-T8.2
-T8.3
-T9.1
-T3.5
+T9.2
 
 ## Terminé
 T1.1
@@ -44,6 +36,7 @@ T3.1
 T3.2
 T3.3
 T3.4
+T3.5
 T4.1
 T4.2
 T4.3
@@ -53,6 +46,14 @@ T5.2
 T5.3
 T5.4
 T5.5
+T7.1
+T7.2
+T7.3
+T7.4
+T8.1
+T8.2
+T8.3
+T9.1
 
 
 ## Annulé
@@ -62,7 +63,7 @@ T5.5
 
 # Description des tâches
 
-> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé) ; les tâches T3.x à la **phase 3 (Orchestrateur squelette)** (critère de sortie : un run vide qui tourne de bout en bout, dry-run sans aucun appel d'écriture Gmail) ; les tâches T4.x à la **phase 4 (Agent spam)** (critère de sortie : étapes 1–2 opérationnelles — lecture spam, validation, apposition `Agent/valide-spam`) ; les tâches T5.x à la **phase 5 (Agent classification)** (critère de sortie : étapes 3–4 opérationnelles — lecture non lus, validation IDs + empreintes recalculées, apposition catégorie + `Agent/traité`) ; les tâches T7.x à la **phase 7 (Agent suppression)** (critère de sortie : pipeline complet — run de suppression T+24h séparé, corbeille uniquement, notifications seules éligibles (D47)) ; les tâches T8.x à la **phase 8 (Rapport et restitution)** (critère de sortie : étape 6 opérationnelle — rapport final JSON + résumé console). **Ordre de priorité : T5.x avant T4.x** (plan macro §4 — décision D34). La **phase 6 (dédoublonnage) est reportée post-v1** (décision D46) : aucune tâche T6.x n'est créée pour l'instant, l'étape 5 du run reste un stub no-op en v1 ; T3.5 (`--tout`) passe à choix avant ou après la phase 7. La **phase 7 (T7.1–T7.4) reste en « En revue »** en attendant le test de suppression à T+24h (délai de grâce, D47). La **phase 9 (Tests)** se réduit à la tâche T9.1 : plan de tests consolidé (`tests/plan_tests.md`) + critères d'acceptation (`docs/test/acceptation.md`) — la CI (GitHub Actions) est écartée sur décision utilisateur (D48 : projet réduit, commandes de qualité lancées manuellement).
+> Tâches triées par ordre numérique d'identifiant. L'état d'avancement de chaque tâche est indiqué dans le tableau ci-dessus. Les tâches T1.x correspondent à la **phase 1 (Fondations)** du [plan macro](plan-macro.md) (critère de sortie : package installable, configuration validée au démarrage ; T1.7 documente le pré-requis OAuth Gmail, câblage en phase 3) ; les tâches T2.x à la **phase 2 (Contrats)** (critère de sortie : tout échange inter-étapes typé et testé) ; les tâches T3.x à la **phase 3 (Orchestrateur squelette)** (critère de sortie : un run vide qui tourne de bout en bout, dry-run sans aucun appel d'écriture Gmail) ; les tâches T4.x à la **phase 4 (Agent spam)** (critère de sortie : étapes 1–2 opérationnelles — lecture spam, validation, apposition `Agent/valide-spam`) ; les tâches T5.x à la **phase 5 (Agent classification)** (critère de sortie : étapes 3–4 opérationnelles — lecture non lus, validation IDs + empreintes recalculées, apposition catégorie + `Agent/traité`) ; les tâches T7.x à la **phase 7 (Agent suppression)** (critère de sortie : pipeline complet — run de suppression T+24h séparé, corbeille uniquement, notifications seules éligibles (D47)) ; les tâches T8.x à la **phase 8 (Rapport et restitution)** (critère de sortie : étape 6 opérationnelle — rapport final JSON + résumé console). **Ordre de priorité : T5.x avant T4.x** (plan macro §4 — décision D34). La **phase 6 (dédoublonnage) est reportée post-v1** (décision D46) : aucune tâche T6.x n'est créée pour l'instant, l'étape 5 du run reste un stub no-op en v1 ; T3.5 (`--tout`) passe à choix avant ou après la phase 7. La **phase 7 (T7.1–T7.4) est passée en « Terminé »** le 10/11/2026 sur décision utilisateur (test de suppression à T+24h, délai de grâce D47, à valider en conditions réelles). La **phase 9 (Tests)** se réduit à la tâche T9.1 : plan de tests consolidé (`tests/plan_tests.md`) + critères d'acceptation (`docs/test/acceptation.md`) — la CI (GitHub Actions) est écartée sur décision utilisateur (D48 : projet réduit, commandes de qualité lancées manuellement). **T9.2** est un correctif de robustesse rattaché à cette phase (incident réel 10/11/2026) : erreurs d'outils renvoyées au modèle dans le runner au lieu d'interrompre le run.
 
 ## T1.1 — Fondations : Initialisation du projet
 Créer la structure des dossiers (`src/`, `tests/unit/`, `config/`, `docs/tasks/`) et le fichier `pyproject.toml` (dépendances : `mistralai`, `pydantic`, `httpx`, `structlog`, `pyyaml` ; dépendances dev : `pytest`, `ruff`, `mypy`). Vérifier `pip install -e .[dev]`.
@@ -172,3 +173,6 @@ TU + TI (compléter `tests/integration/test_agent_spam.py`, `test_agent_classifi
 
 ## T9.1 — Tests : plan de tests consolidé et critères d'acceptation
 Rédiger `tests/plan_tests.md` (recensement fidèle des 256 tests existants au 04/11/2026 : 235 TU + 21 TI, correspondance fichier ↔ tâches ↔ critères, conventions — fixtures mockées, dry-run, aucun appel réseau — et commandes de qualité lancées manuellement) et `docs/test/acceptation.md` (critères d'acceptation par phase, avec statut de validation). Aucun nouveau test sauf écart constaté lors du recensement. La CI GitHub Actions est écartée (D48). Vérifications : cohérence du décompte avec `pytest --collect-only`, kanban → En revue, commit/push sur demande explicite.
+
+## T9.2 — Tests/robustesse : erreurs d'outils renvoyées au modèle dans le runner (correctif incident 10/11/2026)
+`src/agents.py`, boucle de `lancer_conversation` : try/except autour de `executer_outil` — en cas d'erreur (ex. `HttpError` 404 sur un ID halluciné par le modèle, incident du run `aa073eb8-…` en `--tout --reel` le 10/11/2026), warning `outil en echec` (outil, args bornés, erreur) et renvoi de l'erreur au modèle via le `ToolMessage` (`{"erreur": "…"}`) pour correction et reprise, au lieu de laisser l'exception interrompre le run ; aucun crédit dans `threads_lus`/`messages_lus`/`ids_resultats` en cas d'échec (gardes de complétude et plafonds inchangés : 50 appels, 3 tentatives de synthèse). Tests TU (`tests/unit/test_agents.py`, classe `TestOutilEnEchec` : scénario de l'incident rejoué + abandon propre si l'erreur persiste), recensement `tests/plan_tests.md` mis à jour. Plan détaillé : [docs/tasks/T9.2](../tasks/T9.2_robustesse_runner_erreurs_outils.md). ruff/mypy/pytest, kanban → En revue, commit/push sur `dev` sur demande explicite (règle C).

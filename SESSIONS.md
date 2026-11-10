@@ -2037,3 +2037,63 @@ Aucun.
 ### État en fin de séance
 
 - Commit + push sur `dev` (demande explicite). Fin de séance.
+
+---
+
+## Séance du 10/11/2026 — analyse de l'incident 10/11 + tâche T9.2 (correctif robustesse du runner)
+
+### Contexte
+Retour utilisateur sur l'exécution `gmailagent tri --reel --tout` du 10/11/2026 (29 non lus en
+boîte de réception, 1 non lu en spam) : 3 runs, les 2 premiers en succès (25 + 4 messages classés),
+le 3e (`aa073eb8-7747-4955-881e-fc38938a7d41`) interrompu en `lecture_classification` par un
+`HttpError 404` sur `threads/1`. Analyse des 3 checkpoints + extrait de `gmailagent.log` : le
+modèle avait émis `get_thread(threadId="1")` (id halluciné) et, `executer_outil` n'étant pas
+protégé dans la boucle de `lancer_conversation` (`src/agents.py:341`), l'exception a interrompu
+le run (`run interrompu`, checkpoint `echec_partiel`) et arrêté la boucle `--tout`. Le message
+spam a bien été lu par l'agent spam (`in:spam`) mais laissé en spam (`aucun_message` —
+comportement conservatoire prévu, D42) : pas un bug.
+
+### Actions réalisées
+
+1. **Kanban** : T7.1–T7.4, T8.1–T8.3, T9.1 et T3.5 déplacées « En revue » → « Terminé » sur décision
+   utilisateur ; création de la tâche **T9.2** (« À faire » puis « En cours ») : *Tests/robustesse
+   — erreurs d'outils renvoyées au modèle dans le runner (correctif incident 10/11/2026)* ; plan
+   détaillé dans `docs/tasks/T9.2_robustesse_runner_erreurs_outils.md`.
+2. **Implémentation T9.2** (`src/agents.py`, boucle de `lancer_conversation`) : try/except autour
+   de `executer_outil` — en cas d'erreur, warning `outil en echec` (outil, args bornés, erreur)
+   et renvoi au modèle via le `ToolMessage` `{"erreur": ...}` ; l'appel en échec n'est crédité ni
+   dans `executions` (C3 : seules les exécutions réussies comptent) ni dans
+   `threads_lus`/`messages_lus`/`ids_resultats`/`ids_corbeille`. Bornes inchangées (50 appels,
+   3 tentatives de synthèse, plafond de lectures 100).
+3. **Tests** (`tests/unit/test_agents.py`, classe `TestOutilEnEchec`, 4 tests) : incident rejoué
+   (`get_thread("1")` → erreur → `get_thread("t1")` → synthèse valide, run en succès, warning relu
+   dans le log, ToolMessage d'erreur envoyé au modèle) ; abandon propre si l'erreur persiste ;
+   outil inconnu renvoyé puis reprise ; id d'appel en échec non crédité pour C3. Fixture
+   `_FauxService` : ajout d'un dict `erreurs` (rétro-compatible).
+4. **Doc** : `tests/plan_tests.md` (283 tests — 262 TU + 21 TI, `test_agents.py` 46, T9.2) ; kanban
+   T9.2 → « En revue » (validation agent, étape 5).
+5. **Vérifications (étape 4)** : `mypy src` OK (strict, 14 fichiers) ; `pytest tests -q` :
+   **283 passed** (+4) ; `ruff check src tests` OK sur les fichiers modifiés — 1 SIM102 préexistant
+   dans `src/validation.py:144` au HEAD dev (artefact de la version de ruff installée, non lié à
+   T9.2, non corrigé).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D56 | Erreur d'exécution d'outil = événement de conversation renvoyé au modèle (ToolMessage `{"erreur": ...}` + warning `outil en echec`), jamais un abandon direct du run ; l'appel en échec n'est pas crédité dans les exécutions réelles (C3) | Incident réel 10/11 (`--tout --reel`, run `aa073eb8-…`) : un seul argument invalide (404 sur `threads/1`) a interrompu tout le run et arrêté `--tout` ; les gardes existantes (complétude des threads lus, 50 appels, 3 tentatives de synthèse) bornent toujours la boucle |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — `src/agents.py`,
+  `tests/unit/test_agents.py`, `tests/plan_tests.md`, `docs/projet/kanban.md`,
+  `docs/tasks/T9.2_robustesse_runner_erreurs_outils.md`, `SESSIONS.md`.
+- Kanban : **En cours** = vide ; **En revue** = T9.2 (validation agent faite : 283 tests verts,
+  mypy OK) ; **Terminé** = T1.1–T1.7, T2.1–T2.4, T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4,
+  T8.1–T8.3, T9.1.
+- Prochaine étape : validation utilisateur (étape 6 — test en conditions réelles sur la boîte,
+  dry-run puis petit périmètre `--reel`), puis commit/push sur `dev` sur demande explicite.

@@ -7,6 +7,11 @@ le seul médiateur : les agents ne s'appellent jamais entre eux (conception §2.
 La boucle tool-calls est bornée (garde-fou anti-boucle) ; la synthèse finale est
 parsée (`extraire_json`), construite (`construire_synthese`) puis validée
 (`valider_synthese`, C1–C6, avec `collecter_ids_reels` sur les exécutions réelles).
+
+Une erreur d'exécution d'outil (ex. `HttpError` 404 sur un identifiant invalide) est
+renvoyée au modèle via le `ToolMessage` (`{"erreur": ...}`) avec un warning `outil en
+echec` — jamais un abandon direct du run (D56) ; l'appel en échec n'est pas crédité dans
+les exécutions réelles (C3).
 """
 
 import json
@@ -257,7 +262,7 @@ def lancer_conversation(
     modele: str | None = None,
     max_tokens: int | None = None,
 ) -> tuple[SyntheseEtape, list[AppelOutil]]:
-    """Lance une conversation éphémère et retourne (synthèse validée, exécutions outils)."""
+    """Lance une conversation éphémère et retourne (synthèse validée, exécutions réussies)."""
     log = obtenir_logger("agents")
     limites = parametres_courants().limites
     modele = modele_effectif(modele)
@@ -326,7 +331,6 @@ def lancer_conversation(
                         f"garde-fou anti-boucle : {appels} appels d'outils "
                         f"(plafond {plafond_appels}) — abandon du run"
                     )
-                executions.append(appel)
                 args = _arguments_outil(appel)
                 if appel.name == "search_threads":
                     tentee = str(args.get("query", ""))
@@ -338,35 +342,47 @@ def lancer_conversation(
                             agent=agent,
                         )
                         args["query"] = requete
-                resultat = executer_outil(appel.name, args, client_gmail)
-                if appel.name == "search_threads" and isinstance(resultat, dict):
-                    threads_trouves.update(
-                        t for t in resultat.get("threads", []) if isinstance(t, str)
+                try:
+                    resultat = executer_outil(appel.name, args, client_gmail)
+                except Exception as erreur_outil:
+                    log.warning(
+                        "outil en echec",
+                        outil=appel.name,
+                        args=_borner_reponse(args),
+                        erreur=repr(erreur_outil),
+                        dry_run=dry_run,
                     )
-                if appel.name == "get_thread":
-                    threads_lus.add(str(args.get("threadId", "")))
-                    if isinstance(resultat, dict):
-                        ids_resultats.add(str(args.get("threadId", "")))
-                        for m in resultat.get("messages", []):
-                            if isinstance(m, dict) and isinstance(m.get("id"), str):
-                                messages_lus.add(m["id"])
-                                ids_resultats.add(m["id"])
-                if appel.name == "get_message":
-                    messages_lus.add(str(args.get("messageId", "")))
-                if appel.name == "label_message" and LABEL_TRASH in [
-                    str(x) for x in args.get("addLabelIds", [])
-                ]:
-                    ids_corbeille.add(str(args.get("messageId", "")))
-                if appel.name == "search_threads" and isinstance(resultat, dict):
-                    ids_resultats.update(
-                        t for t in resultat.get("threads", []) if isinstance(t, str)
+                    resultat = {"erreur": repr(erreur_outil)}
+                else:
+                    executions.append(appel)
+                    if appel.name == "search_threads" and isinstance(resultat, dict):
+                        threads_trouves.update(
+                            t for t in resultat.get("threads", []) if isinstance(t, str)
+                        )
+                    if appel.name == "get_thread":
+                        threads_lus.add(str(args.get("threadId", "")))
+                        if isinstance(resultat, dict):
+                            ids_resultats.add(str(args.get("threadId", "")))
+                            for m in resultat.get("messages", []):
+                                if isinstance(m, dict) and isinstance(m.get("id"), str):
+                                    messages_lus.add(m["id"])
+                                    ids_resultats.add(m["id"])
+                    if appel.name == "get_message":
+                        messages_lus.add(str(args.get("messageId", "")))
+                    if appel.name == "label_message" and LABEL_TRASH in [
+                        str(x) for x in args.get("addLabelIds", [])
+                    ]:
+                        ids_corbeille.add(str(args.get("messageId", "")))
+                    if appel.name == "search_threads" and isinstance(resultat, dict):
+                        ids_resultats.update(
+                            t for t in resultat.get("threads", []) if isinstance(t, str)
+                        )
+                    log.info(
+                        "outil execute",
+                        outil=appel.name,
+                        args=_borner_reponse(args),
+                        dry_run=dry_run,
                     )
-                log.info(
-                    "outil execute",
-                    outil=appel.name,
-                    args=_borner_reponse(args),
-                    dry_run=dry_run,
-                )
                 messages.append(
                     ToolMessage(
                         role="tool",

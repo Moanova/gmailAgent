@@ -101,6 +101,7 @@ class _FauxService:
     def __init__(self, threads: list[str] | None = None) -> None:
         self.appels: list[str] = []
         self.threads = threads if threads is not None else ["t1"]
+        self.erreurs: dict[str, Exception] = {}
 
     def users(self) -> "_FauxUsers":
         return _FauxUsers(self)
@@ -127,6 +128,8 @@ class _FauxThreads:
 
     def get(self, userId: str, id: str) -> _Requete:
         self._service.appels.append("threads.get")
+        if id in self._service.erreurs:
+            raise self._service.erreurs[id]
         mid = "m1" if id == "t1" else f"m-{id}"
         return _Requete({"id": id, "messages": [{"id": mid}]})
 
@@ -324,6 +327,140 @@ class TestExecuterOutil:
             client_gmail,
         )
         assert service.appels == ["messages.modify"]
+
+
+class TestOutilEnEchec:
+    """D56 : une erreur d'outil est renvoyée au modèle (ToolMessage `{"erreur": ...}` +
+    warning `outil en echec`) au lieu d'interrompre le run ; l'appel en échec n'est pas
+    crédité dans les exécutions réelles (C3). Incident 10/11/2026 : get_thread("1") -> 404."""
+
+    def test_erreur_404_renvoyee_au_modele_puis_reprise(
+        self,
+        registre: RegistreLibelles,
+        meta: Meta,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import journalisation
+
+        monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
+        monkeypatch.setattr(journalisation, "_configure", False)
+        monkeypatch.setattr(journalisation, "_run_id_courant", None)
+        journalisation.configurer(str(meta.run_id))
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "1"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=_synthese_payload())),
+            ]
+        )
+        service = _FauxService()
+        service.erreurs["1"] = RuntimeError("HttpError 404 threads/1 : not found")
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        assert synthese.messages[0].id == "m1"
+        assert len(executions) == 2  # search + get_thread("t1") ; l'appel en échec exclu
+        lignes = [
+            json.loads(ligne)
+            for ligne in (tmp_path / "gmailagent.log").read_text(encoding="utf-8").splitlines()
+            if ligne.strip()
+        ]
+        echecs = [ligne for ligne in lignes if ligne.get("event") == "outil en echec"]
+        assert len(echecs) == 1
+        assert echecs[0]["outil"] == "get_thread"
+        assert "threads/1" in echecs[0]["erreur"]
+        executes = [ligne for ligne in lignes if ligne.get("event") == "outil execute"]
+        assert len(executes) == 2
+        messages_appel = mistral.chat.appels[2]["messages"]
+        retours_outils = [m for m in messages_appel if getattr(m, "role", None) == "tool"]
+        assert any("erreur" in str(getattr(m, "content", "")) for m in retours_outils)
+
+    def test_erreur_persistante_abandon_propre(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Si l'erreur persiste, la garde de complétude des threads mène à un abandon
+        propre (SyntheseInvalideError) — l'exception Gmail n'est jamais propagée."""
+        from config import parametres_courants
+
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+        ]
+        scenario += [
+            _Reponse(_Msg(content=_synthese_payload()))
+            for _ in range(parametres_courants().limites.max_tentatives_synthese + 2)
+        ]
+        mistral = _FauxMistral(scenario)
+        service = _FauxService()
+        service.erreurs["t1"] = RuntimeError("HttpError 404 threads/t1 : not found")
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="abandon du run"):
+            lancer_conversation(
+                AGENT_CLASSIFICATION,
+                "is:unread",
+                meta,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+
+    def test_outil_inconnu_renvoye_au_modele_puis_reprise(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("envoyer_email", {})])),
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=_synthese_payload())),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(), dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        assert len(executions) == 2
+
+    def test_id_appel_echoue_non_credite_pour_c3(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Un id passé à un appel en échec ne doit pas pouvoir figurer dans la synthèse
+        (C3 porte sur les exécutions réelles réussies)."""
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "1"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=_synthese_payload(message_id="1"))),
+            ]
+        )
+        service = _FauxService()
+        service.erreurs["1"] = RuntimeError("HttpError 404 threads/1 : not found")
+        client_gmail = ClientGmailAPI(service, dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="non manipul"):
+            lancer_conversation(
+                AGENT_CLASSIFICATION,
+                "is:unread",
+                meta,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
 
 
 class TestApercuBorne:
