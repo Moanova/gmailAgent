@@ -215,6 +215,29 @@ class TestLancerConversation:
         assert mistral.chat.appels[0]["response_format"].type == "json_schema"
         assert service.appels == ["threads.list", "threads.get"]  # dry-run : pas de modify
 
+    def test_message_utilisateur_contient_le_budget(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """D58 : le modèle reçoit explicitement le budget d'appels et le cap de threads."""
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(content='{"statut": "aucun_message", "messages": []}')),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        contenu = mistral.chat.appels[0]["messages"][1].content
+        assert "Budget : au plus 50 appels d'outils" in contenu
+        assert "cappée à 23 threads" in contenu
+
     def test_rejet_synthese_non_authentique(
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
@@ -1048,9 +1071,17 @@ class TestSubstitutionRequete:
 
 
 class TestBornageParRun:
-    def test_search_threads_borne_a_25(self) -> None:
+    def test_search_threads_borne_au_cap_derive_du_budget(self) -> None:
+        """D58 : maxResults est cappé à cap_threads_recherche() = min(max_threads_par_run,
+        (plafond_appels_outils - 1 - marge_appels_reprise) // 2) = 23 par défaut — un run
+        conforme (1 search + 2 appels/thread) ne peut pas atteindre le garde-fou (50)."""
         from agents import executer_outil
         from config import parametres_courants
+
+        limites = parametres_courants().limites
+        cap = limites.cap_threads_recherche()
+        assert limites.max_threads_par_run == 25
+        assert cap == 23
 
         class _ServiceLarges:
             def users(self) -> "_ServiceLarges":
@@ -1060,15 +1091,37 @@ class TestBornageParRun:
                 return self
 
             def list(self, userId: str, q: str, maxResults: int) -> "_Requete":
-                assert maxResults == parametres_courants().limites.max_threads_par_run
+                assert maxResults == cap
                 return _Requete({"threads": [{"id": f"t{i}"} for i in range(50)]})
 
         client_gmail = ClientGmailAPI(_ServiceLarges(), dry_run=True)
         args = {"query": "is:unread", "maxResults": 50}
         resultat = executer_outil("search_threads", args, client_gmail)
-        assert parametres_courants().limites.max_threads_par_run == 25
-        # le plafond porte sur maxResults passé au service (25), pas sur la réponse
+        # le plafond porte sur maxResults passé au service (cap), pas sur la réponse
         assert len(resultat["threads"]) == 50
+
+    def test_cap_recherche_suit_plafond_personnalise(self) -> None:
+        """Le cap est dérivé du budget d'appels : plafond 20, marge 2 -> cap (20-1-2)//2 = 8."""
+        from agents import executer_outil
+        from config import Limites, Parametres, definir_parametres
+
+        definir_parametres(
+            Parametres(limites=Limites(plafond_appels_outils=20, marge_appels_reprise=2))
+        )
+
+        class _Service:
+            def users(self) -> "_Service":
+                return self
+
+            def threads(self) -> "_Service":
+                return self
+
+            def list(self, userId: str, q: str, maxResults: int) -> "_Requete":
+                assert maxResults == 8
+                return _Requete({"threads": []})
+
+        client_gmail = ClientGmailAPI(_Service(), dry_run=True)
+        executer_outil("search_threads", {"query": "q", "maxResults": 50}, client_gmail)
 
     def test_prompt_distinction_id_vs_rfc(self, registre: RegistreLibelles) -> None:
         from prompts import prompt_classification

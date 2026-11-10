@@ -16,6 +16,7 @@ limites:
   plafond_appels_outils: 50       # garde-fou anti-boucle de la conversation
   max_tentatives_synthese: 3      # rejets avant abandon propre du run
   max_threads_par_run: 25         # bornage par run (D39)
+  marge_appels_reprise: 3         # marge d'appels pour reprises après erreur d'outil (D56, D58) ; le cap de search_threads en est dérivé : min(max_threads_par_run, (plafond_appels_outils - 1 - marge) // 2) = 23
   plafond_lectures: 100           # garde-fou anti-boucle côté client Gmail
   max_resultats: 50               # maxResults par défaut de search_threads
   limite_corps_apercu: 2000       # troncature des aperçus de messages

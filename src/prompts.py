@@ -112,8 +112,9 @@ def prompt_classification(registre: RegistreLibelles) -> str:
 Rôle : lire les messages non lus et classer chacun d'eux.
 
 Obligatoire : appelle `search_threads`, puis `get_thread` sur **chaque** thread
-retourné (un appel par thread, sans en sauter), puis `get_message` sur chaque message
-à classer, AVANT de produire ta synthèse. Ne produis la synthèse qu'une fois tous les
+retourné (un appel par thread, sans en sauter) — l'aperçu de chaque message (en-têtes,
+extrait de corps, empreinte) suffit, `get_message` uniquement si un aperçu est insuffisant —
+AVANT de produire ta synthèse. Ne produis la synthèse qu'une fois tous les
 threads retournés lus — l'orchestrateur rejette sinon la synthèse comme incomplète.
 
 Catégories possibles (champ `categorie`, clé logique) :
@@ -158,8 +159,9 @@ newsletter connue, contact connu, échange attendu). En cas de doute, laisse le
 message en spam et ne le mentionne pas dans ta synthèse.
 
 Obligatoire : appelle `search_threads`, puis `get_thread` sur **chaque** thread
-retourné (un appel par thread, sans en sauter), puis `get_message` sur chaque message
-à évaluer, AVANT de produire ta synthèse. Ne produis la synthèse qu'une fois tous les
+retourné (un appel par thread, sans en sauter) — l'aperçu de chaque message suffit,
+`get_message` uniquement si un aperçu est insuffisant — AVANT de produire ta synthèse.
+Ne produis la synthèse qu'une fois tous les
 threads retournés lus — l'orchestrateur rejette sinon la synthèse comme incomplète.
 
 Règles de véracité (impératives) :
@@ -206,10 +208,10 @@ corbeille un message `{cle_a_repondre}` ou `{cle_information}`, même lu. Le lib
 UNREAD n'est jamais retiré par le pipeline (cela reste une action utilisateur).
 
 Obligatoire : appelle `search_threads` avec la requête fournie, puis `get_thread` sur
-**chaque** thread retourné (un appel par thread, sans en sauter), puis `get_message` sur
-chaque message à traiter, AVANT de produire ta synthèse. Ne produis la synthèse qu'une
-fois tous les threads retournés lus — l'orchestrateur rejette sinon la synthèse comme
-incomplète.
+**chaque** thread retourné (un appel par thread, sans en sauter) — l'aperçu de chaque
+message suffit, `get_message` uniquement si un aperçu est insuffisant — AVANT de produire
+ta synthèse. Ne produis la synthèse qu'une fois tous les threads retournés lus —
+l'orchestrateur rejette sinon la synthèse comme incomplète.
 
 Règles de véracité (impératives) :
 - ne retenir dans ta synthèse QUE des messages réellement sélectionnés par la requête et lus

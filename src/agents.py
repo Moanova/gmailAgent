@@ -205,7 +205,7 @@ def executer_outil(nom: str, args: dict[str, Any], client: ClientGmailAPI) -> di
     if nom == "search_threads":
         limites = parametres_courants().limites
         max_results = min(
-            int(args.get("maxResults", limites.max_resultats)), limites.max_threads_par_run
+            int(args.get("maxResults", limites.max_resultats)), limites.cap_threads_recherche()
         )
         ids = client.search_threads(str(args["query"]), max_results=max_results)
         return {"threads": ids}
@@ -286,6 +286,11 @@ def lancer_conversation(
         UserMessage(
             content=(
                 f"Requête de sélection : {requete}\n"
+                f"Budget : au plus {plafond_appels} appels d'outils pour cette conversation "
+                f"(la recherche est cappée à {limites.cap_threads_recherche()} threads). "
+                "L'aperçu de `get_thread` suffit (en-têtes, extrait de corps, empreinte) ; "
+                "n'appelle `get_message` que si un aperçu est insuffisant. En cas d'erreur "
+                "d'un outil, corrige l'argument et réessaie sans boucler.\n"
                 "Lis les threads correspondants avec les outils, puis produis ta synthèse."
             ),
             role="user",

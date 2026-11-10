@@ -113,12 +113,29 @@ class Limites(BaseModel):
     plafond_appels_outils: int = Field(ge=1, default=50)
     max_tentatives_synthese: int = Field(ge=1, default=3)
     max_threads_par_run: int = Field(ge=1, default=25)
+    marge_appels_reprise: int = Field(ge=0, default=3)
     plafond_lectures: int = Field(ge=1, default=100)
     max_resultats: int = Field(ge=1, default=50)
     limite_corps_apercu: int = Field(ge=1, default=2000)
     limite_reponse_outil: int = Field(ge=1, default=20000)
     plafond_runs_tout: int = Field(ge=1, default=10)
     timeout_http_ms: int = Field(ge=1, default=300_000)
+
+    def cap_threads_recherche(self) -> int:
+        """Cap de threads renvoyés par `search_threads` dans un run (D58).
+
+        Cohérent avec le budget d'appels par construction : pire cas conforme =
+        1 search + 2 appels par thread (`get_thread` + `get_message`), plus la marge
+        de reprises après erreur d'outil (D56). Invariant :
+        `plafond_appels_outils >= 2 * cap + 1 + marge_appels_reprise`.
+        """
+        return max(
+            1,
+            min(
+                self.max_threads_par_run,
+                (self.plafond_appels_outils - 1 - self.marge_appels_reprise) // 2,
+            ),
+        )
 
 
 class ParametresSuppression(BaseModel):

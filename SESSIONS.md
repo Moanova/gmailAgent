@@ -2153,3 +2153,61 @@ Aucun.
   T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4, T8.1–T8.3, T9.1.
 - Prochaine étape : validation utilisateur (étape 6) de T9.2/T9.3 en conditions réelles, puis
   « Terminé » sur demande.
+
+---
+
+## Séance du 10/11/2026 (suite 2) — 3e volet incident 10/11 : T9.4 (cohérence budget d'appels) + T9.5 (analyse simplification)
+
+### Contexte
+Nouveau retest utilisateur (`--reel --tout`) : run `161dd25c-aa42-4ea3-afb5-88691da8ad30`
+interrompu par `GardeFouAtteintError` au **51e appel d'outils** (plafond 50). Analyse : le
+garde-fou a correctement tiré (51e appel refusé avant exécution, arrêt propre), mais le prompt
+ordonne `get_thread` + `get_message` par thread et `max_threads_par_run = 25` → pire cas
+conforme = 1 + 2×25 = 51 > 50. Le plafond ne doit pas être relevé (tout plafond fixe peut être
+dépassé par du travail légitime) : ce sont les deux bornes (périmètre × budget) qu'il faut
+rendre cohérentes. Point clé : comme `validation_classification` n'a pas tourné, aucun libellé
+n'est posé → relancer tel quel retomberait sur les mêmes threads (pas de « continuer malgré tout »
+possible avec `--tout` tant qu'un run conforme peut atteindre le garde-fou).
+
+### Actions réalisées
+
+1. **Kanban** : création de **T9.4** (« En cours ») — cohérence périmètre/budget d'appels par run ;
+   création de **T9.5** (« À faire ») — analyse des axes de simplification (étude seule) ; plans
+   dans `docs/tasks/T9.4_coherence_budget_appels.md` et `docs/tasks/T9.5_analyse_axes_simplification.md`.
+2. **Implémentation T9.4** :
+   - `src/config.py` : nouveau paramètre `limites.marge_appels_reprise` (défaut 3) + méthode
+     `Limites.cap_threads_recherche()` = `min(max_threads_par_run, (plafond_appels_outils − 1 −
+     marge_appels_reprise) // 2)` (≥ 1) — par défaut **23** ; invariant
+     `plafond ≥ 2×cap + 1 + marge` garanti par construction ;
+   - `config/settings.yaml` : `marge_appels_reprise: 3` (formule en commentaire) ;
+   - `src/agents.py` : `executer_outil("search_threads")` cappe `maxResults` à
+     `cap_threads_recherche()` ; le message utilisateur de chaque conversation énonce le budget
+     (« au plus N appels d'outils… cappée à C threads ») ;
+   - `src/prompts.py` : les 3 prompts — l'aperçu de `get_thread` suffit, `get_message`
+     uniquement si un aperçu est insuffisant.
+   - Le plafond `plafond_appels_outils` reste à **50** ; `--tout` pagine (29 messages → 23 + 6).
+3. **Tests** : +5 (292 au total) — `test_config.py::TestCapThreadsRecherche` (cap dérivé = 23,
+   invariant sur 5 combinaisons, settings.yaml chargé), `test_agents.py` (cap passé au service,
+   plafond custom 20/marge 2 → cap 8, budget présent dans le message utilisateur) ; 1 test
+   existant renommé/adapté.
+4. **Vérifications (étape 4)** : `pytest tests -q` : **292 passed** ; `mypy src` OK (strict,
+   14 fichiers) ; `ruff check` OK sur les fichiers modifiés. `tests/plan_tests.md` à jour
+   (292 = 271 TU + 21 TI). Kanban : T9.4 → « En revue », T9.5 « À faire ».
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D58 | Cohérence par construction : cap de `search_threads` dérivé du budget d'appels (`cap_threads_recherche()`, nouveau paramètre `marge_appels_reprise` pour les reprises D56) ; le plafond `plafond_appels_outils` ne bouge pas ; le budget est aussi énoncé au modèle dans le message utilisateur | Incident 10/11 (run `161dd25c-…`) : 51 appels conformes (1 + 2×25) > plafond 50. Relever le plafond ne résoudrait rien (tout plafond fixe est dépassable) ; et « continuer avec --tout » sur erreur est un livelock tant qu'aucun libellé n'est posé |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués sur demande explicite de l'utilisateur.
+- Kanban : **En cours** = vide ; **En revue** = T9.2, T9.3, T9.4 ; **À faire** = T9.5 ; **Terminé** =
+  T1.1–T1.7, T2.1–T2.4, T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4, T8.1–T8.3, T9.1.
+- Prochaine étape : validation utilisateur (étape 6) de T9.2/T9.3/T9.4 en conditions réelles,
+  puis « Terminé » sur demande ; T9.5 (analyse) à lancer sur demande.

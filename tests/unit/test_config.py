@@ -54,6 +54,7 @@ class TestParametresDefauts:
         assert p.limites.plafond_appels_outils == 50
         assert p.limites.max_tentatives_synthese == 3
         assert p.limites.max_threads_par_run == 25
+        assert p.limites.marge_appels_reprise == 3
         assert p.limites.plafond_lectures == 100
         assert p.limites.max_resultats == 50
         assert p.limites.limite_corps_apercu == 2000
@@ -121,3 +122,36 @@ class TestCablages:
         client = ClientGmailAPI(service, dry_run=True)
         client.search_threads("q")
         assert service.appels == [{"q": "q", "maxResults": 10}]
+
+
+class TestCapThreadsRecherche:
+    """D58 : le cap de threads recherchés est dérivé du budget d'appels (jamais l'inverse),
+    pour qu'un run conforme n'atteigne jamais le garde-fou anti-boucle."""
+
+    def test_cap_derive_des_defauts(self) -> None:
+        limites = Limites()
+        assert limites.marge_appels_reprise == 3
+        assert limites.cap_threads_recherche() == 23  # (50 - 1 - 3) // 2, borné par 25
+
+    def test_invariant_budget_couvre_le_pire_cas(self) -> None:
+        for plafond, marge, max_threads in [
+            (50, 3, 25),
+            (20, 2, 25),
+            (10, 0, 25),
+            (3, 0, 25),
+            (50, 3, 5),
+        ]:
+            limites = Limites(
+                plafond_appels_outils=plafond,
+                marge_appels_reprise=marge,
+                max_threads_par_run=max_threads,
+            )
+            cap = limites.cap_threads_recherche()
+            assert 1 <= cap <= max_threads
+            # pire cas conforme : 1 search + 2 appels/thread + marge de reprises
+            assert plafond >= 2 * cap + 1 + marge
+
+    def test_settings_du_depot_charge_la_marge(self) -> None:
+        p = charger_parametres()
+        assert p.limites.marge_appels_reprise == 3
+        assert p == Parametres()  # settings.yaml du dépôt == défauts du code
