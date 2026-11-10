@@ -6,7 +6,7 @@ Les tests ont été écrits **par phase, avec chaque tâche** (chaque tâche du
 recense tels qu'ils existent réellement (audit de couverture), il ne décrit pas un
 plan idéalisé.
 
-État au 10/11/2026 : **283 tests, tous verts** — 262 unitaires (TU) + 21 d'intégration
+État au 10/11/2026 : **287 tests, tous verts** — 266 unitaires (TU) + 21 d'intégration
 (TI). Recensement : `python -m pytest tests --collect-only -q`.
 
 ## Conventions
@@ -30,8 +30,8 @@ plan idéalisé.
 | Fichier | Nb | Portée | Tâches |
 | --- | --- | --- | --- |
 | `test_contracts.py` | 62 | Modèles Pydantic, en-tête `meta`, schémas JSON stricts dynamiques (enums depuis le registre), `ResumeRun`, `RapportFinal.resume` (rétro-compat), union discriminée `SyntheseEtape` (D44) | T2.1, T2.2, T2.4, T8.1 |
-| `test_validation.py` | 39 | `extraire_json`, `collecter_ids_reels`, `valider_synthese` (C1–C6), `construire_synthese` | T2.3, T2.4 |
-| `test_agents.py` | 46 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56) | T4.2, T5.2, T7.2, T9.2 |
+| `test_validation.py` | 40 | `extraire_json`, `collecter_ids_reels`, `valider_synthese` (C1–C6), `construire_synthese` (normalisation `message_id_rfc` avant validation, D57) | T2.3, T2.4, T9.3 |
+| `test_agents.py` | 49 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56), synthèse invalide rebouclée au modèle + `message_id_rfc` normalisé (D57) | T4.2, T5.2, T7.2, T9.2, T9.3 |
 | `test_orchestrator.py` | 29 | Requêtes depuis le registre (idempotence, suppression D47), cycle de run, checkpoints, reprise sur incident, étapes 1–4 (spam/classification + C6), run de suppression (T7.3), `resume` des rapports (T8.2) | T3.2, T4.3, T5.4, T7.3, T8.2 |
 | `test_prompts.py` | 19 | Prompts sans libellé physique en dur, enums/clés depuis le registre, conservatisme/véracité, corbeille uniquement, catégorie notification seule éligible (D47), schémas d'outils | T4.1, T5.1, T7.1 |
 | `test_cli.py` | 19 | Parsing (`--reel`, `--run-id`, `--tout`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2), boucle `--tout` (`TestTout` : épuisement, plafond, dry-run 1 run, arrêt sur échec) | T3.3, T7.3, T8.2, T3.5 |

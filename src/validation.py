@@ -10,6 +10,7 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
+from dedup import normaliser_message_id
 
 _STATUTS_ECHEC = {"echec_technique"}
 _STATUTS_VIDES = {"aucun_message"}
@@ -206,7 +207,9 @@ def construire_synthese(
     """Construit le modèle Pydantic complet d'une synthèse d'étape.
 
     Le payload (produit par le LLM, conforme au schéma de T2.2) est validé
-    contre le modèle de l'agent, avec injection de ``meta``.
+    contre le modèle de l'agent, avec injection de ``meta``. Le `message_id_rfc`
+    de la classification est normalisé avant validation (sans chevrons `<>`,
+    minuscules) — cohérent avec le recalcul C6 (D57).
     """
     modeles: dict[str, type[SyntheseEtape]] = {
         AGENT_CLASSIFICATION: SyntheseClassification,
@@ -217,6 +220,10 @@ def construire_synthese(
         cls = modeles[agent]
     except KeyError:
         raise SyntheseInvalideError(f"agent inconnu : {agent!r}") from None
+    if agent == AGENT_CLASSIFICATION and isinstance(payload.get("messages"), list):
+        for message in payload["messages"]:
+            if isinstance(message, dict) and isinstance(message.get("message_id_rfc"), str):
+                message["message_id_rfc"] = normaliser_message_id(message["message_id_rfc"])
     return cls.model_validate(
         {**payload, "meta": meta.model_dump(mode="json"), "agent": agent}
     )

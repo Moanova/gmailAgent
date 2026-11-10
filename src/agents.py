@@ -11,7 +11,9 @@ parsée (`extraire_json`), construite (`construire_synthese`) puis validée
 Une erreur d'exécution d'outil (ex. `HttpError` 404 sur un identifiant invalide) est
 renvoyée au modèle via le `ToolMessage` (`{"erreur": ...}`) avec un warning `outil en
 echec` — jamais un abandon direct du run (D56) ; l'appel en échec n'est pas crédité dans
-les exécutions réelles (C3).
+les exécutions réelles (C3). Une synthèse invalide (JSON illisible, contrat Pydantic,
+C1–C6) est de même renvoyée au modèle pour correction, décomptée dans
+`max_tentatives_synthese` — abandon propre au-delà (D57).
 """
 
 import json
@@ -30,6 +32,7 @@ from mistralai.client.models import (
     ToolMessage,
     UserMessage,
 )
+from pydantic import ValidationError
 
 from client import avec_retry
 from config import RegistreLibelles, parametres_courants
@@ -48,6 +51,7 @@ from gmail import ClientGmailAPI
 from journalisation import obtenir_logger
 from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam, prompt_suppression
 from validation import (
+    ExtractionJsonError,
     SyntheseInvalideError,
     collecter_ids_reels,
     construire_synthese,
@@ -422,10 +426,39 @@ def lancer_conversation(
                 )
             )
             continue
-        payload = _normaliser_payload(extraire_json(contenu_final))
-        synthese = construire_synthese(agent, payload, meta)
-        ids_reels = collecter_ids_reels(list(executions)) | ids_resultats
-        valider_synthese(synthese, ids_reels)
+        try:
+            payload = _normaliser_payload(extraire_json(contenu_final))
+            synthese = construire_synthese(agent, payload, meta)
+            ids_reels = collecter_ids_reels(list(executions)) | ids_resultats
+            valider_synthese(synthese, ids_reels)
+        except (ExtractionJsonError, SyntheseInvalideError, ValidationError) as erreur_synthese:
+            tentatives_synthese += 1
+            if tentatives_synthese > limites.max_tentatives_synthese:
+                raise SyntheseInvalideError(
+                    f"synthèse invalide après {limites.max_tentatives_synthese} tentatives "
+                    f"— abandon du run : {erreur_synthese}"
+                ) from erreur_synthese
+            log.warning(
+                "synthese refusee : validation",
+                agent=agent,
+                erreur=repr(erreur_synthese),
+                tentative=tentatives_synthese,
+            )
+            messages.append(AssistantMessage(role="assistant", content=contenu_final))
+            messages.append(
+                UserMessage(
+                    content=(
+                        f"Synthèse invalide (tentative {tentatives_synthese}/"
+                        f"{limites.max_tentatives_synthese}) : {erreur_synthese}. "
+                        "Corrige ta réponse pour qu'elle soit conforme au schéma imposé "
+                        "(statut, messages, champs requis et formats — ex. `message_id_rfc` "
+                        "normalisé sans chevrons `<>`, `empreinte` SHA-256 en 64 caractères "
+                        "hexadécimaux)."
+                    ),
+                    role="user",
+                )
+            )
+            continue
         if agent == AGENT_SUPPRESSION and isinstance(synthese, SyntheseSuppression):
             ecart = ids_corbeille.symmetric_difference(set(synthese.ids))
             if synthese.statut != "supprimes":

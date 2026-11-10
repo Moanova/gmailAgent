@@ -270,7 +270,13 @@ class TestAgentSuppressionBoutEnBout:
     ) -> None:
         rid = uuid4()
         service = _FauxService(threads_suppression=["t-sup1"])
-        mistral = _FauxMistral(_scenario_suppression(["t-sup1"], ["m-t-sup1"], ["m-inconnu"]))
+        from config import parametres_courants
+
+        scenario = _scenario_suppression(["t-sup1"], ["m-t-sup1"], ["m-inconnu"])
+        scenario += [scenario[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
+        )
+        mistral = _FauxMistral(scenario)
         with pytest.raises(SyntheseInvalideError, match="non manipul"):
             _run_suppression(registre, tmp_path, service, mistral, run_id=rid, dry_run=True)
         checkpoint = charger_checkpoint(rid, tmp_path)

@@ -131,8 +131,8 @@ Règles de véracité (impératives) :
 Pour chaque message classé, déclare en outre :
 - `id` : UNIQUEMENT le champ `id` de l'aperçu (identifiant Gmail hexadécimal du
   message, ex. `1a19d621c9eb8f95`) — jamais le Message-ID RFC ;
-- `message_id_rfc` : le champ `message_id_rfc` de l'aperçu (en-tête RFC 5322, ex.
-  `<abc@exemple.fr>`), recopié tel quel ;
+- `message_id_rfc` : le champ `message_id_rfc` de l'aperçu (déjà normalisé, ex.
+  `abc@exemple.fr` — sans chevrons `<>`), recopié tel quel ;
 - `empreinte` : champ `empreinte` (hash SHA-256, 64 caractères hexadécimaux) de
   l'aperçu du message — l'orchestrateur recalcule cette valeur sur le message complet
   et rejette ta synthèse en cas d'écart.

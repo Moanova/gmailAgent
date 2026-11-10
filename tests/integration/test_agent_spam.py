@@ -271,7 +271,13 @@ class TestAgentSpamBoutEnBout:
         rid = uuid4()
         service = _FauxService(threads=[], threads_spam=["t-spam"])
         api = ClientGmailAPI(service, dry_run=True)
-        mistral = _FauxMistral(_scenario_spam_deplaces(ids=["m-inconnu"]))
+        from config import parametres_courants
+
+        scenario = _scenario_spam_deplaces(ids=["m-inconnu"])
+        scenario += [scenario[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
+        )
+        mistral = _FauxMistral(scenario)
         with pytest.raises(SyntheseInvalideError, match="non manipul"):
             lancer_run_tri(
                 run_id=rid,

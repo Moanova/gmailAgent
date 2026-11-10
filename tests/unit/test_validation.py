@@ -256,6 +256,21 @@ class TestConstruireSynthese:
         assert s.meta.run_id == meta.run_id
         valider_synthese(s, {message_classe.id})
 
+    def test_message_id_rfc_normalise_avant_validation(
+        self, message_classe: MessageClasse, meta: Meta
+    ) -> None:
+        """D57 : `message_id_rfc` avec chevrons/majuscules normalisé avant model_validate
+        (incident 10/11, run d9fafc4a-… : `<...@laposte.net>` rejeté par le pattern)."""
+        payload = {
+            "statut": "synthese",
+            "messages": [
+                {**message_classe.model_dump(mode="json"), "message_id_rfc": "<ABC@Exemple.FR>"}
+            ],
+            "erreur": None,
+        }
+        s = construire_synthese(AGENT_CLASSIFICATION, payload, meta)
+        assert s.messages[0].message_id_rfc == "abc@exemple.fr"
+
     def test_agent_inconnu_rejete(self, meta: Meta) -> None:
         with pytest.raises(SyntheseInvalideError, match="agent inconnu"):
             construire_synthese(

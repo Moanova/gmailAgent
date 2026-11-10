@@ -218,8 +218,13 @@ class TestLancerConversation:
     def test_rejet_synthese_non_authentique(
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
+        from config import parametres_courants
+
         reponses = _conversation_ok()
         reponses[-1] = _Reponse(_Msg(content=_synthese_payload(message_id="m-inconnu")))
+        reponses += [reponses[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
+        )
         mistral = _FauxMistral(reponses)
         client_gmail = ClientGmailAPI(_FauxService(), dry_run=True)
         with pytest.raises(SyntheseInvalideError, match="non manipulés"):
@@ -441,18 +446,128 @@ class TestOutilEnEchec:
     ) -> None:
         """Un id passé à un appel en échec ne doit pas pouvoir figurer dans la synthèse
         (C3 porte sur les exécutions réelles réussies)."""
-        mistral = _FauxMistral(
-            [
-                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
-                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "1"})])),
-                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
-                _Reponse(_Msg(content=_synthese_payload(message_id="1"))),
-            ]
+        from config import parametres_courants
+
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "1"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+            _Reponse(_Msg(content=_synthese_payload(message_id="1"))),
+        ]
+        scenario += [scenario[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
         )
+        mistral = _FauxMistral(scenario)
         service = _FauxService()
         service.erreurs["1"] = RuntimeError("HttpError 404 threads/1 : not found")
         client_gmail = ClientGmailAPI(service, dry_run=True)
         with pytest.raises(SyntheseInvalideError, match="non manipul"):
+            lancer_conversation(
+                AGENT_CLASSIFICATION,
+                "is:unread",
+                meta,
+                client_mistral=mistral,  # type: ignore[arg-type]
+                client_gmail=client_gmail,
+                registre=registre,
+            )
+
+
+class TestSyntheseInvalideRebouclee:
+    """D57 : une synthèse invalide (JSON, contrat Pydantic, C1–C6) est renvoyée au modèle
+    pour correction (max_tentatives_synthese) — abandon propre au-delà, jamais de crash."""
+
+    def test_message_id_rfc_avec_chevrons_accepte_et_normalise(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Incident 10/11 (run d9fafc4a-…) : le modèle recopie le Message-ID avec
+        chevrons `<...>` — normalisé avant validation, cohérent avec le recalcul C6."""
+        payload = json.loads(_synthese_payload())
+        payload["messages"][0]["message_id_rfc"] = "<ABC@Exemple.FR>"
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=json.dumps(payload))),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        assert synthese.messages[0].message_id_rfc == "abc@exemple.fr"
+
+    def test_synthese_invalide_puis_corrigee_acceptee(
+        self,
+        registre: RegistreLibelles,
+        meta: Meta,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Empreinte non conforme à la 1re tentative → retour au modèle → corrigée ensuite."""
+        import journalisation
+
+        monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
+        monkeypatch.setattr(journalisation, "_configure", False)
+        monkeypatch.setattr(journalisation, "_run_id_courant", None)
+        journalisation.configurer(str(meta.run_id))
+        mauvais = json.loads(_synthese_payload())
+        mauvais["messages"][0]["empreinte"] = "zz"
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=json.dumps(mauvais))),
+                _Reponse(_Msg(content=_synthese_payload())),
+            ]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "synthese"
+        lignes = [
+            json.loads(ligne)
+            for ligne in (tmp_path / "gmailagent.log").read_text(encoding="utf-8").splitlines()
+            if ligne.strip()
+        ]
+        assert any(ligne.get("event") == "synthese refusee : validation" for ligne in lignes)
+        messages_appel = mistral.chat.appels[3]["messages"]
+        assert any(
+            getattr(m, "role", None) == "user"
+            and "Synthèse invalide" in str(getattr(m, "content", ""))
+            for m in messages_appel
+        )
+
+    def test_synthese_invalide_persistante_abandon_propre(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        """Le modèle ne corrige jamais → SyntheseInvalideError après max_tentatives_synthese."""
+        from config import parametres_courants
+
+        mauvais = json.loads(_synthese_payload())
+        mauvais["messages"][0]["empreinte"] = "zz"
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+        ]
+        scenario += [
+            _Reponse(_Msg(content=json.dumps(mauvais)))
+            for _ in range(parametres_courants().limites.max_tentatives_synthese + 2)
+        ]
+        mistral = _FauxMistral(scenario)
+        client_gmail = ClientGmailAPI(_FauxService(), dry_run=True)
+        with pytest.raises(SyntheseInvalideError, match="abandon du run"):
             lancer_conversation(
                 AGENT_CLASSIFICATION,
                 "is:unread",
@@ -1141,11 +1256,16 @@ class TestConversationSpam:
     def test_rejet_id_inconnu_spam(
         self, registre: RegistreLibelles, meta_spam: Meta
     ) -> None:
+        from config import parametres_courants
+
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
             _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
             _Reponse(_Msg(content=_payload_spam("deplaces", ["m-inconnu"]))),
         ]
+        scenario += [scenario[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
+        )
         mistral = _FauxMistral(scenario)
         client_gmail = ClientGmailAPI(_FauxService(threads=["t1"]), dry_run=True)
         with pytest.raises(SyntheseInvalideError, match="non manipul"):
@@ -1228,11 +1348,16 @@ class TestConversationSuppression:
     def test_rejet_c3_id_non_manipule(
         self, registre: RegistreLibelles, meta_suppression: Meta
     ) -> None:
+        from config import parametres_courants
+
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
             _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
             _Reponse(_Msg(content=_payload_suppression("supprimes", ["m-inconnu"]))),
         ]
+        scenario += [scenario[-1]] * (
+            parametres_courants().limites.max_tentatives_synthese + 2
+        )
         mistral = _FauxMistral(scenario)
         client_gmail = ClientGmailAPI(_FauxService(threads=["t1"]), dry_run=True)
         with pytest.raises(SyntheseInvalideError, match="non manipul"):

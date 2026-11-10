@@ -2097,3 +2097,59 @@ Aucun.
   T8.1–T8.3, T9.1.
 - Prochaine étape : validation utilisateur (étape 6 — test en conditions réelles sur la boîte,
   dry-run puis petit périmètre `--reel`), puis commit/push sur `dev` sur demande explicite.
+
+---
+
+## Séance du 10/11/2026 (suite) — test utilisateur de T9.2 + tâche T9.3 (2e volet incident 10/11)
+
+### Contexte
+Retest utilisateur sur le même périmètre (`--reel --tout`) après le commit de T9.2 (`91d2044`) :
+run 1 `6ccdc4fa-…` en succès (25 messages traités), run 2 `d9fafc4a-…` interrompu en
+`lecture_classification` — plus de 404 fatale (D56 OK), mais nouveau blocage : `ValidationError`
+Pydantic, 4 × `message_id_rfc` « String should match pattern '^[^<>\\s]+@[^<>\\s]+$' » avec des
+valeurs entre chevrons (`<…@laposte.net>`). Cause : l'exemple du prompt (`<abc@exemple.fr>`)
+contredit le pattern strict du contrat, et `construire_synthese` n'était pas dans une boucle de
+rebouclage vers le modèle (seules les gardes threads/corbeille/messages l'étaient).
+
+### Actions réalisées
+
+1. **Kanban** : création de **T9.3** (« En cours ») — *Tests/robustesse : synthèse invalide
+   rebouclée vers le modèle + `message_id_rfc` normalisé (incident 10/11/2026, 2e volet)* ;
+   plan dans `docs/tasks/T9.3_synthese_validation_rebouclee.md`.
+2. **Implémentation** :
+   - `src/validation.py` : `construire_synthese` normalise `message_id_rfc`
+     (`dedup.normaliser_message_id` : sans `<>`, minuscules) avant `model_validate` — cohérent
+     avec le recalcul C6 ;
+   - `src/agents.py` (`lancer_conversation`) : try/except autour de
+     `extraire_json`/`_normaliser_payload`/`construire_synthese`/`valider_synthese`
+     (`ExtractionJsonError`, `SyntheseInvalideError`, `ValidationError`) — warning
+     `synthese refusee : validation` + retour au modèle (UserMessage), décompté dans
+     `max_tentatives_synthese`, abandon propre au-delà (même pattern que D56) ;
+   - `src/prompts.py` : exemple `message_id_rfc` corrigé (`abc@exemple.fr`, sans chevrons).
+3. **Tests** : +4 (287 au total) — `test_validation.py` (normalisation avant validation),
+   `test_agents.py::TestSyntheseInvalideRebouclee` (chevrons acceptés + normalisés ; synthèse
+   invalide puis corrigée, warning relu dans le log + retour vérifié dans la conversation ;
+   abandon propre si persistante) ; 4 TU + 2 TI de rejet C3 adaptés au rebouclage (répétition de
+   la réponse invalide jusqu'au plafond de tentatives).
+4. **Vérifications (étape 4)** : `pytest tests -q` : **287 passed** (+4) ; `mypy src` OK (strict,
+   14 fichiers) ; `ruff check` OK sur les fichiers modifiés (SIM102 préexistant de
+   `src/validation.py` au HEAD, non lié, non corrigé). `tests/plan_tests.md` à jour (287 = 266 TU
+   + 21 TI). Kanban : T9.3 → « En revue ».
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D57 | `message_id_rfc` normalisé avant validation (D56-like) + toute erreur de validation de synthèse (JSON/contrat/C1–C6) rebouclée vers le modèle, décomptée dans `max_tentatives_synthese`, abandon propre au-delà | Incident réel 10/11 (run `d9fafc4a-…`) : chevrons `<…>` rejetés par le pattern strict alors que C6 les normalise ; aucune voie de récupération existante → run interrompu. Le prompt et le contrat sont maintenant cohérents (exemple sans chevrons) |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués sur demande explicite de l'utilisateur.
+- Kanban : **En cours** = vide ; **En revue** = T9.2, T9.3 ; **Terminé** = T1.1–T1.7, T2.1–T2.4,
+  T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4, T8.1–T8.3, T9.1.
+- Prochaine étape : validation utilisateur (étape 6) de T9.2/T9.3 en conditions réelles, puis
+  « Terminé » sur demande.
