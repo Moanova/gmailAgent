@@ -2211,3 +2211,67 @@ Aucun.
   T1.1–T1.7, T2.1–T2.4, T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4, T8.1–T8.3, T9.1.
 - Prochaine étape : validation utilisateur (étape 6) de T9.2/T9.3/T9.4 en conditions réelles,
   puis « Terminé » sur demande ; T9.5 (analyse) à lancer sur demande.
+
+---
+
+## Séance du 10/11/2026 (suite 3) — validation T9.2–T9.4 + démarrage T9.5 (volet spam)
+
+### Contexte
+Retest utilisateur (`--reel --tout`) après le commit `0fe8a0b` : **29 messages traités, aucune
+erreur** — les trois correctifs D56/D57/D58 tiennent en conditions réelles.
+
+### Actions réalisées
+
+1. **Kanban** : T9.2, T9.3, T9.4 « En revue » → **« Terminé »** (validation utilisateur étape 6,
+   checkboxes des fichiers de suivi cochées) ; **T9.5** « À faire » → **« En cours »**.
+2. **T9.5, volet spam** : tableau des modules impliqués dans le traitement spam + pistes de
+   simplification (remontées dans la réponse de séance ; détail à consigner dans
+   `docs/design/simplification.md` à l'issue de l'analyse complète).
+
+### Décisions clés
+
+Aucune nouvelle (pas de changement de code).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications doc **non commitées** (règle C) — `docs/projet/kanban.md`,
+  `docs/tasks/T9.2_*.md`, `T9.3_*.md`, `T9.4_*.md`, `SESSIONS.md`.
+- Kanban : **En cours** = T9.5 ; **En revue** = vide ; **Terminé** = T1.1–T1.7, T2.1–T2.4,
+  T3.1–T3.5, T4.1–T4.4, T5.1–T5.5, T7.1–T7.4, T8.1–T8.3, T9.1–T9.4.
+- Prochaine étape : poursuivre T9.5 volet par volet (spam fait, puis classification,
+  suppression, runner/orchestrateur), note `docs/design/simplification.md` en fin d'analyse.
+
+### Ajout même séance
+- **T9.6 créée** (« À faire ») : simplifications issues de T9.5 (factorisation des branchements
+  `_lancer_*` et du bloc prompt commun, court-circuit spam vide à arbitrer) + fonctionnalité
+  **idempotence du spam** (libellé « spam confirmé » + clause `-label:` dans `spam.requete`) —
+  à implémenter plus tard, sur demande explicite. Scope : `docs/tasks/T9.6_simplifications_idempotence_spam.md`.
+- **T9.5, volet classification** : tableau des modules + pistes de simplification remis dans la
+  réponse de séance (factorisation runner, fusion recalc C6 + apposition libellés en une passe,
+  unification des mécanismes de refus).
+- **T9.7/T9.8/T9.9 créées** (« À faire ») : T9.7 = validation classification en une passe (piste
+  n°2), T9.8 = unification des mécanismes de refus dans `lancer_conversation` (piste n°3,
+  tests existants à garder verts à l'identique), T9.9 = remise à plat arborescence + documents
+  (constat : `docs/architecture/` référencé par AGENTS.md mais inexistant ; C1–C6 définis
+  uniquement dans `docs/tasks/T2.3_*.md`, avec dérive de numérotation C3/C4 ; SESSIONS.md > 130 ko).
+- **D59** (décision utilisateur, 10/11) : suppression approuvée de la clause inerte
+  `OR label:"Agent/doublon"` dans `requete_suppression` (D46) et de la méthode morte
+  `corbeille()` (`src/gmail.py`) — recorded dans le scope de T9.6, à implémenter avec elle.
+- **T9.5, volet suppression puis orchestrateur** : tableaux + pistes remis dans les réponses de
+  séance (squelette de run dupliqué `lancer_run_tri`/`lancer_run_suppression`, branchements
+  `_lancer_*` ×3, validation en une passe → T9.6/T9.7/T9.8 couvrent l'essentiel).
+
+### Clôture de T9.5 (même séance)
+- Note de synthèse rédigée : **`docs/design/simplification.md`** (bilan par volet spam /
+  classification / suppression / orchestrateur, classement quick win sûr / refactor à risque
+  maîtrisé / fonctionnalité / docs, invariants conservés, traçabilité D56–D60).
+- **D60** (décision utilisateur, 10/11) : toutes les simplifications évaluées en T9.5 sont
+  **approuvées** ; implémentation répartie en T9.6 (factorisations + idempotence spam +
+  suppressions D59), T9.7 (validation classification en une passe), T9.8 (unification des refus +
+  squelette de run générique), T9.9 (arborescence + documents).
+- Kanban : T9.5 « En cours » → **« Terminé »** ; T9.6–T9.9 restent « À faire ». Commit + push sur
+  `dev` sur demande explicite (fait dans la foulée).
