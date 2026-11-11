@@ -43,6 +43,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )
@@ -1332,10 +1333,65 @@ class TestConversationSpam:
             )
 
 
-REQUETE_SUPPRESSION = (
-    'label:"Agent/traité" label:"Agent/notification" older_than:24h '
-    'OR label:"Agent/doublon"'
-)
+REQUETE_SUPPRESSION = 'label:"Agent/traité" label:"Agent/notification" older_than:24h'
+
+
+class TestCourtCircuitVide:
+    """T9.6 : `search_threads` renvoie 0 thread -> `aucun_message` sans appel au modèle."""
+
+    def test_spam(self, registre: RegistreLibelles, meta_spam: Meta) -> None:
+        mistral = _FauxMistral(
+            [_Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})]))]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, executions = lancer_conversation(
+            AGENT_SPAM,
+            "in:spam",
+            meta_spam,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSpam)
+        assert synthese.statut == "aucun_message"
+        assert synthese.messages == []
+        assert len(mistral.chat.appels) == 1
+        assert [e.name for e in executions] == ["search_threads"]
+
+    def test_classification(self, registre: RegistreLibelles, meta: Meta) -> None:
+        mistral = _FauxMistral(
+            [_Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})]))]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert synthese.statut == "aucun_message"
+        assert len(mistral.chat.appels) == 1
+
+    def test_suppression(self, registre: RegistreLibelles, meta_suppression: Meta) -> None:
+        mistral = _FauxMistral(
+            [_Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "older_than:24h"})]))]
+        )
+        client_gmail = ClientGmailAPI(_FauxService(threads=[]), dry_run=True)
+        synthese, _ = lancer_conversation(
+            AGENT_SUPPRESSION,
+            "older_than:24h",
+            meta_suppression,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=client_gmail,
+            registre=registre,
+        )
+        assert isinstance(synthese, SyntheseSuppression)
+        assert synthese.statut == "aucun_message"
+        assert synthese.count == 0
+        assert synthese.ids == []
+        assert len(mistral.chat.appels) == 1
 
 
 class TestConversationSuppression:

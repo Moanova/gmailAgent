@@ -25,6 +25,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )
@@ -122,6 +123,22 @@ class TestPromptSpam:
         assert "UNIQUE objet JSON" in prompt
         assert "`statut`" in prompt
         assert "`messages`" in prompt
+
+
+class TestBlocLectureCommun:
+    def test_bloc_lecture_identique_dans_les_trois_prompts(
+        self, registre: RegistreLibelles
+    ) -> None:
+        """T9.6 : le bloc « Obligatoire : search_threads + get_thread sur chaque thread »
+        est factorisé (injecté) — présent à l'identique dans les 3 prompts."""
+        extrait = "puis `get_thread` sur **chaque** thread retourné (un appel par thread, sans en"
+        for prompt in (
+            prompt_classification(registre),
+            prompt_spam(registre),
+            prompt_suppression(registre),
+        ):
+            assert extrait in prompt
+            assert "Ne produis la synthèse qu'une fois tous les threads" in prompt
 
 
 class TestPromptSuppression:

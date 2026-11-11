@@ -101,6 +101,7 @@ class _FauxService:
                         {"id": "L_traite", "name": "Agent/traité"},
                         {"id": "L_arep", "name": "Agent/a-repondre"},
                         {"id": "L_valspam", "name": "Agent/valide-spam"},
+                        {"id": "L_spamconfirme", "name": "Agent/spam-confirme"},
                     ]
                 }
             )
@@ -160,9 +161,9 @@ def _appel(nom: str, args: dict[str, Any]) -> Any:
 
 
 def _scenario_spam_vide() -> list[_Reponse]:
+    """T9.6 : search spam renvoie 0 thread -> court-circuit `aucun_message` dans le runner."""
     return [
         _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
-        _Reponse(_Msg(content=json.dumps({"statut": "aucun_message", "messages": []}))),
     ]
 
 
@@ -215,6 +216,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )

@@ -6,7 +6,7 @@ Les tests ont été écrits **par phase, avec chaque tâche** (chaque tâche du
 recense tels qu'ils existent réellement (audit de couverture), il ne décrit pas un
 plan idéalisé.
 
-État au 10/11/2026 : **292 tests, tous verts** — 271 unitaires (TU) + 21 d'intégration
+État au 11/11/2026 : **300 tests, tous verts** — 277 unitaires (TU) + 23 d'intégration
 (TI). Recensement : `python -m pytest tests --collect-only -q`.
 
 ## Conventions
@@ -25,35 +25,35 @@ plan idéalisé.
 
 ## Recensement par fichier
 
-### Tests unitaires (`tests/unit/`, 240 tests)
+### Tests unitaires (`tests/unit/`, 277 tests)
 
 | Fichier | Nb | Portée | Tâches |
 | --- | --- | --- | --- |
 | `test_contracts.py` | 62 | Modèles Pydantic, en-tête `meta`, schémas JSON stricts dynamiques (enums depuis le registre), `ResumeRun`, `RapportFinal.resume` (rétro-compat), union discriminée `SyntheseEtape` (D44) | T2.1, T2.2, T2.4, T8.1 |
 | `test_validation.py` | 40 | `extraire_json`, `collecter_ids_reels`, `valider_synthese` (C1–C6), `construire_synthese` (normalisation `message_id_rfc` avant validation, D57) | T2.3, T2.4, T9.3 |
-| `test_agents.py` | 51 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56), synthèse invalide rebouclée au modèle + `message_id_rfc` normalisé (D57), cap de `search_threads` dérivé du budget d'appels + budget énoncé au modèle (D58) | T4.2, T5.2, T7.2, T9.2, T9.3, T9.4 |
-| `test_orchestrator.py` | 29 | Requêtes depuis le registre (idempotence, suppression D47), cycle de run, checkpoints, reprise sur incident, étapes 1–4 (spam/classification + C6), run de suppression (T7.3), `resume` des rapports (T8.2) | T3.2, T4.3, T5.4, T7.3, T8.2 |
-| `test_prompts.py` | 19 | Prompts sans libellé physique en dur, enums/clés depuis le registre, conservatisme/véracité, corbeille uniquement, catégorie notification seule éligible (D47), schémas d'outils | T4.1, T5.1, T7.1 |
-| `test_cli.py` | 19 | Parsing (`--reel`, `--run-id`, `--tout`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2), boucle `--tout` (`TestTout` : épuisement, plafond, dry-run 1 run, arrêt sur échec) | T3.3, T7.3, T8.2, T3.5 |
-| `test_gmail.py` | 17 | Client Gmail concret mocké : token, labels, recherche paginée bornée, dry-run (écritures journalisées), plafond de lectures | T3.1 |
+| `test_agents.py` | 54 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56), synthèse invalide rebouclée au modèle + `message_id_rfc` normalisé (D57), cap de `search_threads` dérivé du budget d'appels + budget énoncé au modèle (D58), court-circuit `aucun_message` sans appel au modèle si 0 thread (T9.6) | T4.2, T5.2, T7.2, T9.2, T9.3, T9.4, T9.6 |
+| `test_orchestrator.py` | 33 | Requêtes depuis le registre (idempotence, spam avec exclusion `spam-confirme` T9.6, suppression D47 + clause doublon retirée D59), cycle de run, checkpoints, reprise sur incident, étapes 1–4 (spam/classification + C6, pose `spam-confirme` sur `aucun_message` T9.6), run de suppression (T7.3), `resume` des rapports (T8.2) | T3.2, T4.3, T5.4, T7.3, T8.2, T9.6 |
+| `test_prompts.py` | 20 | Prompts sans libellé physique en dur, enums/clés depuis le registre, conservatisme/véracité, corbeille uniquement, catégorie notification seule éligible (D47), bloc « lecture » commun injecté dans les 3 prompts (T9.6), schémas d'outils | T4.1, T5.1, T7.1, T9.6 |
+| `test_cli.py` | 20 | Parsing (`--reel`, `--run-id`, `--tout`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2), boucle `--tout` (`TestTout` : épuisement, plafond, dry-run 1 run, arrêt sur échec) | T3.3, T7.3, T8.2, T3.5 |
+| `test_gmail.py` | 15 | Client Gmail concret mocké : token, labels, recherche paginée bornée, dry-run (écritures journalisées), plafond de lectures ; méthode morte `corbeille()` supprimée (D59) et ses tests retirés | T3.1, T9.6 |
 | `test_dedup.py` | 11 | Normalisation (Message-ID RFC, sujet, corps), SHA-256 déterministe, `empreinte_message` depuis `get_thread` | T5.3 |
 | `test_report.py` | 8 | `aggreger` (comptes déterministes), `formater_console` (résumé, aucun `Agent/` en dur) | T8.2 |
-| `test_journalisation.py` | 1 | Bornes de run `debut_run`/`fin_run` horodatées dans le log | modif. journalisation 04/11/2026 |
+| `test_journalisation.py` | 2 | Bornes de run `debut_run`/`fin_run` horodatées dans le log | modif. journalisation 04/11/2026 |
 | `test_config.py` | 12 | Paramètres (défauts du code, `settings.yaml`, fusion partielle, rejets), `Limites.cap_threads_recherche()` et invariant budget `plafond ≥ 2×cap + 1 + marge` (D58), câblages (requête suppression, `max_resultats`) | T1.5, T9.4 |
 
-### Tests d'intégration (`tests/integration/`, 21 tests)
+### Tests d'intégration (`tests/integration/`, 23 tests)
 
 | Fichier | Nb | Portée | Tâche |
 | --- | --- | --- | --- |
 | `test_run_vide.py` | 5 | Run vide de bout en bout (critère de sortie phase 3) : checkpoints, idempotence, reprise | T3.4 |
-| `test_agent_spam.py` | 5 | Agent spam bout en bout : libellés posés/retirés (réel), dry-run sans écriture, rejet C3, `aucun_message`, idempotence, `resume` | T4.4 |
+| `test_agent_spam.py` | 7 | Agent spam bout en bout : libellés posés/retirés (réel), dry-run sans écriture, rejet C3, `aucun_message`, idempotence, `resume` ; T9.6 : idempotence spam (libellé `spam-confirme` posé sur les messages laissés, requête avec exclusion), court-circuit 0 thread sans appel au modèle | T4.4, T9.6 |
 | `test_agent_classification.py` | 5 | Classification bout en bout : libellés posés, empreintes recalculées (rejet C6), dry-run, `aucun_message`, idempotence, `resume` | T5.5 |
 | `test_agent_suppression.py` | 6 | Suppression bout en bout (T+24h, notifications seules éligibles, D47) : TRASH réel/journalisé, rejet C3, garde action, `aucun_message`, idempotence, `resume` | T7.4 |
 
 ## Couverture par critère transverse
 
 - **Dry-run / règle E** : `test_gmail.py`, `test_agents.py::TestExecuterOutil`, TI (dry-run sans écriture) ✔
-- **Idempotence** (requête `-label:"Agent/traité"`, checkpoints, 2 runs même `run_id`) : TU orchestrateur + TI ✔
+- **Idempotence** (requête `-label:"Agent/traité"`, checkpoints, 2 runs même `run_id` ; spam : requête `-label:"Agent/spam-confirme"`, T9.6) : TU orchestrateur + TI ✔
 - **Reprise sur incident** (`--run-id`, D44) : `test_orchestrator.py` ✔
 - **Véracité / validation C1–C6** : `test_validation.py`, `test_agents.py`, TI rejets ✔
 - **Registre de libellés** (aucun nom physique en dur) : `test_prompts.py`, requêtes testées depuis le registre ✔

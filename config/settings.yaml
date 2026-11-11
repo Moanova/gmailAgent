@@ -28,4 +28,4 @@ suppression:
   delai_grace: 24h                # délai de grâce du run de suppression T+24h (D47)
 
 spam:
-  requete: in:spam
+  requete: in:spam               # la clause d'exclusion -label:"<spam confirmé>" est ajoutée par le code (requete_spam, T9.6) depuis le registre, jamais en dur

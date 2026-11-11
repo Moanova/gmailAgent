@@ -99,6 +99,7 @@ class _FauxService:
                     "labels": [
                         {"id": "L_traite", "name": "Agent/traité"},
                         {"id": "L_valspam", "name": "Agent/valide-spam"},
+                        {"id": "L_spamconfirme", "name": "Agent/spam-confirme"},
                         {"id": "L_arep", "name": "Agent/a-repondre"},
                     ]
                 }
@@ -181,9 +182,10 @@ def _scenario_spam_deplaces(ids: list[str] | None = None) -> list[_Reponse]:
 
 
 def _scenario_spam_vide() -> list[_Reponse]:
+    """T9.6 : search renvoie 0 thread -> court-circuit `aucun_message` dans le runner,
+    sans appel au modèle (la réponse content n'est jamais consommée)."""
     return [
         _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
-        _Reponse(_Msg(content=_payload_spam("aucun_message", []))),
     ]
 
 
@@ -214,6 +216,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )
@@ -309,6 +312,55 @@ class TestAgentSpamBoutEnBout:
         assert rapport.synthese_spam is not None
         assert rapport.synthese_spam.statut == "aucun_message"
         assert service.modifications == []
+        assert len(mistral.chat.appels) == 2  # 1 spam + 1 classification, tous deux court-circuités
+
+    def test_aucun_message_pose_spam_confirme_sur_messages_lus(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        """T9.6 : spams laissés en spam (`aucun_message`) -> libellé `spam-confirme` posé
+        sur les messages lus (SPAM conservé), et requête de scan avec exclusion."""
+        service = _FauxService(threads=[], threads_spam=["t-spam"])
+        api = ClientGmailAPI(service, dry_run=False)
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t-spam"})])),
+            _Reponse(_Msg(content=_payload_spam("aucun_message", []))),
+        ] + _scenario_classification_vide()
+        mistral = _FauxMistral(scenario)
+        rapport = lancer_run_tri(
+            dry_run=False,
+            client_api=api,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            registre=registre,
+            dossier_checkpoints=tmp_path,
+        )
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_spam is not None
+        assert rapport.synthese_spam.statut == "aucun_message"
+        assert service.modifications == [("m-spam1", ["L_spamconfirme"], [])]
+        assert '-label:"Agent/spam-confirme"' in mistral.chat.appels[0]["messages"][1].content
+
+    def test_aucun_message_dry_run_aucune_ecriture(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _FauxService(threads=[], threads_spam=["t-spam"])
+        api = ClientGmailAPI(service, dry_run=True)
+        scenario = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t-spam"})])),
+            _Reponse(_Msg(content=_payload_spam("aucun_message", []))),
+        ] + _scenario_classification_vide()
+        mistral = _FauxMistral(scenario)
+        rapport = lancer_run_tri(
+            dry_run=True,
+            client_api=api,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            registre=registre,
+            dossier_checkpoints=tmp_path,
+        )
+        assert rapport.statut_global == "succes"
+        assert service.modifications == []
+        assert "modify" not in service.appels
 
     def test_idempotence_agent_spam_non_rappele(
         self, registre: RegistreLibelles, tmp_path: Path

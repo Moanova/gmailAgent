@@ -2275,3 +2275,64 @@ Aucun.
   squelette de run générique), T9.9 (arborescence + documents).
 - Kanban : T9.5 « En cours » → **« Terminé »** ; T9.6–T9.9 restent « À faire ». Commit + push sur
   `dev` sur demande explicite (fait dans la foulée).
+
+---
+
+## Séance du 11/11/2026 — T9.6 (simplifications + idempotence du spam, D59/D60)
+
+### Contexte
+Demande utilisateur explicite : implémenter la tâche T9.6 (créée le 10/11/2026, « À faire »),
+puis commit + push sur `dev` une fois les tests validés (règles C/H). Reprise de contexte
+automatique (AGENTS.md §1) : conception, workflow, plan macro, kanban, plan de tests,
+acceptation, SESSIONS.md.
+
+### Actions réalisées
+
+1. **Kanban** : T9.6 « À faire » → « En cours », puis → « En revue » après validation agent
+   (étape 5).
+2. **Implémentation** :
+   - `src/orchestrator.py` : `_lancer_spam`/`_lancer_classification`/`_lancer_suppression`
+     remplacés par le helper commun `_lancer_etape(agent, etape, requete, ...)` ; nouvelle
+     `requete_spam(registre, resolveur)` = base `spam.requete` + `-label:"<spam confirmé>"`
+     (libellé résolu via le registre, jamais en dur) ; `_appliquer_libelles_spam` pose
+     `spam-confirme` sur les messages lus et laissés en spam si `aucun_message` (SPAM
+     conservé, dry-run règle E) ; clause `OR label:"<doublon>"` + `resoudre(CLE_DOUBLON)`
+     retirés de `requete_suppression` (D59).
+   - `src/agents.py` : court-circuit `aucun_message` sans appel au modèle quand
+     `search_threads` renvoie 0 thread (D61), pour les 3 agents ; la synthèse vide reste
+     soumise à `valider_synthese` (C1–C6).
+   - `src/prompts.py` : bloc « Obligatoire : search_threads + get_thread sur chaque
+     thread… » factorisé (`_BLOC_LECTURE`) et injecté dans les 3 prompts.
+   - `src/gmail.py` : méthode morte `corbeille()` supprimée (D59).
+   - `config/labels.yaml` : nouvelle clé `suivi.spam-confirme` → `Agent/spam-confirme`.
+3. **Tests** : 292 → **300 tests, tous verts** (277 TU + 23 TI). Nouveaux : court-circuit
+   0 thread ×3 agents (`TestCourtCircuitVide`), bloc prompt commun, `requete_spam`, pose
+   `spam-confirme` sur `aucun_message` (réel + dry-run) en TU et TI, requête suppression
+   sans clause doublon, retrait de `TestCorbeille`. `tests/plan_tests.md` mis à jour.
+4. **Vérifications** : `python -m pytest tests -q` → 300 passed ; `mypy src` → propre ;
+   `ruff check src tests` → 1 erreur **pré-existante** (SIM102 `src/validation.py:145`, dérive
+   de version ruff 0.17.4, hors périmètre, non corrigée).
+5. **Docs** : kanban (T9.6 → « En revue »), `docs/tasks/T9.6_*.md` (checkboxes cochées,
+   réalisation), `docs/design/simplification.md` (traçabilité), ce journal.
+6. **Commit + push sur `dev`** (demande explicite, règles C/H).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D61 | Court-circuit `aucun_message` placé dans le runner (`lancer_conversation`), après un `search_threads` à 0 thread, pour les 3 agents | Économie d'appels LLM par run ; trivial sur liste vide ; la synthèse vide reste validée (C1–C6). Arbitrage du point 3 de T9.6. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications commitées et poussées (commit T9.6).
+- Kanban : **En cours** = vide ; **En revue** = T9.6 ; **À faire** = T9.7, T9.8, T9.9 ;
+  **Terminé** = T1.1–T9.5 (inchangé).
+- Prochaine étape : validation utilisateur (étape 6, règle E) — dry-run réel sur la boîte
+  (`MISTRAL_API_KEY` exportée), puis petit périmètre `--reel` ; au premier run réel, les
+  spams déjà laissés en spam sont lus une dernière fois puis étiquetés
+  `Agent/spam-confirme`, exclus ensuite de `in:spam -label:"Agent/spam-confirme"`. Puis
+  « Terminé » sur demande.

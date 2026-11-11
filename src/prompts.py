@@ -13,6 +13,12 @@ from config import RegistreLibelles
 _PREFIXE_CATEGORIE = "classification."
 _URGENCES = ["haute", "moyenne", "basse"]
 
+_BLOC_LECTURE = """puis `get_thread` sur **chaque** thread retourné (un appel par thread, sans en
+saute) — l'aperçu de chaque message (en-têtes, extrait de corps, empreinte) suffit,
+`get_message` uniquement si un aperçu est insuffisant — AVANT de produire ta synthèse.
+Ne produis la synthèse qu'une fois tous les threads retournés lus — l'orchestrateur
+rejette sinon la synthèse comme incomplète."""
+
 OUTILS_GMAIL: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -111,11 +117,7 @@ def prompt_classification(registre: RegistreLibelles) -> str:
 
 Rôle : lire les messages non lus et classer chacun d'eux.
 
-Obligatoire : appelle `search_threads`, puis `get_thread` sur **chaque** thread
-retourné (un appel par thread, sans en sauter) — l'aperçu de chaque message (en-têtes,
-extrait de corps, empreinte) suffit, `get_message` uniquement si un aperçu est insuffisant —
-AVANT de produire ta synthèse. Ne produis la synthèse qu'une fois tous les
-threads retournés lus — l'orchestrateur rejette sinon la synthèse comme incomplète.
+Obligatoire : appelle `search_threads`, {_BLOC_LECTURE}
 
 Catégories possibles (champ `categorie`, clé logique) :
 {liste_categories}
@@ -158,11 +160,7 @@ légitimité. Ne retiens que les messages dont la légitimité est CERTAINE (ex.
 newsletter connue, contact connu, échange attendu). En cas de doute, laisse le
 message en spam et ne le mentionne pas dans ta synthèse.
 
-Obligatoire : appelle `search_threads`, puis `get_thread` sur **chaque** thread
-retourné (un appel par thread, sans en sauter) — l'aperçu de chaque message suffit,
-`get_message` uniquement si un aperçu est insuffisant — AVANT de produire ta synthèse.
-Ne produis la synthèse qu'une fois tous les
-threads retournés lus — l'orchestrateur rejette sinon la synthèse comme incomplète.
+Obligatoire : appelle `search_threads`, {_BLOC_LECTURE}
 
 Règles de véracité (impératives) :
 - ne mentionner dans ta synthèse QUE des messages réellement lus via `search_threads`
@@ -207,11 +205,7 @@ requête.
 corbeille un message `{cle_a_repondre}` ou `{cle_information}`, même lu. Le libellé
 UNREAD n'est jamais retiré par le pipeline (cela reste une action utilisateur).
 
-Obligatoire : appelle `search_threads` avec la requête fournie, puis `get_thread` sur
-**chaque** thread retourné (un appel par thread, sans en sauter) — l'aperçu de chaque
-message suffit, `get_message` uniquement si un aperçu est insuffisant — AVANT de produire
-ta synthèse. Ne produis la synthèse qu'une fois tous les threads retournés lus —
-l'orchestrateur rejette sinon la synthèse comme incomplète.
+Obligatoire : appelle `search_threads` avec la requête fournie, {_BLOC_LECTURE}
 
 Règles de véracité (impératives) :
 - ne retenir dans ta synthèse QUE des messages réellement sélectionnés par la requête et lus

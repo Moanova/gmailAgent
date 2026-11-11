@@ -164,18 +164,6 @@ class TestModifierLibelles:
         assert service.appels == []
 
 
-class TestCorbeille:
-    def test_reel(self) -> None:
-        client, service = _client()
-        client.corbeille("m1")
-        assert service.appels == [("messages.trash", {"id": "m1"})]
-
-    def test_dry_run_non_execute(self) -> None:
-        client, service = _client(dry_run=True)
-        client.corbeille("m1")
-        assert service.appels == []
-
-
 class TestPlafondLectures:
     def test_abandon_propre_au_dela(self) -> None:
         client, _ = _client(plafond=2)

@@ -1,10 +1,12 @@
 import base64
+import json
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from googleapiclient.errors import HttpError
 from httplib2 import Response
+from mistralai.client.models import ToolExecutionEntry
 
 from client import avec_retry
 from config import RegistreLibelles
@@ -19,6 +21,7 @@ from orchestrator import (
     lancer_run_suppression,
     lancer_run_tri,
     requete_non_lus,
+    requete_spam,
     requete_suppression,
     sauvegarder_checkpoint,
 )
@@ -134,6 +137,19 @@ class TestRequeteIdempotence:
         assert "Agent/traité" in requete
 
 
+class TestRequeteSpam:
+    def test_construite_depuis_le_registre_avec_exclusion_spam_confirme(
+        self, registre: RegistreLibelles
+    ) -> None:
+        """T9.6 : la requête spam exclut le libellé « spam confirmé » (résolu via le
+        registre, jamais en dur) — idempotence du spam."""
+        resolveur = ResolveurLibelles(registre, _FauxClientGmail(), dry_run=True)
+        requete = requete_spam(registre, resolveur)
+        attendu = f'in:spam -label:"{registre.libelle("suivi.spam-confirme")}"'
+        assert requete == attendu
+        assert "Agent/spam-confirme" in requete
+
+
 class TestLancerRunTri:
     def test_run_vide_de_bout_en_bout(self, registre: RegistreLibelles, tmp_path: Path) -> None:
         client = _FauxClientGmail()
@@ -157,7 +173,7 @@ class TestLancerRunTri:
     ) -> None:
         client = _FauxClientGmail(labels=[])
         _run(registre, tmp_path, client, dry_run=False)
-        assert client.creations == ["Agent/traité"]
+        assert client.creations == ["Agent/traité", "Agent/spam-confirme"]
 
     def test_reprise_sur_incident_ne_rejoue_pas(
         self, registre: RegistreLibelles, tmp_path: Path
@@ -427,6 +443,48 @@ class TestEtapes34Classification:
         assert appels["n"] == 2
 
 
+class _ServiceSpam:
+    """Faux service avec un thread `t1` contenant le message `m-spam1` (pour la
+    relecture des threads lus côté idempotence spam, T9.6)."""
+
+    def __init__(self) -> None:
+        self.modifications: list[tuple[str, list[str], list[str]]] = []
+
+    def users(self) -> "_ServiceSpam":
+        return self
+
+    def threads(self) -> "_ServiceSpam":
+        return self
+
+    def messages(self) -> "_ServiceSpam":
+        return self
+
+    def get(self, **kwargs: object) -> "_ServiceSpam":
+        return self
+
+    def modify(self, userId: str, id: str, body: "dict[str, list[str]]") -> "_ServiceSpam":
+        self.modifications.append(
+            (id, list(body.get("addLabelIds", [])), list(body.get("removeLabelIds", [])))
+        )
+        return self
+
+    def execute(self) -> dict[str, object]:
+        return {"id": "t1", "messages": [{"id": "m-spam1"}]}
+
+
+def _conversation_spam_vide_avec_lecture(
+    agent: str, requete: str, meta: object, **kwargs: object
+):
+    """T9.6 : spam `aucun_message` après lecture réelle d'un thread (exécution get_thread)."""
+    if agent != AGENT_SPAM:
+        return _faux_conversation_vide(agent, requete, meta, **kwargs)
+    synthese = construire_synthese(
+        agent, {"statut": "aucun_message", "messages": []}, meta  # type: ignore[arg-type]
+    )
+    execution = ToolExecutionEntry(name="get_thread", arguments=json.dumps({"threadId": "t1"}))
+    return synthese, [execution]
+
+
 def _conversation_spam(ids: list[str]) -> object:
     def _fn(agent: str, requete: str, meta_arg: object, **kwargs: object):
         if agent != AGENT_SPAM:
@@ -454,7 +512,53 @@ class TestEtapes12Spam:
         return [
             LibelleGmail(id="L_traite", name="Agent/traité"),
             LibelleGmail(id="L_valspam", name="Agent/valide-spam"),
+            LibelleGmail(id="L_spamconfirme", name="Agent/spam-confirme"),
         ]
+
+    def test_requete_spam_exclut_spam_confirme(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        vues: list[str] = []
+
+        def _capture(agent: str, requete: str, meta: object, **kwargs: object):
+            vues.append(requete)
+            return _faux_conversation_vide(agent, requete, meta, **kwargs)
+
+        _run(registre, tmp_path, _FauxClientGmail(), conversation=_capture)
+        assert vues[0] == 'in:spam -label:"Agent/spam-confirme"'
+
+    def test_aucun_message_pose_spam_confirme_sur_messages_lus(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceSpam()
+        api = ClientGmailAPI(service, dry_run=False)
+        rapport = _run(
+            registre,
+            tmp_path,
+            _FauxClientGmail(labels=self._labels()),
+            client_api=api,
+            conversation=_conversation_spam_vide_avec_lecture,
+        )
+        assert rapport.statut_global == "succes"
+        assert rapport.synthese_spam is not None
+        assert rapport.synthese_spam.statut == "aucun_message"
+        assert service.modifications == [("m-spam1", ["L_spamconfirme"], [])]
+
+    def test_aucun_message_dry_run_ne_modifie_pas(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        service = _ServiceSpam()
+        api = ClientGmailAPI(service, dry_run=True)
+        rapport = _run(
+            registre,
+            tmp_path,
+            _FauxClientGmail(labels=self._labels()),
+            dry_run=True,
+            client_api=api,
+            conversation=_conversation_spam_vide_avec_lecture,
+        )
+        assert rapport.statut_global == "succes"
+        assert service.modifications == []
 
     def test_spam_deplaces_pose_libelles_et_remet_inbox(
         self, registre: RegistreLibelles, tmp_path: Path
@@ -536,12 +640,12 @@ class TestRequeteSuppression:
         attendu = (
             f'label:"{registre.libelle("suivi.traite")}" '
             f'label:"{registre.libelle("classification.notification")}" '
-            f'older_than:24h OR label:"{registre.libelle("suivi.doublon")}"'
+            f"older_than:24h"
         )
         assert requete == attendu
         assert "Agent/traité" in requete
         assert "Agent/notification" in requete
-        assert "Agent/doublon" in requete
+        assert "Agent/doublon" not in requete
         assert "older_than:24h" in requete
         assert "older_than:1h" not in requete
 

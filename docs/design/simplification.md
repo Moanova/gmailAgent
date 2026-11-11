@@ -80,4 +80,5 @@ dur dans le code, checkpoints + idempotence par requête.
   `a35bb9f`, `0fe8a0b`, validés en réel le 10/11/2026.
 - Décisions : D59 (suppressions clause doublon + `corbeille()`), D60 (approbation de l'ensemble
   des simplifications évaluées en T9.5).
-- Tâches d'implémentation : T9.6, T9.7, T9.8 (code), T9.9 (docs) — toutes en « À faire ».
+- Tâches d'implémentation : **T9.6 implémentée le 11/11/2026 (en revue, 300 tests verts)**,
+  T9.7, T9.8 (code), T9.9 (docs) — T9.7–T9.9 en « À faire ».

@@ -39,6 +39,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )

@@ -14,6 +14,10 @@ echec` — jamais un abandon direct du run (D56) ; l'appel en échec n'est pas c
 les exécutions réelles (C3). Une synthèse invalide (JSON illisible, contrat Pydantic,
 C1–C6) est de même renvoyée au modèle pour correction, décomptée dans
 `max_tentatives_synthese` — abandon propre au-delà (D57).
+
+Court-circuit (T9.6) : si `search_threads` renvoie 0 thread, la synthèse
+`aucun_message` est produite directement, sans appel au modèle (trivial sur liste
+vide ; la validation C1–C6 reste appliquée à la synthèse vide).
 """
 
 import json
@@ -392,6 +396,26 @@ def lancer_conversation(
                         args=_borner_reponse(args),
                         dry_run=dry_run,
                     )
+                    if (
+                        appel.name == "search_threads"
+                        and isinstance(resultat, dict)
+                        and not resultat.get("threads")
+                    ):
+                        log.info(
+                            "court-circuit aucun_message : 0 thread retourné, "
+                            "synthèse vide sans appel au modèle (T9.6)",
+                            agent=agent,
+                            requete=requete,
+                            dry_run=dry_run,
+                        )
+                        payload_vide: dict[str, Any] = (
+                            {"statut": "aucun_message", "count": 0, "ids": []}
+                            if agent == AGENT_SUPPRESSION
+                            else {"statut": "aucun_message", "messages": []}
+                        )
+                        synthese_vide = construire_synthese(agent, payload_vide, meta)
+                        valider_synthese(synthese_vide, collecter_ids_reels(list(executions)))
+                        return synthese_vide, executions
                 messages.append(
                     ToolMessage(
                         role="tool",

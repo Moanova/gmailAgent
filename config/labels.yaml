@@ -6,6 +6,7 @@ classification:
   information:  "Agent/information"
   notification: "Agent/notification"
 suivi:
-  traite:       "Agent/traité"
-  doublon:     "Agent/doublon"
-  valide-spam: "Agent/valide-spam"
+  traite:         "Agent/traité"
+  doublon:       "Agent/doublon"
+  valide-spam:   "Agent/valide-spam"
+  spam-confirme: "Agent/spam-confirme"

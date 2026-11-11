@@ -13,8 +13,13 @@ requête Gmail `is:unread -label:"<libellé traité>"`, construite depuis le reg
 Run de suppression séparé (planifié T+24h, phase 7) : `lancer_run_suppression` —
 corbeille uniquement (TRASH appliqué par l'agent via `label_message`), notifications
 traitées seules éligibles (D47).
+
+Idempotence du spam (T9.6) : les messages laissés en spam (statut `aucun_message`)
+reçoivent le libellé « spam confirmé » (clé logique `suivi.spam-confirme`) et la requête
+de scan exclut ce libellé (`requete_spam`) — jamais de libellé physique en dur.
 """
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -46,7 +51,7 @@ from validation import SyntheseInvalideError
 
 CLE_TRAITE = "suivi.traite"
 CLE_VALIDE_SPAM = "suivi.valide-spam"
-CLE_DOUBLON = "suivi.doublon"
+CLE_SPAM_CONFIRME = "suivi.spam-confirme"
 CLE_NOTIFICATION = "classification.notification"
 LABEL_SPAM = "SPAM"
 LABEL_INBOX = "INBOX"
@@ -71,36 +76,10 @@ def _api_client(client_api: ClientGmailAPI | None, dry_run: bool) -> ClientGmail
     return ClientGmailAPI.depuis_token(dry_run=dry_run)
 
 
-def _lancer_classification(
-    rid: UUID,
-    reg: RegistreLibelles,
-    resolveur: ResolveurLibelles,
-    *,
-    dry_run: bool,
-    client_api: ClientGmailAPI | None,
-    client_mistral: Mistral | None,
-    conversation: ConversationFn | None,
-) -> tuple[SyntheseEtape, list[Any]]:
-    api = _api_client(client_api, dry_run)
-    lance = conversation if conversation is not None else lancer_conversation
-    if conversation is None and client_mistral is None:
-        mistral = obtenir_client()
-    else:
-        mistral = cast("Mistral", client_mistral)
-    meta = Meta(run_id=rid, etape="lecture_classification", agent=AGENT_CLASSIFICATION)
-    requete = requete_non_lus(reg, resolveur)
-    return lance(
-        AGENT_CLASSIFICATION,
-        requete,
-        meta,
-        client_mistral=mistral,
-        client_gmail=api,
-        registre=reg,
-        dry_run=dry_run,
-    )
-
-
-def _lancer_spam(
+def _lancer_etape(
+    agent: str,
+    etape: str,
+    requete: str,
     rid: UUID,
     reg: RegistreLibelles,
     *,
@@ -109,44 +88,16 @@ def _lancer_spam(
     client_mistral: Mistral | None,
     conversation: ConversationFn | None,
 ) -> tuple[SyntheseEtape, list[Any]]:
+    """Lance la conversation d'une étape (T9.6 : helper commun aux 3 agents)."""
     api = _api_client(client_api, dry_run)
     lance = conversation if conversation is not None else lancer_conversation
     if conversation is None and client_mistral is None:
         mistral = obtenir_client()
     else:
         mistral = cast("Mistral", client_mistral)
-    meta = Meta(run_id=rid, etape="lecture_spam", agent=AGENT_SPAM)
+    meta = Meta(run_id=rid, etape=etape, agent=agent)
     return lance(
-        AGENT_SPAM,
-        parametres_courants().spam.requete,
-        meta,
-        client_mistral=mistral,
-        client_gmail=api,
-        registre=reg,
-        dry_run=dry_run,
-    )
-
-
-def _lancer_suppression(
-    rid: UUID,
-    reg: RegistreLibelles,
-    resolveur: ResolveurLibelles,
-    *,
-    dry_run: bool,
-    client_api: ClientGmailAPI | None,
-    client_mistral: Mistral | None,
-    conversation: ConversationFn | None,
-) -> tuple[SyntheseEtape, list[Any]]:
-    api = _api_client(client_api, dry_run)
-    lance = conversation if conversation is not None else lancer_conversation
-    if conversation is None and client_mistral is None:
-        mistral = obtenir_client()
-    else:
-        mistral = cast("Mistral", client_mistral)
-    meta = Meta(run_id=rid, etape=ETAPE_LECTURE_SUPPRESSION, agent=AGENT_SUPPRESSION)
-    requete = requete_suppression(reg, resolveur)
-    return lance(
-        AGENT_SUPPRESSION,
+        agent,
         requete,
         meta,
         client_mistral=mistral,
@@ -178,21 +129,46 @@ def _appliquer_libelles_classification(
         api.modifier_libelles(message.id, ajouter=[id_categorie, id_traite])
 
 
+def _ids_threads_lus(executions: list[Any]) -> list[str]:
+    """Ids des threads lus via `get_thread` durant la conversation (exécutions réelles)."""
+    ids: list[str] = []
+    for appel in executions:
+        if getattr(appel, "name", "") != "get_thread":
+            continue
+        brut: Any = getattr(appel, "arguments", "")
+        args = json.loads(brut) if isinstance(brut, str) and brut.strip() else brut
+        if isinstance(args, dict) and isinstance(args.get("threadId"), str):
+            ids.append(args["threadId"])
+    return ids
+
+
 def _appliquer_libelles_spam(
-    synthese: SyntheseSpam, resolveur: ResolveurLibelles, api: ClientGmailAPI
+    synthese: SyntheseSpam,
+    executions: list[Any],
+    resolveur: ResolveurLibelles,
+    api: ClientGmailAPI,
 ) -> None:
     """Replacer depuis le spam : appose `valide-spam` + `traité`, retire SPAM, remet
-    INBOX (dry-run : journalisé, règle E)."""
-    if synthese.statut != "deplaces":
+    INBOX. Si `aucun_message` (T9.6, idempotence du spam) : appose `spam-confirme`
+    sur les messages lus et laissés en spam (SPAM conservé).
+    Dry-run : journalisé, non exécuté (règle E)."""
+    if synthese.statut == "deplaces":
+        id_valide_spam = resolveur.resoudre(CLE_VALIDE_SPAM)
+        id_traite = resolveur.resoudre(CLE_TRAITE)
+        for message in synthese.messages:
+            api.modifier_libelles(
+                message.id,
+                ajouter=[id_valide_spam, id_traite, LABEL_INBOX],
+                retirer=[LABEL_SPAM],
+            )
         return
-    id_valide_spam = resolveur.resoudre(CLE_VALIDE_SPAM)
-    id_traite = resolveur.resoudre(CLE_TRAITE)
-    for message in synthese.messages:
-        api.modifier_libelles(
-            message.id,
-            ajouter=[id_valide_spam, id_traite, LABEL_INBOX],
-            retirer=[LABEL_SPAM],
-        )
+    if synthese.statut == "aucun_message":
+        id_confirme = resolveur.resoudre(CLE_SPAM_CONFIRME)
+        for thread_id in _ids_threads_lus(executions):
+            thread = api.get_thread(thread_id)
+            for message in thread.get("messages", []):
+                if isinstance(message, dict) and isinstance(message.get("id"), str):
+                    api.modifier_libelles(message["id"], ajouter=[id_confirme])
 
 
 class Checkpoint(BaseModel):
@@ -240,26 +216,32 @@ def requete_non_lus(registre: RegistreLibelles, resolveur: ResolveurLibelles) ->
     return f'is:unread -label:"{registre.libelle(CLE_TRAITE)}"'
 
 
+def requete_spam(registre: RegistreLibelles, resolveur: ResolveurLibelles) -> str:
+    """Requête du scan spam : base `spam.requete` (settings) hors messages déjà
+    confirmés spam — libellé « spam confirmé » (clé `suivi.spam-confirme`) résolu
+    via le registre (idempotence du spam, T9.6) ; jamais de libellé en dur."""
+    resolveur.resoudre(CLE_SPAM_CONFIRME)
+    return f'{parametres_courants().spam.requete} -label:"{registre.libelle(CLE_SPAM_CONFIRME)}"'
+
+
 def requete_suppression(registre: RegistreLibelles, resolveur: ResolveurLibelles) -> str:
     """Requête du run de suppression (T+24h) : notifications traitées depuis plus de
-    24 h, ou doublons.
+    24 h.
 
-    `label:"<traité>" label:"<notification>" older_than:24h OR label:"<doublon>"` — seules
+    `label:"<traité>" label:"<notification>" older_than:24h` — seules
     les messages de catégorie `notification` (clé logique `classification.notification`)
     sont éligibles (décision D47) ; le délai de grâce est de 24 h (D47). Les libellés
     physiques proviennent du registre et sont résolus/créés via le resolveur ; jamais de
-    nom de libellé en dur dans le code. La clause `doublon` est inerte en v1 (phase 6 non
-    embarquée, D46). Le libellé UNREAD n'est jamais retiré par le pipeline (action
-    utilisateur).
+    nom de libellé en dur dans le code. La clause `doublon` a été retirée (D59 ; phase 6
+    non embarquée, D46 — à ré-ajouter à la reprise). Le libellé UNREAD n'est jamais
+    retiré par le pipeline (action utilisateur).
     """
     resolveur.resoudre(CLE_TRAITE)
     resolveur.resoudre(CLE_NOTIFICATION)
-    resolveur.resoudre(CLE_DOUBLON)
     return (
         f'label:"{registre.libelle(CLE_TRAITE)}" '
         f'label:"{registre.libelle(CLE_NOTIFICATION)}" '
-        f"older_than:{parametres_courants().suppression.delai_grace} OR "
-        f'label:"{registre.libelle(CLE_DOUBLON)}"'
+        f"older_than:{parametres_courants().suppression.delai_grace}"
     )
 
 
@@ -319,8 +301,12 @@ def lancer_run_tri(
             _valider_etape(checkpoint, ETAPE_DEMARRAGE, dossier)
 
         etape_courante = "lecture_spam"
+        executions_spam: list[Any] = []
         if "lecture_spam" not in checkpoint.etapes_validees:
-            synthese, _executions = _lancer_spam(
+            synthese, executions_spam = _lancer_etape(
+                AGENT_SPAM,
+                "lecture_spam",
+                requete_spam(reg, resolveur),
                 rid,
                 reg,
                 dry_run=dry_run,
@@ -337,15 +323,17 @@ def lancer_run_tri(
             if not isinstance(synthese_s, SyntheseSpam):
                 raise CheckpointError("synthèse spam absente du checkpoint")
             api = _api_client(client_api, dry_run)
-            _appliquer_libelles_spam(synthese_s, resolveur, api)
+            _appliquer_libelles_spam(synthese_s, executions_spam, resolveur, api)
             _valider_etape(checkpoint, "validation_spam", dossier)
 
         etape_courante = "lecture_classification"
         if "lecture_classification" not in checkpoint.etapes_validees:
-            synthese, _executions = _lancer_classification(
+            synthese, _executions = _lancer_etape(
+                AGENT_CLASSIFICATION,
+                "lecture_classification",
+                requete_non_lus(reg, resolveur),
                 rid,
                 reg,
-                resolveur,
                 dry_run=dry_run,
                 client_api=client_api,
                 client_mistral=client_mistral,
@@ -426,8 +414,8 @@ def lancer_run_suppression(
     dossier_checkpoints: Path | None = None,
 ) -> RapportFinal:
     """Run de suppression séparé (planifié T+24h) : conversation agent suppression sur
-    `label:"<traité>" label:"<notification>" older_than:24h OR label:"<doublon>"`
-    (notifications seules éligibles, délai 24 h — D47 ; clause doublon inerte en v1, D46).
+    `label:"<traité>" label:"<notification>" older_than:24h`
+    (notifications seules éligibles, délai 24 h — D47 ; clause doublon retirée, D59).
 
     Corbeille uniquement : l'agent applique lui-même `TRASH` via `label_message` pendant
     la conversation (écriture journalisée en dry-run, règle E) ; l'orchestrateur valide
@@ -470,10 +458,12 @@ def lancer_run_suppression(
 
         etape_courante = ETAPE_LECTURE_SUPPRESSION
         if ETAPE_LECTURE_SUPPRESSION not in checkpoint.etapes_validees:
-            synthese, _executions = _lancer_suppression(
+            synthese, _executions = _lancer_etape(
+                AGENT_SUPPRESSION,
+                ETAPE_LECTURE_SUPPRESSION,
+                requete_suppression(reg, resolveur),
                 rid,
                 reg,
-                resolveur,
                 dry_run=dry_run,
                 client_api=client_api,
                 client_mistral=client_mistral,

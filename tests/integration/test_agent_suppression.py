@@ -20,10 +20,7 @@ from gmail import ClientGmailAPI
 from orchestrator import charger_checkpoint, lancer_run_suppression
 from validation import SyntheseInvalideError
 
-REQUETE_SUPPRESSION = (
-    'label:"Agent/traité" label:"Agent/notification" older_than:24h '
-    'OR label:"Agent/doublon"'
-)
+REQUETE_SUPPRESSION = 'label:"Agent/traité" label:"Agent/notification" older_than:24h'
 
 ETAPES_SUPPRESSION = [
     "demarrage",
@@ -206,6 +203,7 @@ def registre() -> RegistreLibelles:
                 "traite": "Agent/traité",
                 "doublon": "Agent/doublon",
                 "valide-spam": "Agent/valide-spam",
+                "spam-confirme": "Agent/spam-confirme",
             },
         }
     )

@@ -7,7 +7,7 @@ l'access_token automatiquement (pas d'expiration calendaire du refresh token
 tant que l'app reste « En production »).
 
 En mode dry-run (règle E de AGENTS.md), les appels d'écriture (création de
-libellé, modification de libellés, corbeille) sont journalisés mais jamais
+libellé, modification de libellés — dont TRASH) sont journalisés mais jamais
 exécutés. Les appels de lecture sont plafonnés (garde-fou anti-boucle).
 """
 
@@ -56,7 +56,7 @@ def charger_credentials(chemin: str | Path | None = None) -> Credentials:
 class ClientGmailAPI:
     """Client Gmail réel (googleapiclient) ; satisfait le protocole `ClientGmail`
     de `labels.py` (`list_labels`, `create_label`) et expose les opérations du
-    pipeline : `search_threads`, `get_thread`, `modifier_libelles`, `corbeille`."""
+    pipeline : `search_threads`, `get_thread`, `modifier_libelles` (TRASH y passe)."""
 
     def __init__(
         self,
@@ -165,13 +165,6 @@ class ClientGmailAPI:
         if retirer:
             body["removeLabelIds"] = retirer
         self._service.users().messages().modify(userId="me", id=message_id, body=body).execute()
-
-    def corbeille(self, message_id: str) -> None:
-        if self._dry_run:
-            self._journaliser_ecriture("trash", message_id=message_id)
-            return
-        self._service.users().messages().trash(userId="me", id=message_id).execute()
-
 
 def nouveau_client(
     chemin: str | Path | None = None, *, dry_run: bool = False
