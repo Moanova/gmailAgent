@@ -114,6 +114,8 @@ Les fonctions de validation des scripts de référence sont appliquées par l'or
 
 Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais restitué tel quel à l'utilisateur. S'y ajoute le contrôle des empreintes de dédoublonnage (§3).
 
+> **Définition canonique numérotée des contrôles C1–C6** : [docs/architecture/validation.md](../architecture/validation.md) (C6 inclut le recalcul depuis la lecture API réelle, §3).
+
 ### 2.6 Reprise sur incident et planification
 
 - **Checkpoints** : après chaque étape validée, l'état du run (run_id, étapes, statuts, identifiants) est persisté dans un fichier JSON local.

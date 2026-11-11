@@ -11,7 +11,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 1. **`docs/design/conception.md`** : schéma de conception du pipeline (agents, contrats, doublons, rate limits).
 2. **`docs/design/workflow.md`** : workflow général (schéma Mermaid, phases agentiques et programmatiques).
 3. **`docs/projet/plan-macro.md`** : plan macro (10 phases de développement).
-4. **`docs/architecture/*.md`** : contrats d'interface et invariants (créés en phase 2).
+4. **`docs/architecture/`** : contrats canoniques — `validation.md` (définition numérotée C1–C6), `agents.md` (contrats d'agents), `gmail.md` (client Gmail, libellés, dry-run).
 5. **`tests/plan_tests.md`** : plan de tests associés aux tâches.
 6. **`docs/test/acceptation.md`** : critères d'acceptation des réalisations.
 7. **`SESSIONS.md`** : **actions, décisions et blocages** des séances précédentes.
@@ -49,7 +49,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 ### **Étape 2 : Planification (sur initiative de l'utilisateur)**
 - **Actions** :
   1. Lire les spécifications associées à la tâche dans les sources suivantes :
-     - `docs/architecture/<nom_contrat>.md` (ex : `agent_classification.md`).
+     - `docs/architecture/<nom_contrat>.md` (ex : `validation.md`).
      - `docs/projet/plan-macro.md` (pour les choix de conception macroscopiques).
      - `tests/plan_tests.md` (pour les tests associés).
      - `SESSIONS.md` (pour les décisions passées).
@@ -184,7 +184,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 Les actions suivantes peuvent être demandées en séance **sans être référencées dans ce fichier** :
 - **Analyse/Revue** :
   ```markdown
-  Peux-tu analyser la cohérence entre `src/validation.py` et `docs/architecture/agent_classification.md` ?
+  Peux-tu analyser la cohérence entre `src/validation.py` et `docs/architecture/validation.md` ?
   ```
 - **Corrections ponctuelles** :
   ```markdown
@@ -209,7 +209,7 @@ Les actions suivantes peuvent être demandées en séance **sans être référen
 | `docs/projet/plan-macro.md` | Plan macro : 10 phases de développement du pipeline.                                        |
 | `docs/design/conception.md` | Spécification générale du pipeline.                                                          |
 | `docs/design/workflow.md` | Workflow général (schéma Mermaid).                                                             |
-| `docs/architecture/*.md` | Contrats d'interface et invariants par agent.                                                   |
+| `docs/architecture/` | Contrats canoniques : `validation.md` (C1–C6), `agents.md`, `gmail.md`.                                             |
 | `tests/plan_tests.md`    | Plan de tests (TU, TI) et couverture des critères d'acceptabilité.                              |
 | `docs/tasks/`            | Suivi détaillé par tâche (optionnel).                                                           |
 | `BLOCKERS.md`            | Liste des **blocages non résolus** (documentés après 3 échecs de test).                         |

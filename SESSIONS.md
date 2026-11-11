@@ -2491,3 +2491,89 @@ Aucun.
   **Terminé** = T1.1–T9.7.
 - Prochaine étape : validation utilisateur T9.8 (étape 6) → « Terminé » sur demande, puis
   **T9.9** (remise à plat arborescence + documents, dont la définition canonique de C1–C6).
+
+---
+
+## Séance du 11/11/2026 (suite 5) — validation T9.8 + démarrage T9.9 (plan)
+
+### Contexte
+L'utilisateur a validé T9.8 (test en succès, étape 6) et demande le plan d'implémentation de
+T9.9 (dernière tâche « À faire » : remise à plat arborescence + documents). Contrainte maintenue :
+code/commentaires bornés aux points documentés.
+
+### Actions réalisées
+
+1. **Kanban** : T9.8 « En revue » → **« Terminé »** ; T9.9 « À faire » → **« En cours »**.
+   Fichiers de suivi T9.8 (validation cochée) et T9.9 (plan établi) mis à jour.
+2. **Audit préliminaire T9.9** : `SESSIONS.md` = 158 ko / 60 séances ; contrôles C1–C6
+   référencés dans ~25 fichiers docs, tableau numéroté uniquement dans
+   `docs/tasks/T2.3_*.md` (dérive C3/C4 avec D36/D40 : C3=authenticité côté décisions,
+   C3=complétude côté T2.3/code) ; `AGENTS.md` référence `docs/architecture/*.md` (4 endroits)
+   mais le répertoire n'existe pas ; `docs/` = design/ projet/ tasks/ test/.
+3. **Plan T9.9 établi** (voir réponse de séance) — aucune modification pour l'instant.
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : à jour avec `origin/dev` (`0ee60a8`, T9.8 poussé) ; mises à jour doc de cette
+  séance (kanban, fichiers de suivi, SESSIONS.md) **non commitées** (règle C).
+- Kanban : **En cours** = T9.9 ; **En revue** = vide ; **À faire** = vide ;
+  **Terminé** = T1.1–T9.8.
+- Prochaine étape : implémentation de T9.9 sur demande explicite (plan ci-dessus) — aucun
+  changement de code fonctionnel ; `pytest` inchangé (302 tests) ; puis kanban → « En revue »,
+  commit/push sur `dev` sur demande explicite.
+
+---
+
+## Séance du 11/11/2026 (suite 6) — T9.9 lot 1 : docs/architecture/ canoniques + références
+
+### Contexte
+T9.8 validée (test en succès). T9.9 abordée **par lots itératifs** (demandes complémentaires
+à venir de l'utilisateur). Lot 1 demandé : création de `docs/architecture/` + correction des
+références, puis commit + push sur `dev` (règles C/H). Aucun changement de code fonctionnel.
+
+### Actions réalisées
+
+1. **`docs/architecture/validation.md`** (nouveau) : définition canonique numérotée C1–C6 —
+   C3=complétude, C4=authenticité (dérive D36/D40 notée), C6 = conformité des clés de
+   dédoublonnage + recalcul depuis la lecture API réelle (conception §3) ; gardes de
+   complétude du runner ; sources de vérité `src/validation.py` / `src/orchestrator.py`.
+2. **`docs/architecture/agents.md`** (nouveau) : contrats d'agents (conversations éphémères
+   D2, allow-list `OUTILS_GMAIL`, schémas stricts dynamiques depuis le registre, périmètre de
+   requête D54, `_refuser`, court-circuit 0 thread).
+3. **`docs/architecture/gmail.md`** (nouveau) : registre de libellés, `ClientGmailAPI`,
+   requêtes depuis le registre (idempotence tri/spam, suppression T+24h D47), dry-run (règle E).
+4. **Références corrigées** : `AGENTS.md` (4 endroits : §1 liste, §2 exemple, §4 exemple,
+   tableau §5), `conception.md` §2.5 (pointeur vers `validation.md`), `T2.3` (bandeau
+   « définition canonique »). Aucun identifiant renommé.
+5. **Vérifications** : liens internes cohérents (grep, plus de pointeur mort vers
+   `agent_classification.md`) ; `pytest tests -q` → 302 passed (inchangé) ; `mypy src` propre ;
+   `ruff check src tests` → 1 erreur pré-existante (SIM102 `src/validation.py:145`).
+6. **Docs** : kanban (T9.8 → « Terminé » ; T9.9 « En cours »), fichier de suivi T9.9 (lot 1
+   consigné), ce journal. Mises à jour doc des séances précédentes incluses dans le commit.
+7. **Commit + push sur `dev`** (demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D62 | Numérotation canonique C1–C6 = celle du code et de T2.3 (C3=complétude, C4=authenticité) ; C6 englobe le recalcul depuis la lecture API réelle | Alignée sur `src/validation.py` et `conception.md` §3 (« recalcul C6 ») ; la dérive D36/D40 est notée dans `docs/architecture/validation.md`, aucun renommage ailleurs. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (T9.9 lot 1).
+- Kanban : **En cours** = T9.9 ; **Terminé** = T1.1–T9.8.
+- Lots suivants prévus pour T9.9 (itératif, sur demandes complémentaires de l'utilisateur) :
+  découpe de `SESSIONS.md` (index + `docs/sessions-archive.md`), revue `README.md` /
+  `docs/test/acceptation.md` / compteurs, kanban → « En revue » en fin de tâche.
