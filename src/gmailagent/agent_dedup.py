@@ -1,17 +1,10 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : agent_dedup.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Normalisation et empreintes SHA-256 pour le dédoublonnage (conception §3).

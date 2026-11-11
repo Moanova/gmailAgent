@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : core_config.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Configuration du projet : registre de libellés (`config/labels.yaml`) et paramètres du
 pipeline (`config/settings.yaml`, optionnel), modèles Pydantic stricts (extra=forbid)."""
+
 from pathlib import Path
 from typing import Annotated, Any
 

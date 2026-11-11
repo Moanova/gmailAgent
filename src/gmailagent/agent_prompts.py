@@ -1,17 +1,10 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : agent_prompts.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Prompts des agents et contrats d'outils Gmail (allow-list, moindre privilège).
@@ -23,7 +16,6 @@ schémas de sortie des agents sont construits dynamiquement (`contracts.schema_a
 """
 
 from typing import Any
-
 from gmailagent.core_config import RegistreLibelles
 
 _PREFIXE_CATEGORIE = "classification."

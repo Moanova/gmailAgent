@@ -1,29 +1,21 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : agent_contracts.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Contrats Pydantic des échanges inter-étapes et schémas JSON stricts des agents, construits
 dynamiquement depuis le registre de libellés."""
+
 import copy
 import re
 from datetime import UTC, datetime
 from typing import Annotated, Any, Final, Literal, get_args
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
 from gmailagent.core_config import RegistreLibelles, charger_registre
 
 Urgence = Literal["haute", "moyenne", "basse"]

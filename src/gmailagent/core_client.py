@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : core_client.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Client Mistral commun (instanciation unique) + retry avec backoff exponentiel et jitter sur
 429/5xx."""
+
 import random
 import time
 from collections.abc import Callable

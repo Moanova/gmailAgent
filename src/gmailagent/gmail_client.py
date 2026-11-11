@@ -1,17 +1,10 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : gmail_client.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Client Gmail concret : câblage OAuth (refresh token) + API Gmail.

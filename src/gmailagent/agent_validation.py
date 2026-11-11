@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : agent_validation.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Validation programmatique des synthèses d'étapes (contrôles C1-C6), extraction robuste du JSON
 et collecte des identifiants réellement manipulés."""
+
 import json
 from typing import Any
 

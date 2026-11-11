@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : core_journalisation.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Journalisation structurée (structlog) : console + fichier JSON (chemin `logs/gmailagent.log`
 par défaut), contexte `run_id`/`étape`, balises `debut_run`/`fin_run`."""
+
 import logging
 from pathlib import Path
 

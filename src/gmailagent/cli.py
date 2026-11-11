@@ -1,17 +1,10 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : cli.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """CLI gmailAgent : `tri` | `suppression` | `migrate-labels` — dry-run par défaut.

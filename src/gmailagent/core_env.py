@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : core_env.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Lecture des secrets via les variables d'environnement (`os.environ` uniquement, règle D de
 AGENTS.md)."""
+
 import os
 
 

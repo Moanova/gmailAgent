@@ -1,17 +1,10 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : agent_runner.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Runner de conversation éphémère (pattern synchrone, script de référence 02b).

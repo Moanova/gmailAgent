@@ -1,21 +1,15 @@
 # -------------------------------------------------------------------
-
 # Application  : gmailAgent
-
 # Script       : gmail_labels.py
-
 # Version      : 1.0
-
 # Date         : 11-11-2026
-
 # Design       : TSC + Mistral Vibe
-
 # Build        : Mistral Vibe
-
 # -------------------------------------------------------------------
 
 """Résolution runtime des libellés Gmail : clé logique -> `labelId` (cache par run), création si
 le libellé manque."""
+
 from typing import Protocol, TypedDict
 
 from gmailagent.core_config import RegistreLibelles
