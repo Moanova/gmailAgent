@@ -107,8 +107,14 @@ def _lancer_etape(
     )
 
 
-def _recalculer_empreintes(synthese: SyntheseClassification, api: ClientGmailAPI) -> None:
-    """Recalcule message_id_rfc/empreinte depuis les lectures réelles (rejet C6 si écart)."""
+def _valider_et_labelliser_classification(
+    synthese: SyntheseClassification, resolveur: ResolveurLibelles, api: ClientGmailAPI
+) -> None:
+    """Validation puis apposition des libellés de classification en une seule fonction
+    (T9.7) : pour chaque message, recalc de `message_id_rfc`/`empreinte` depuis la
+    lecture API réelle (`get_message`) — conception §3 : rejet si écart, avant toute
+    écriture (recalcul C6) — puis apposition du libellé de catégorie + `traité`
+    (ordre recalc-avant-libellisation, kanban T5.4). Dry-run : journalisé, règle E."""
     for message in synthese.messages:
         recalc_id, recalc_empreinte = empreinte_message(api.get_message(message.id))
         if recalc_empreinte != message.empreinte or recalc_id != normaliser_message_id(
@@ -117,12 +123,6 @@ def _recalculer_empreintes(synthese: SyntheseClassification, api: ClientGmailAPI
             raise SyntheseInvalideError(
                 f"clés de dédoublonnage recalculées différentes pour {message.id} — rejet C6"
             )
-
-
-def _appliquer_libelles_classification(
-    synthese: SyntheseClassification, resolveur: ResolveurLibelles, api: ClientGmailAPI
-) -> None:
-    """Appose le libellé de catégorie + `Agent/traité` (dry-run : journalisé, règle E)."""
     id_traite = resolveur.resoudre(CLE_TRAITE)
     for message in synthese.messages:
         id_categorie = resolveur.resoudre(message.categorie)
@@ -348,8 +348,7 @@ def lancer_run_tri(
             if not isinstance(synthese_c, SyntheseClassification):
                 raise CheckpointError("synthèse classification absente du checkpoint")
             api = _api_client(client_api, dry_run)
-            _recalculer_empreintes(synthese_c, api)
-            _appliquer_libelles_classification(synthese_c, resolveur, api)
+            _valider_et_labelliser_classification(synthese_c, resolveur, api)
             _valider_etape(checkpoint, "validation_classification", dossier)
 
         etape_courante = "dedoublonnage"

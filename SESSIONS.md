@@ -2336,3 +2336,82 @@ Aucun.
   spams déjà laissés en spam sont lus une dernière fois puis étiquetés
   `Agent/spam-confirme`, exclus ensuite de `in:spam -label:"Agent/spam-confirme"`. Puis
   « Terminé » sur demande.
+
+---
+
+## Séance du 11/11/2026 (suite) — validation T9.6 + démarrage T9.7 (plan)
+
+### Contexte
+L'utilisateur a validé T9.6 en conditions réelles (test passé, étape 6) et demande de passer à
+la tâche suivante (T9.7) avec son plan d'implémentation.
+
+### Actions réalisées
+
+1. **Kanban** : T9.6 « En revue » → **« Terminé »** (validation utilisateur) ; T9.7 « À faire » →
+   **« En cours »**. Fichier de suivi T9.6 : checkbox validation cochée ; T9.7 : plan établi.
+2. **Plan T9.7 établi** (voir réponse de séance) — aucune modification de code pour l'instant.
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : à jour avec `origin/dev` (`131224d`, T9.6 poussé) ; mises à jour doc de cette
+  séance (kanban, fichiers de suivi, SESSIONS.md) **non commitées** (règle C — commit sur demande).
+- Kanban : **En cours** = T9.7 ; **En revue** = vide ; **À faire** = T9.8, T9.9 ;
+  **Terminé** = T1.1–T9.6.
+- Prochaine étape : implémentation de T9.7 sur demande explicite (plan ci-dessus), puis
+  ruff/mypy/pytest, kanban → « En revue », commit/push sur `dev` sur demande explicite.
+
+---
+
+## Séance du 11/11/2026 (suite 2) — implémentation T9.7 (validation classification en une passe)
+
+### Contexte
+Demande utilisateur explicite d'implémenter T9.7, avec la contrainte suivante : **le code et
+les commentaires ne doivent référencer aucun point absent des documents de conception et de
+spécification**. Commit + push sur `dev` autorisé sur validation des tests (règles C/H).
+Vérifié au préalable : le « recalcul C6 » est bien documenté dans `conception.md` §3
+(l. 137 « recalcul C6 à l'étape 4 », l. 147 recalc depuis les sorties réelles + rejet sur
+écart) — les références C6 existantes sont donc conformes ; aucun nouveau label introduit.
+
+### Actions réalisées
+
+1. **`src/orchestrator.py`** : `_recalculer_empreintes` + `_appliquer_libelles_classification`
+   fusionnés en `_valider_et_labelliser_classification(synthese, resolveur, api)` — passe de
+   recalc (`get_message` par message, rejet sur écart **avant toute écriture**, conception §3)
+   puis passe d'apposition (`modifier_libelles` catégorie + `suivi.traite`, ordre
+   recalc-avant-libellisation, kanban T5.4). Un seul `messages.get` par message.
+   Site d'appel `validation_classification` mis à jour.
+2. **Tests** (`tests/unit/test_orchestrator.py`) : un seul `messages.get` par message (mono et
+   multi-messages), rejet sur écart du 2ᵉ message sans aucune écriture, dry-run sans écriture,
+   libellés posés en réel simulé. **302 tests, tous verts** (279 TU + 23 TI).
+3. **Vérifications** : `pytest tests -q` → 302 passed ; `mypy src` → propre ; `ruff check src
+   tests` → 1 erreur pré-existante (SIM102 `src/validation.py:145`, hors périmètre).
+4. **Docs** : kanban (T9.7 → « En revue » ; T9.6 restée « Terminé » après validation utilisateur),
+   fichier de suivi T9.7, `tests/plan_tests.md`, ce journal. Mises à jour doc de la séance
+   précédente (validation T9.6 + démarrage T9.7) incluses dans le commit.
+5. **Commit + push sur `dev`** (demande explicite).
+
+### Décisions clés
+
+Aucune nouvelle (T9.7 est un quick win approuvé D60 ; la contrainte doc a été vérifiée contre
+`conception.md` §3 avant écriture des commentaires).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (T9.7).
+- Kanban : **En cours** = vide ; **En revue** = T9.7 ; **À faire** = T9.8, T9.9 ;
+  **Terminé** = T1.1–T9.6.
+- Prochaine étape : validation utilisateur T9.7 (étape 6) → « Terminé » sur demande, puis
+  T9.8 (unification des mécanismes de refus dans le runner — refactor à risque maîtrisé,
+  tests existants à garder verts à l'identique).

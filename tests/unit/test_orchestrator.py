@@ -291,12 +291,13 @@ class TestAvecRetry:
             avec_retry(operation, dormir=lambda _d: None)
 
 
-def _payload_message(message_id: str = "m1") -> dict[str, object]:
+def _payload_message(message_id: str = "m1", rfc: str = "abc@ex.fr") -> dict[str, object]:
     corps = base64.urlsafe_b64encode(b"corps").decode().rstrip("=")
     return {
+        "id": message_id,
         "payload": {
             "headers": [
-                {"name": "Message-ID", "value": "abc@ex.fr"},
+                {"name": "Message-ID", "value": rfc},
                 {"name": "Subject", "value": "Sujet"},
                 {"name": "From", "value": "exp@ex.fr"},
             ],
@@ -308,6 +309,7 @@ def _payload_message(message_id: str = "m1") -> dict[str, object]:
 class _ServiceAvecMessage:
     def __init__(self) -> None:
         self.modifications: list[tuple[str, list[str], list[str]]] = []
+        self.gets: list[str] = []
 
     def users(self) -> "_ServiceAvecMessage":
         return self
@@ -322,6 +324,7 @@ class _ServiceAvecMessage:
         return self
 
     def get(self, **kwargs: object) -> "_ServiceAvecMessage":
+        self.gets.append(str(kwargs.get("id", "")))
         return self
 
     def modify(self, userId: str, id: str, body: "dict[str, list[str]]") -> "_ServiceAvecMessage":
@@ -359,6 +362,64 @@ def _conversation_classifiee(meta: object, empreinte: str) -> object:
     return _fn
 
 
+class _ServiceMultiMessages:
+    """Faux service servant un payload par id de message (compte les `messages.get`)."""
+
+    def __init__(self, messages: dict[str, dict[str, object]]) -> None:
+        self._messages = messages
+        self._courant = ""
+        self.gets: list[str] = []
+        self.modifications: list[tuple[str, list[str], list[str]]] = []
+
+    def users(self) -> "_ServiceMultiMessages":
+        return self
+
+    def messages(self) -> "_ServiceMultiMessages":
+        return self
+
+    def get(self, **kwargs: object) -> "_ServiceMultiMessages":
+        self._courant = str(kwargs.get("id", ""))
+        self.gets.append(self._courant)
+        return self
+
+    def modify(
+        self, userId: str, id: str, body: "dict[str, list[str]]"
+    ) -> "_ServiceMultiMessages":
+        self.modifications.append(
+            (id, list(body.get("addLabelIds", [])), list(body.get("removeLabelIds", [])))
+        )
+        return self
+
+    def execute(self) -> dict[str, object]:
+        return self._messages[self._courant]
+
+
+def _conversation_classifiee_multi(empreintes: dict[str, str]) -> object:
+    def _fn(agent: str, requete: str, meta_arg: object, **kwargs: object):
+        if agent != AGENT_CLASSIFICATION:
+            return _faux_conversation_vide(agent, requete, meta_arg, **kwargs)
+        payload = {
+            "statut": "synthese",
+            "messages": [
+                {
+                    "id": mid,
+                    "objet": "Sujet",
+                    "expediteur": "exp@ex.fr",
+                    "motif": "motif",
+                    "categorie": "classification.a-repondre",
+                    "urgence": "haute",
+                    "message_id_rfc": f"{mid}@ex.fr",
+                    "empreinte": empreinte,
+                }
+                for mid, empreinte in empreintes.items()
+            ],
+        }
+        synthese = construire_synthese(agent, payload, meta_arg)  # type: ignore[arg-type]
+        return synthese, []
+
+    return _fn
+
+
 class TestEtapes34Classification:
     def test_classification_ok_pose_libelles(
         self, registre: RegistreLibelles, tmp_path: Path
@@ -381,11 +442,12 @@ class TestEtapes34Classification:
         )
         assert rapport.statut_global == "succes"
         assert rapport.synthese_classification is not None
+        assert service.gets == ["m1"]  # T9.7 : un seul `messages.get` par message
         assert service.modifications == [("m1", ["L_arep", "L_traite"], [])]
         checkpoint = charger_checkpoint(rapport.meta.run_id, tmp_path)
         assert "classification" in checkpoint.syntheses
 
-    def test_empreinte_erronee_rejette(
+    def test_empreinte_erronee_rejette_avant_toute_ecriture(
         self, registre: RegistreLibelles, tmp_path: Path
     ) -> None:
         service = _ServiceAvecMessage()
@@ -404,6 +466,68 @@ class TestEtapes34Classification:
                 client_api=api,
                 conversation=_conversation_classifiee(None, "0" * 64),
             )
+        assert service.modifications == []  # T9.7 : rejet (recalcul C6) avant toute écriture
+
+    def test_une_passe_un_get_par_message_et_libelles_poses(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        """T9.7 : 2 messages -> un seul `messages.get` par message, puis apposition
+        catégorie + `traité` sur chacun (ordre recalc-avant-libellisation)."""
+        messages = {
+            "m1": _payload_message("m1", "m1@ex.fr"),
+            "m2": _payload_message("m2", "m2@ex.fr"),
+        }
+        service = _ServiceMultiMessages(messages)
+        api = ClientGmailAPI(service, dry_run=False)
+        empreintes = {mid: empreinte_message(m)[1] for mid, m in messages.items()}
+        client_labels = _FauxClientGmail(
+            labels=[
+                LibelleGmail(id="L_traite", name="Agent/traité"),
+                LibelleGmail(id="L_arep", name="Agent/a-repondre"),
+            ]
+        )
+        rapport = _run(
+            registre,
+            tmp_path,
+            client_labels,
+            client_api=api,
+            conversation=_conversation_classifiee_multi(empreintes),
+        )
+        assert rapport.statut_global == "succes"
+        assert service.gets == ["m1", "m2"]
+        assert service.modifications == [
+            ("m1", ["L_arep", "L_traite"], []),
+            ("m2", ["L_arep", "L_traite"], []),
+        ]
+
+    def test_ecart_recalc_sur_2e_message_rejette_sans_aucune_ecriture(
+        self, registre: RegistreLibelles, tmp_path: Path
+    ) -> None:
+        """T9.7 : m1 conforme, m2 avec empreinte erronée -> rejet (recalcul C6,
+        conception §3) et zéro écriture, même si m1 était valide."""
+        messages = {
+            "m1": _payload_message("m1", "m1@ex.fr"),
+            "m2": _payload_message("m2", "m2@ex.fr"),
+        }
+        service = _ServiceMultiMessages(messages)
+        api = ClientGmailAPI(service, dry_run=False)
+        empreintes = {"m1": empreinte_message(messages["m1"])[1], "m2": "0" * 64}
+        client_labels = _FauxClientGmail(
+            labels=[
+                LibelleGmail(id="L_traite", name="Agent/traité"),
+                LibelleGmail(id="L_arep", name="Agent/a-repondre"),
+            ]
+        )
+        with pytest.raises(SyntheseInvalideError, match="C6"):
+            _run(
+                registre,
+                tmp_path,
+                client_labels,
+                client_api=api,
+                conversation=_conversation_classifiee_multi(empreintes),
+            )
+        assert service.gets == ["m1", "m2"]
+        assert service.modifications == []
 
     def test_dry_run_ne_modifie_pas(
         self, registre: RegistreLibelles, tmp_path: Path
@@ -426,6 +550,7 @@ class TestEtapes34Classification:
             conversation=_conversation_classifiee(None, empreinte),
         )
         assert rapport.statut_global == "succes"
+        assert service.gets == ["m1"]  # T9.7 : recalc lu une fois, aucune écriture en dry-run
         assert service.modifications == []
 
     def test_reprise_ne_rappelle_pas_lagent(
