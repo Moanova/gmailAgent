@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : agent_runner.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """Runner de conversation éphémère (pattern synchrone, script de référence 02b).
 
 Un appel = modèle + outils + schéma de sortie passés à chaque fois (décision D2 :
@@ -76,6 +92,8 @@ AppelOutil = ToolExecutionEntry | FunctionCallEntry
 
 
 def modele_effectif(modele: str | None) -> str:
+    """Modèle effectif : argument explicite, puis variable d'environnement `MISTRAL_MODEL`, puis
+    défaut de `config/settings.yaml`."""
     return modele or optionnel(NOM_VAR_ENV_MODELE, parametres_courants().modele.defaut)
 
 
@@ -89,10 +107,12 @@ def _normalise_requete(requete: str) -> str:
 
 
 class GardeFouAtteintError(RuntimeError):
+    """Garde-fou anti-boucle atteint (plafond d'appels d'outils dépassé) : abandon propre du run."""
     pass
 
 
 def _arguments_outil(appel: AppelOutil) -> dict[str, Any]:
+    """Arguments d'un appel d'outil en dict (chaîne JSON ou dict ; `{}` sinon)."""
     brut: Any = appel.arguments
     if isinstance(brut, str):
         if not brut.strip():
@@ -105,6 +125,7 @@ def _arguments_outil(appel: AppelOutil) -> dict[str, Any]:
 
 
 def _tool_call_id(appel: AppelOutil) -> str:
+    """Identifiant de l'appel d'outil (`tool_call_id`, ou `id`)."""
     if isinstance(appel, FunctionCallEntry):
         return appel.tool_call_id
     return appel.id or ""
@@ -188,6 +209,7 @@ def _apercu_message(message: dict[str, Any]) -> dict[str, Any]:
 
 
 def _apercu_thread(thread: dict[str, Any]) -> dict[str, Any]:
+    """Aperçu borné d'un thread : id + liste des aperçus de ses messages."""
     messages = thread.get("messages", [])
     return {
         "id": thread.get("id"),
@@ -198,6 +220,7 @@ def _apercu_thread(thread: dict[str, Any]) -> dict[str, Any]:
 
 
 def _borner_reponse(resultat: dict[str, Any]) -> str:
+    """Sérialise un résultat d'outil en JSON, tronqué à la limite `limite_reponse_outil`."""
     texte = json.dumps(resultat, ensure_ascii=False)
     limite = parametres_courants().limites.limite_reponse_outil
     if len(texte) > limite:
@@ -253,6 +276,7 @@ def _normaliser_payload(payload: Any) -> dict[str, Any]:
 
 
 def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
+    """Retourne le prompt système de l'agent demandé ; lève `AgentInconnuError` sinon."""
     if agent == AGENT_CLASSIFICATION:
         return prompt_classification(registre)
     if agent == AGENT_SPAM:

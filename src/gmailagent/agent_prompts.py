@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : agent_prompts.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """Prompts des agents et contrats d'outils Gmail (allow-list, moindre privilège).
 
 Les prompts sont versionnés avec le code (conversations éphémères, décision D2).

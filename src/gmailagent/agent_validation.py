@@ -1,3 +1,21 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : agent_validation.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
+"""Validation programmatique des synthèses d'étapes (contrôles C1-C6), extraction robuste du JSON
+et collecte des identifiants réellement manipulés."""
 import json
 from typing import Any
 
@@ -26,10 +44,12 @@ _CHAMPS_IDS: tuple[str, ...] = (
 
 
 class ExtractionJsonError(ValueError):
+    """Aucun objet JSON valide extrait du texte produit par le modèle."""
     pass
 
 
 class SyntheseInvalideError(ValueError):
+    """Synthèse rejetée par la validation programmatique (motif explicite dans le message)."""
     pass
 
 
@@ -78,6 +98,8 @@ def extraire_json(texte: str) -> dict[str, Any]:
 
 
 def _arguments_dict(entry: Any) -> dict[str, Any]:
+    """Arguments d'une entrée d'exécution d'outil en dict (chaîne JSON ou dict ; `{}` si
+    illisible)."""
     brut: Any = entry.arguments
     if isinstance(brut, str):
         try:
@@ -114,12 +136,16 @@ def collecter_ids_reels(outputs: list[Any]) -> set[str]:
 
 
 def _messages_ids(synthese: SyntheseEtape) -> list[str]:
+    """Ids cités par la synthèse (`ids` pour la suppression, `messages[].id` sinon)."""
     if isinstance(synthese, SyntheseSuppression):
         return list(synthese.ids)
     return [message.id for message in synthese.messages]
 
 
 def _valider_non_contradiction(synthese: SyntheseEtape) -> None:
+    """Non-contradiction statut/champs : `echec_technique` exige `erreur` et aucun message ;
+    `aucun_message` interdit `erreur` et tout message ; les statuts avec messages interdisent
+    `erreur`."""
     statut = synthese.statut
     nb_messages = (
         synthese.count if isinstance(synthese, SyntheseSuppression) else len(synthese.messages)
@@ -150,6 +176,8 @@ def _valider_non_contradiction(synthese: SyntheseEtape) -> None:
 
 
 def _valider_completude(synthese: SyntheseEtape) -> None:
+    """Complétude : un statut avec messages exige des messages (et `count == len(ids)` pour la
+    suppression)."""
     if synthese.statut in _STATUTS_AVEC_MESSAGES:
         if isinstance(synthese, SyntheseSuppression):
             if synthese.count == 0 or not synthese.ids:
@@ -167,6 +195,8 @@ def _valider_completude(synthese: SyntheseEtape) -> None:
 
 
 def _valider_authenticite(synthese: SyntheseEtape, ids_reels: set[str]) -> None:
+    """Authenticité : chaque id cité doit figurer dans les ids réellement manipulés par les
+    outils (`ids_reels`)."""
     ids_synthese = _messages_ids(synthese)
     inconnus = [i for i in ids_synthese if i not in ids_reels]
     if inconnus:
@@ -177,6 +207,8 @@ def _valider_authenticite(synthese: SyntheseEtape, ids_reels: set[str]) -> None:
 
 
 def _valider_empreintes(synthese: SyntheseEtape) -> None:
+    """Recalcul C6 : chaque message classifié déclare un `message_id_rfc` et une `empreinte` non
+    vides (recalculés depuis l'API par l'orchestrateur)."""
     if not isinstance(synthese, SyntheseClassification):
         return
     for message in synthese.messages:

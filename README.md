@@ -72,6 +72,14 @@ mypy src                          # strict
 python -m pytest tests -q         # unitaires + intégration mockés (aucun appel réseau)
 ```
 
+## Convention d'en-tête des scripts
+
+Chaque script applicatif (`src/gmailagent/*.py`, `scripts/init_oauth.py`) commence par un
+en-tête de présentation (Application / Script / Version / Date / Design / Build). `Script`
+porte le **nom réel du fichier** ; `Version` et `Date` sont **mis à jour à chaque modification
+du code** (l'historique détaillé reste dans git). Les fichiers de test (`tests/`) n'ont pas
+d'en-tête.
+
 ## Documentation du projet
 
 - [AGENTS.md](AGENTS.md) — méthode de travail (workflow par tâche, dry-run, secrets)
@@ -80,6 +88,6 @@ python -m pytest tests -q         # unitaires + intégration mockés (aucun appe
 - [docs/architecture/](docs/architecture/) — contrats canoniques (`validation.md` C1–C6, `agents.md`, `gmail.md`)
 - [docs/projet/plan-macro.md](docs/projet/plan-macro.md) — plan macro (10 phases ; **sera supprimé en fin de projet**)
 - [docs/projet/kanban.md](docs/projet/kanban.md) — suivi des tâches (+ [fichiers de suivi](docs/projet/tasks/))
-- [SESSIONS.md](SESSIONS.md) — index du journal des séances (décisions D1…D63) + [archive](docs/sessions-archive.md)
+- [SESSIONS.md](SESSIONS.md) — index du journal des séances (décisions D1…D66) + [archive](docs/sessions-archive.md)
 
 Branche de travail unique : `dev` (push direct, pas de PR ni de branche dédiée).

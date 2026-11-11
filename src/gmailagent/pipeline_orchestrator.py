@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : pipeline_orchestrator.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """Orchestrateur : cycle du run principal (tri), checkpoints, idempotence.
 
 Étapes 0–7 du run principal (docs/design/workflow.md). Les étapes 1–2 (spam) et
@@ -69,6 +85,7 @@ ETAPE_VALIDATION_SUPPRESSION = "validation_suppression"
 
 
 class CheckpointError(RuntimeError):
+    """Checkpoint illisible ou invalide : reprise sur incident impossible."""
     pass
 
 
@@ -76,6 +93,8 @@ ConversationFn = Callable[..., tuple[SyntheseEtape, list[Any]]]
 
 
 def _api_client(client_api: ClientGmailAPI | None, dry_run: bool) -> ClientGmailAPI:
+    """Retourne le client API fourni, ou en construit un depuis le token Gmail (dry-run si
+    demandé)."""
     if client_api is not None:
         return client_api
     return ClientGmailAPI.depuis_token(dry_run=dry_run)
@@ -188,14 +207,17 @@ class Checkpoint(BaseModel):
 
 
 def _dossier_checkpoints() -> Path:
+    """Dossier des checkpoints (paramètre `chemins.checkpoints`, racine du projet)."""
     return RACINE_PROJET / parametres_courants().chemins.checkpoints
 
 
 def _fichier_checkpoint(run_id: UUID, dossier: Path) -> Path:
+    """Chemin du fichier checkpoint d'un `run_id` dans `dossier`."""
     return dossier / f"{run_id}.json"
 
 
 def sauvegarder_checkpoint(checkpoint: Checkpoint, dossier: Path | None = None) -> Path:
+    """Persiste le checkpoint en JSON et retourne le chemin écrit."""
     cible_dossier = dossier if dossier is not None else _dossier_checkpoints()
     cible_dossier.mkdir(parents=True, exist_ok=True)
     cible = _fichier_checkpoint(checkpoint.run_id, cible_dossier)
@@ -204,6 +226,8 @@ def sauvegarder_checkpoint(checkpoint: Checkpoint, dossier: Path | None = None) 
 
 
 def charger_checkpoint(run_id: UUID, dossier: Path | None = None) -> Checkpoint:
+    """Charge le checkpoint d'un `run_id` ; lève `CheckpointError` s'il est illisible ou
+    invalide."""
     cible = _fichier_checkpoint(run_id, dossier if dossier is not None else _dossier_checkpoints())
     try:
         return Checkpoint.model_validate_json(cible.read_text(encoding="utf-8"))
@@ -251,6 +275,7 @@ def requete_suppression(registre: RegistreLibelles, resolveur: ResolveurLibelles
 
 
 def _valider_etape(checkpoint: Checkpoint, etape: str, dossier: Path) -> None:
+    """Marque une étape comme validée et persiste le checkpoint (reprise sur incident)."""
     checkpoint.etapes_validees.append(etape)
     sauvegarder_checkpoint(checkpoint, dossier)
     obtenir_logger("orchestrateur").info(

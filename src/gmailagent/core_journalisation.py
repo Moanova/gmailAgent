@@ -1,3 +1,21 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : core_journalisation.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
+"""Journalisation structurée (structlog) : console + fichier JSON (chemin `logs/gmailagent.log`
+par défaut), contexte `run_id`/`étape`, balises `debut_run`/`fin_run`."""
 import logging
 from pathlib import Path
 
@@ -16,6 +34,9 @@ _run_id_courant: str | None = None
 
 
 def configurer(run_id: str, etape: str | None = None) -> None:
+    """Configure structlog une seule fois par processus et lie le `run_id` ; sur un nouveau run
+    dans un processus déjà configuré (ex. `--tout`), re-lie le `run_id` et émet une balise
+    `debut_run`."""
     global _configure, _run_id_courant
     if _configure and run_id != _run_id_courant:
         # Nouveau run dans un processus déjà configuré (ex. --tout : plusieurs runs
@@ -92,5 +113,6 @@ def marquer_fin_run(statut: str) -> None:
 
 
 def obtenir_logger(nom: str) -> structlog.stdlib.BoundLogger:
+    """Retourne le logger structlog nommé `nom`."""
     logger: structlog.stdlib.BoundLogger = structlog.get_logger(nom)
     return logger

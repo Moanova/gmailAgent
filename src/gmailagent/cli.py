@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : cli.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """CLI gmailAgent : `tri` | `suppression` | `migrate-labels` — dry-run par défaut.
 
 Règle E de AGENTS.md : aucune écriture Gmail sans `--reel` (en dry-run, les
@@ -27,6 +43,7 @@ AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures jo
 
 
 def _aide_tout() -> str:
+    """Texte d'aide de l'option `--tout` (plafond de runs depuis les paramètres)."""
     plafond = parametres_courants().limites.plafond_runs_tout
     return (
         f"boucle de runs jusqu'à épuisement des non lus (plafond {plafond} runs, "
@@ -35,6 +52,8 @@ def _aide_tout() -> str:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Construit le parser argparse et parse `argv` (sous-commandes `tri`, `suppression`,
+    `migrate-labels`)."""
     parser = argparse.ArgumentParser(
         prog="gmailagent",
         description="Agent personnel de traitement des messages Gmail (dry-run par défaut).",
@@ -76,12 +95,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _afficher_rapport(rapport: RapportFinal) -> None:
+    """Affiche le rapport final : JSON, résumé console, statut du run."""
     print(json.dumps(rapport.model_dump(mode="json"), indent=2, ensure_ascii=False))
     print(formater_console(rapport))
     print(f"run {rapport.meta.run_id} terminé : {rapport.statut_global}")
 
 
 def _cmd_tri(args: argparse.Namespace, run_id: UUID) -> int:
+    """Commande `tri` : run principal (ou boucle `--tout`), affiche le rapport, retourne le code
+    de sortie."""
     dry_run = not args.reel
     if getattr(args, "tout", False):
         return _cmd_tri_tout(dry_run)
@@ -132,6 +154,8 @@ def _cmd_tri_tout(dry_run: bool) -> int:
 
 
 def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
+    """Commande `suppression` : run de suppression T+24h, affiche le rapport, retourne le code de
+    sortie."""
     dry_run = not args.reel
     statut = "interrompu"
     try:
@@ -144,6 +168,8 @@ def _cmd_suppression(args: argparse.Namespace, run_id: UUID) -> int:
 
 
 def _cmd_migrate_labels(args: argparse.Namespace) -> int:
+    """Commande `migrate-labels` : déplace les messages d'un libellé physique vers un autre
+    (dry-run par défaut)."""
     dry_run = not args.reel
     client = ClientGmailAPI.depuis_token(dry_run=dry_run)
     labels = {libelle["name"]: libelle["id"] for libelle in client.list_labels()}
@@ -176,6 +202,8 @@ def _cmd_migrate_labels(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Point d'entrée CLI : parse les arguments, configure la journalisation, dispatche la
+    sous-commande, retourne le code de sortie."""
     args = _parse_args(argv)
     run_id: UUID = args.run_id if getattr(args, "run_id", None) is not None else uuid4()
     if not (args.commande == "tri" and getattr(args, "tout", False)):

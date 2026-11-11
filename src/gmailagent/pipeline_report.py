@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : pipeline_report.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """Agrégation des synthèses validées et restitution console (rapport final, phase 8).
 
 `aggreger` calcule un `ResumeRun` (T8.1) de façon déterministe depuis les synthèses

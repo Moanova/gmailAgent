@@ -1,3 +1,21 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : agent_contracts.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
+"""Contrats Pydantic des échanges inter-étapes et schémas JSON stricts des agents, construits
+dynamiquement depuis le registre de libellés."""
 import copy
 import re
 from datetime import UTC, datetime
@@ -114,6 +132,8 @@ class ResumeRun(BaseModel):
     @field_validator("par_categorie")
     @classmethod
     def _cles_logiques(cls, valeur: dict[str, int]) -> dict[str, int]:
+        """Valide que chaque clé de `par_categorie` suit le pattern d'une clé logique
+        (`groupe.nom`)."""
         for cle in valeur:
             if re.fullmatch(_PATTERN_CLE_LOGIQUE, cle) is None:
                 raise ValueError(f"clé de catégorie invalide : {cle!r}")
@@ -122,6 +142,7 @@ class ResumeRun(BaseModel):
     @field_validator("par_urgence")
     @classmethod
     def _urgences_valides(cls, valeur: dict[str, int]) -> dict[str, int]:
+        """Valide que chaque clé de `par_urgence` est une valeur de l'enum `Urgence`."""
         valides = set(get_args(Urgence))
         for cle in valeur:
             if cle not in valides:
@@ -160,12 +181,15 @@ _ENUM_STATUTS: dict[str, list[str]] = {
 
 
 class AgentInconnuError(ValueError):
+    """Agent inconnu (hors classification / spam / suppression)."""
     pass
 
 
 def _schema_payload(
     cls: type[BaseModel], *, exclure: tuple[str, ...] = ("meta", "agent")
 ) -> dict[str, Any]:
+    """Schéma JSON du payload de sortie d'un agent : schéma Pydantic du modèle moins les champs
+    exclus (`meta`, `agent`) et les définitions non référencées."""
     schema = copy.deepcopy(cls.model_json_schema())
     for champ in exclure:
         schema.get("properties", {}).pop(champ, None)
@@ -196,6 +220,8 @@ def _schema_payload(
 
 
 def _enum_categories(registre: RegistreLibelles) -> list[str]:
+    """Clés logiques du groupe `classification` (enum `categorie` du schéma de l'agent
+    classification)."""
     return [
         cle
         for cle, _ in registre.iter_cles()
@@ -206,6 +232,8 @@ def _enum_categories(registre: RegistreLibelles) -> list[str]:
 def _injecter_enums_agent(
     schema: dict[str, Any], agent: str, registre: RegistreLibelles
 ) -> None:
+    """Injecte les enums dans le schéma : `statut` de l'agent, plus `categorie` (depuis le
+    registre) et `urgence` pour la classification."""
     properties: dict[str, Any] = schema["properties"]
     properties["statut"]["enum"] = _ENUM_STATUTS[agent]
     if agent != AGENT_CLASSIFICATION:

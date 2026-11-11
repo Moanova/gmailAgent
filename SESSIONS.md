@@ -77,6 +77,8 @@ contexte (voir AGENTS.md, §1).
 | 11/11/2026 | Séance du 11/11/2026 (suite 8) — T9.9 lot 3 : conservation de `conception-studio-apps.md` (D63) + découpe de SESSIONS.md | ci-dessous |
 | 11/11/2026 | Séance du 11/11/2026 (suite 13) — T10.1 créée (étude exécutable autonome, v2, D66) + board Miro synchronisé | ci-dessous |
 | 11/11/2026 | Séance du 11/11/2026 (suite 14) — plan-macro.md mis à jour avec arborescence, scripts et libellés réels | ci-dessous |
+| 11/11/2026 | Séance du 11/11/2026 (suite 15) — docstrings complètes sur src/gmailagent + scripts/init_oauth.py | ci-dessous |
+| 11/11/2026 | Séance du 11/11/2026 (suite 16) — en-têtes de présentation ajoutés aux 17 scripts applicatifs | ci-dessous |
 
 ---
 
@@ -384,3 +386,92 @@ Aucun.
 - Kanban : inchangé — **À faire** = T10.1 ; **Terminé** = T1.1–T9.10.
 - `plan-macro.md` est désormais maintenu avec les valeurs réelles ; sa suppression en fin de
   projet reste à arbitrer par l'utilisateur.
+
+---
+
+## Séance du 11/11/2026 (suite 15) — docstrings : audit complet et complément sur tout le code
+
+### Contexte
+Demande utilisateur : vérifier que toutes les méthodes et toutes les classes du projet ont
+leur docstring, et l'ajouter sinon. Périmètre : `src/gmailagent/` (16 modules) +
+`scripts/init_oauth.py` (les tests ne sont pas concernés). Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **Audit AST** (modules, classes, fonctions/méthodes) : 83 docstrings manquantes sur 14
+   fichiers (8 modules, classes d'erreurs et de contrats, fonctions publiques et privées).
+2. **Ajout des docstrings** (insertion par script AST, repli à 100 caractères, docstrings en
+   français décrivant le comportement ; aucun commentaire inline ajouté) : 83 docstrings sur
+   `__init__.py`, `core_env.py`, `core_client.py`, `core_config.py`, `core_journalisation.py`,
+   `gmail_labels.py`, `gmail_client.py`, `agent_contracts.py`, `agent_dedup.py`,
+   `agent_runner.py`, `agent_validation.py`, `cli.py`, `pipeline_orchestrator.py` et
+   `scripts/init_oauth.py`.
+3. **Incident interne corrigé** : le premier passage du script a corrompu `gmail_labels.py`
+   (méthodes de protocole en ligne `...` — ordre modification/insertion) ; fichier restauré
+   depuis git puis script réexécuté avec l'ordre corrigé.
+4. **Validation** : audit AST final → **0 docstring manquante** ; `ruff check src tests` → seule
+   l'erreur préexistante SIM102 (`agent_validation.py:145`) ; `mypy src` → propre (16 fichiers) ;
+   `pytest tests -q` → **302 passed** (docstrings sans effet comportemental).
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — 14 fichiers de code, docstrings
+  uniquement (+159/−2).
+- Kanban : inchangé — **À faire** = T10.1 ; **Terminé** = T1.1–T9.10.
+
+---
+
+## Séance du 11/11/2026 (suite 16) — en-têtes de présentation sur chaque script applicatif
+
+### Contexte
+L'utilisateur demande l'ajout d'un en-tête de présentation (non technique) en tête de chaque
+script, au format Application / Script / Version / Date / Design / Build. Précisions
+utilisateur : le champ `Script` porte le **nom réel du fichier** ; `Version` et `Date` sont
+**mis à jour à chaque modification du code** (objections discutées : dérive vs git, version
+1.0 vs `pyproject.toml` 0.1.0 — acceptées par l'utilisateur). Périmètre retenu :
+`src/gmailagent/*.py` (16) + `scripts/init_oauth.py` ; les tests (`tests/`) sont exclus.
+Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **En-têtes ajoutés** sur les 17 scripts applicatifs (insertion en ligne 1, avant la
+   docstring de module qui reste la première statement — `__doc__` inchangé) : `Application:
+   gmailAgent`, `Script: <nom réel du fichier>`, `Version: 1.0`, `Date: 11-11-2026`,
+   `Design: TSC + Mistral Vibe`, `Build: Mistral Vibe`.
+2. **README.md** : nouvelle section « Convention d'en-tête des scripts » (périmètre, règle de
+   mise à jour Version/Date, tests exclus) ; mention des décisions corrigée (D1…D63 → D1…D66).
+3. **Validation** : audit AST docstrings → toujours **0 manquant** ; `import` + `__doc__` OK ;
+   `ruff check src tests` → seule l'erreur préexistante SIM102 (`agent_validation.py:145`) ;
+   `mypy src` → propre (16 fichiers) ; `pytest tests -q` → **302 passed**.
+
+### Décisions clés
+
+Aucune nouvelle (convention d'en-tête validée telle quelle par l'utilisateur, avec mise à jour
+Version/Date à chaque modification).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — 17 fichiers de code (en-têtes),
+  README.md, SESSIONS.md, + les docstrings de la suite 15 (14 fichiers).
+- Kanban : inchangé — **À faire** = T10.1 ; **Terminé** = T1.1–T9.10.
+
+### Ajout même séance (suite 16) — commit/push sur `dev`, fin de séance
+
+Commit + push effectués sur demande explicite de l'utilisateur (règles C/H), en un seul
+commit : docstrings (suite 15) + en-têtes de présentation (suite 16) + README + SESSIONS.
+L'utilisateur fusionnera ensuite `dev` dans `main` lui-même. **Fin de séance** — la prochaine
+séance portera sur T10.1 (étude de la mise en œuvre d'un exécutable autonome) et sur les
+grandes lignes de conception d'une version déployée sur Mistral Studio
+(base `docs/design/conception-studio-apps.md`, D63/D66).

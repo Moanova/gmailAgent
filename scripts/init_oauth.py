@@ -1,3 +1,19 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : init_oauth.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
 """Initialisation OAuth Gmail — à exécuter UNE SEULE FOIS, manuellement.
 
 Ouvre le consentement Google dans le navigateur, échange le code
@@ -28,6 +44,9 @@ FICHIER_TOKEN = RACINE / "data" / "gmail_token.json"
 
 
 def main() -> int:
+    """Script one-shot : flux OAuth Gmail (consentement navigateur, access_type=offline) puis
+    stockage du refresh token dans `data/gmail_token.json` (chmod 600) ; retourne 0 en cas de
+    succès, 1 sinon."""
     import os
 
     client_id = os.environ.get("GOOGLE_CLIENT_ID")

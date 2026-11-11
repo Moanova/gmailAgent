@@ -1,3 +1,21 @@
+# -------------------------------------------------------------------
+
+# Application  : gmailAgent
+
+# Script       : core_client.py
+
+# Version      : 1.0
+
+# Date         : 11-11-2026
+
+# Design       : TSC + Mistral Vibe
+
+# Build        : Mistral Vibe
+
+# -------------------------------------------------------------------
+
+"""Client Mistral commun (instanciation unique) + retry avec backoff exponentiel et jitter sur
+429/5xx."""
 import random
 import time
 from collections.abc import Callable
@@ -18,6 +36,8 @@ _log = obtenir_logger("client")
 
 
 def obtenir_client() -> Mistral:
+    """Retourne le client Mistral singleton (créé au premier appel avec `MISTRAL_API_KEY` et le
+    timeout des paramètres)."""
     global _client
     if _client is None:
         _client = Mistral(
@@ -28,6 +48,7 @@ def obtenir_client() -> Mistral:
 
 
 def _statut_erreur(erreur: Exception) -> int | None:
+    """Code HTTP d'une erreur (SDK Mistral ou `HttpError` Gmail), `None` si indéterminé."""
     if isinstance(erreur, SDKError):
         return erreur.status_code
     if isinstance(erreur, HttpError) and erreur.resp is not None:
@@ -49,6 +70,8 @@ def avec_retry(
     dormir: Callable[[float], None] = time.sleep,
     retentable: Callable[[Exception], bool] = erreur_retentable,
 ) -> T:
+    """Exécute `operation` avec `tentatives` essais sur erreur retentable (429/5xx), backoff
+    exponentiel + jitter entre les essais ; relance l'erreur sinon."""
     for essai in range(tentatives):
         try:
             return operation()
