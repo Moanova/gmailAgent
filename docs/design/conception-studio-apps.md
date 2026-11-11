@@ -5,6 +5,10 @@
 > le scénario « Workflows Studio » avait été écarté en §6 (public preview à l'époque — les
 > Workflows sont passés GA le 05/11/2026, les Apps restent en preview).
 
+> **Statut (11/11/2026, D63)** : document **conservé** — il servira de base à une autre
+> version du projet, dont l'objet sera de valider le fonctionnement des applications
+> déployées dans Mistral Studio.
+
 ## 1. Objectif
 
 Exécuter le pipeline de tri de messages **sans dépendance à la machine locale** : exécution

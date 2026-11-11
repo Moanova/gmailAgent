@@ -1,5 +1,9 @@
 # Note de synthèse — simplifications et modifications évaluées (T9.5)
 
+> **Document d'archive projet** : les simplifications listées ci-dessous ont été
+> **implémentées et validées le 11/11/2026** (T9.6, T9.7, T9.8 — « Terminé » dans le kanban ;
+> T9.9 en cours pour la remise à plat documentaire). Ce n'est pas une liste d'actions futures.
+
 Rédigée le 10/11/2026 à l'issue de la tâche **T9.5** (analyse des axes de simplification, volet
 par volet : spam, classification, suppression, orchestrateur/transverse). Contexte : incidents
 du 10/11/2026 corrigés par D56–D58 (tâches T9.2–T9.4, terminées et validées en conditions
@@ -80,5 +84,5 @@ dur dans le code, checkpoints + idempotence par requête.
   `a35bb9f`, `0fe8a0b`, validés en réel le 10/11/2026.
 - Décisions : D59 (suppressions clause doublon + `corbeille()`), D60 (approbation de l'ensemble
   des simplifications évaluées en T9.5).
-- Tâches d'implémentation : **T9.6 implémentée le 11/11/2026 (en revue, 300 tests verts)**,
-  T9.7, T9.8 (code), T9.9 (docs) — T9.7–T9.9 en « À faire ».
+- Tâches d'implémentation : **T9.6, T9.7, T9.8 implémentées et validées le 11/11/2026
+  (« Terminé » — 302 tests verts)** ; T9.9 (docs/arborescence) en cours au 11/11/2026.

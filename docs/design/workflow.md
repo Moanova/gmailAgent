@@ -77,7 +77,7 @@ flowchart TD
 | --- | --- | --- | --- |
 | 0 | Démarrage du run, checkpoint initial | Programmatique | Toujours (création du `run_id`) |
 | 1 | Lecture spam — conversation agent spam | **Agentique** | Synthèse produite (quel que soit le statut) |
-| 2 | Validation spam | Programmatique | `ok` si statut cohérent, IDs authentifiés, synthèse complète ; `rejet` sinon |
+| 2 | Validation spam | Programmatique | `ok` si statut cohérent, IDs authentifiés, synthèse complète ; `rejet` sinon. Si `aucun_message` : apposition `Agent/spam-confirme` sur les messages lus laissés en spam (idempotence) |
 | 3 | Lecture non lus — conversation agent classification | **Agentique** | Validation spam passée (ordre imposé : spam avant classification) |
 | 4 | Validation classification | Programmatique | `ok` si cohérence + authenticité + complétude + empreintes recalculées conformes ; `rejet` sinon |
 | 5 | Dédoublonnage — **no-op en v1** (option post-v1, D46 : stub, `nb_doublons=0`) | Programmatique | Validation classification passée |
@@ -91,7 +91,7 @@ flowchart TD
 | 0 | Démarrage du run de suppression | Programmatique | Déclencheur temporel (planifié, indépendant du run principal) |
 | 1 | Lecture des messages traités — conversation agent suppression | **Agentique** | Synthèse produite |
 | 2 | Validation | Programmatique | `ok` / `rejet` (mêmes règles) |
-| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" label:"notification" older_than:24h OR label:"doublon"` *(notification seule éligible — D47 ; clause `doublon` inerte en v1 — D46)* |
+| 3 | Mise à la corbeille via TRASH | **Agentique** (l'agent applique le libellé via l'outil) | Validation passée ; porte sur `label:"traité" label:"notification" older_than:24h` *(notification seule éligible — D47)* |
 | 4 | Fin du run | Programmatique | — |
 
 ### Couplage entre les deux runs
@@ -107,8 +107,9 @@ deux exécutions.
 
 - **Reprise sur incident** : à chaque étape validée, un checkpoint est
   persisté (fichier JSON local). En cas de crash, le run relancé saute les
-  étapes déjà checkpointées. L'idempotence est en outre garantie par la
-  requête de l'agent classification (`is:unread -label:"traité"`).
+  étapes déjà checkpointées. L'idempotence est en outre garantie par les
+  requêtes construites depuis le registre : classification
+  `is:unread -label:"traité"`, spam `in:spam -label:"spam-confirme"`.
 - **Retry sur erreur transitoire** : chaque phase agentique est retentée
   (3 tentatives, backoff exponentiel avec jitter, base 2 s) sur les erreurs
   429/5xx, que ce soit côté API Mistral ou côté outils Gmail. Au-delà,

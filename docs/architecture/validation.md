@@ -2,7 +2,7 @@
 
 Définition **canonique et numérotée** des contrôles C1–C6, référencée par
 [`docs/design/conception.md`](../design/conception.md) §2.5 et
-[`docs/tasks/T2.3_validation_programmatique.md`](../tasks/T2.3_validation_programmatique.md).
+[`docs/projet/tasks/T2.3_validation_programmatique.md`](../projet/tasks/T2.3_validation_programmatique.md).
 Sources de vérité du code : `src/validation.py` (`valider_synthese`, `collecter_ids_reels`,
 `extraire_json`, `construire_synthese`) et `src/orchestrator.py` (recalcul C6).
 

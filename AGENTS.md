@@ -14,7 +14,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 4. **`docs/architecture/`** : contrats canoniques — `validation.md` (définition numérotée C1–C6), `agents.md` (contrats d'agents), `gmail.md` (client Gmail, libellés, dry-run).
 5. **`tests/plan_tests.md`** : plan de tests associés aux tâches.
 6. **`docs/test/acceptation.md`** : critères d'acceptation des réalisations.
-7. **`SESSIONS.md`** : **actions, décisions et blocages** des séances précédentes.
+7. **`SESSIONS.md`** : **actions, décisions et blocages** des séances (index ; historique archivé dans `docs/sessions-archive.md`).
 8. **`docs/projet/kanban.md`** : tableau des tâches.
 
 ### **Étapes à suivre (sur initiative de l'utilisateur)**
@@ -110,7 +110,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 ## **3. Règles supplémentaires**
 
 ### **A. Documentation systématique (sur initiative de l'agent et éventuelle initiative complémentaire de l'utilisateur)**
-- Pour chaque tâche, créer un **fichier de suivi** dans `docs/tasks/` (ex : `T2.1_contrats_pydantic.md`).
+- Pour chaque tâche, créer un **fichier de suivi** dans `docs/projet/tasks/` (ex : `T2.1_contrats_pydantic.md`).
   ```markdown
   # Tâche T2.1 : Modèles Pydantic
 
@@ -127,7 +127,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
   ```
 - **Exemple de demande** :
   ```markdown
-  Peux-tu créer un fichier de suivi pour la tâche T2.1 dans `docs/tasks/` ?
+  Peux-tu créer un fichier de suivi pour la tâche T2.1 dans `docs/projet/tasks/` ?
   ```
 
 ### **B. Gestion des blocages (sur initiative de l'agent à l'issue de l'étape 4)**
@@ -204,12 +204,12 @@ Les actions suivantes peuvent être demandées en séance **sans être référen
 ## **5. Résumé des fichiers clés**
 | Fichier                  | Rôle                                                                                            |
 |--------------------------|-------------------------------------------------------------------------------------------------|
-| `SESSIONS.md`            | Journal des **actions, décisions et blocages** par séance. Utilisé pour la reprise de contexte. |
+| `SESSIONS.md`            | Index du journal des **actions, décisions et blocages** par séance (historique : `docs/sessions-archive.md`). |
 | `docs/projet/kanban.md`  | Suivi des tâches (À faire → En cours → En revue → Terminé).                                     |
 | `docs/projet/plan-macro.md` | Plan macro : 10 phases de développement du pipeline.                                        |
 | `docs/design/conception.md` | Spécification générale du pipeline.                                                          |
 | `docs/design/workflow.md` | Workflow général (schéma Mermaid).                                                             |
 | `docs/architecture/` | Contrats canoniques : `validation.md` (C1–C6), `agents.md`, `gmail.md`.                                             |
 | `tests/plan_tests.md`    | Plan de tests (TU, TI) et couverture des critères d'acceptabilité.                              |
-| `docs/tasks/`            | Suivi détaillé par tâche (optionnel).                                                           |
+| `docs/projet/tasks/`            | Suivi détaillé par tâche (optionnel).                                                           |
 | `BLOCKERS.md`            | Liste des **blocages non résolus** (documentés après 3 échecs de test).                         |
