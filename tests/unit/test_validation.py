@@ -9,7 +9,7 @@ from mistralai.client.models import (
 )
 from pydantic import ValidationError
 
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     MessageClasse,
     MessageLu,
@@ -18,7 +18,7 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
-from validation import (
+from gmailagent.agent_validation import (
     ExtractionJsonError,
     SyntheseInvalideError,
     collecter_ids_reels,

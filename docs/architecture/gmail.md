@@ -1,7 +1,7 @@
 # Contrat canonique — client Gmail, libellés, dry-run
 
-Sources de vérité du code : `src/gmail.py` (`ClientGmailAPI`), `src/labels.py`
-(`ClientGmail` protocole + `ResolveurLibelles`), `src/config.py` (registre
+Sources de vérité du code : `src/gmailagent/gmail_client.py` (`ClientGmailAPI`), `src/gmailagent/gmail_labels.py`
+(`ClientGmail` protocole + `ResolveurLibelles`), `src/gmailagent/core_config.py` (registre
 `config/labels.yaml`, paramètres `config/settings.yaml`).
 
 ## Registre de libellés

@@ -28,10 +28,7 @@ from uuid import UUID, uuid4
 from mistralai.client import Mistral
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from agents import lancer_conversation
-from client import obtenir_client
-from config import RACINE_PROJET, RegistreLibelles, charger_registre, parametres_courants
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
     AGENT_SUPPRESSION,
@@ -42,12 +39,20 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
-from dedup import empreinte_message, normaliser_message_id
-from gmail import ClientGmailAPI, nouveau_client
-from journalisation import configurer, obtenir_logger
-from labels import ClientGmail, ResolveurLibelles
-from report import aggreger
-from validation import SyntheseInvalideError
+from gmailagent.agent_dedup import empreinte_message, normaliser_message_id
+from gmailagent.agent_runner import lancer_conversation
+from gmailagent.agent_validation import SyntheseInvalideError
+from gmailagent.core_client import obtenir_client
+from gmailagent.core_config import (
+    RACINE_PROJET,
+    RegistreLibelles,
+    charger_registre,
+    parametres_courants,
+)
+from gmailagent.core_journalisation import configurer, obtenir_logger
+from gmailagent.gmail_client import ClientGmailAPI, nouveau_client
+from gmailagent.gmail_labels import ClientGmail, ResolveurLibelles
+from gmailagent.pipeline_report import aggreger
 
 CLE_TRAITE = "suivi.traite"
 CLE_VALIDE_SPAM = "suivi.valide-spam"

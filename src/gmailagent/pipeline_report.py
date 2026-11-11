@@ -8,7 +8,7 @@ après le JSON du rapport. Aucun nom de libellé physique en dur : seules les cl
 
 from collections.abc import Mapping
 
-from contracts import (
+from gmailagent.agent_contracts import (
     RapportFinal,
     ResumeRun,
     SyntheseClassification,

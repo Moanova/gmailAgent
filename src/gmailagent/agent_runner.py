@@ -38,9 +38,7 @@ from mistralai.client.models import (
 )
 from pydantic import ValidationError
 
-from client import avec_retry
-from config import RegistreLibelles, parametres_courants
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
     AGENT_SUPPRESSION,
@@ -50,11 +48,13 @@ from contracts import (
     SyntheseSuppression,
     response_format_agent,
 )
-from env import optionnel
-from gmail import ClientGmailAPI
-from journalisation import obtenir_logger
-from prompts import OUTILS_GMAIL, prompt_classification, prompt_spam, prompt_suppression
-from validation import (
+from gmailagent.agent_prompts import (
+    OUTILS_GMAIL,
+    prompt_classification,
+    prompt_spam,
+    prompt_suppression,
+)
+from gmailagent.agent_validation import (
     ExtractionJsonError,
     SyntheseInvalideError,
     collecter_ids_reels,
@@ -62,6 +62,11 @@ from validation import (
     extraire_json,
     valider_synthese,
 )
+from gmailagent.core_client import avec_retry
+from gmailagent.core_config import RegistreLibelles, parametres_courants
+from gmailagent.core_env import optionnel
+from gmailagent.core_journalisation import obtenir_logger
+from gmailagent.gmail_client import ClientGmailAPI
 
 NOM_VAR_ENV_MODELE = "MISTRAL_MODEL"
 LABEL_TRASH = "TRASH"
@@ -165,7 +170,7 @@ def _apercu_message(message: dict[str, Any]) -> dict[str, Any]:
         for h in headers
         if isinstance(h, dict) and str(h.get("name", "")).lower() in _ENTETES_APERCU
     }
-    from dedup import _collecter_texte, empreinte_message
+    from gmailagent.agent_dedup import _collecter_texte, empreinte_message
 
     corps = _collecter_texte(payload)
     empreinte = empreinte_message(message)[1]

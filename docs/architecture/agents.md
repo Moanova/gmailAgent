@@ -1,14 +1,14 @@
 # Contrat canonique — agents (prompts, outils, schémas de sortie)
 
-Source de vérité du code : `src/agents.py` (runner `lancer_conversation`),
-`src/prompts.py` (prompts + allow-list d'outils), `src/contracts.py` (schémas stricts).
+Source de vérité du code : `src/gmailagent/agent_runner.py` (runner `lancer_conversation`),
+`src/gmailagent/agent_prompts.py` (prompts + allow-list d'outils), `src/gmailagent/agent_contracts.py` (schémas stricts).
 
 ## Principes
 
 - **Conversations éphémères** (décision D2) : prompt + outils + schéma de sortie passés à
   chaque appel ; configuration versionnée avec le code. L'orchestrateur est le seul médiateur.
 - **Trois agents** : `classification`, `spam`, `suppression` (constantes `AGENT_*` de
-  `src/contracts.py`).
+  `src/gmailagent/agent_contracts.py`).
 - **Aucun libellé physique en dur** : les libellés sont injectés depuis le registre
   `config/labels.yaml` (clés logiques), jamais de nom `Agent/...` dans les prompts.
 - **Allow-list d'outils** (`OUTILS_GMAIL`, moindre privilège) : `search_threads`,

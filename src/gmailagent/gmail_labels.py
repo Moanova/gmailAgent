@@ -1,7 +1,7 @@
 from typing import Protocol, TypedDict
 
-from config import RegistreLibelles
-from journalisation import obtenir_logger
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.core_journalisation import obtenir_logger
 
 CleLogique = str
 

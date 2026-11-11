@@ -5,8 +5,7 @@ from uuid import UUID
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from config import RegistreLibelles
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
     AGENT_SUPPRESSION,
@@ -22,6 +21,7 @@ from contracts import (
     response_format_agent,
     schema_agent,
 )
+from gmailagent.core_config import RegistreLibelles
 
 AGENTS = (AGENT_CLASSIFICATION, AGENT_SPAM, AGENT_SUPPRESSION)
 
@@ -336,7 +336,7 @@ class TestSchemaAgent:
     def test_union_discriminee_par_agent(self, meta: Meta) -> None:
         """Régression : `aucun_message` est un statut commun — le rechargement d'un
         checkpoint doit rester non ambigu grâce au discriminateur `agent`."""
-        from contracts import SyntheseEtape
+        from gmailagent.agent_contracts import SyntheseEtape
 
         ta = TypeAdapter(SyntheseEtape)
         meta_json = meta.model_dump(mode="json")

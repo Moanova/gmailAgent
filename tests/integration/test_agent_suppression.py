@@ -15,10 +15,10 @@ from uuid import uuid4
 import pytest
 from mistralai.client.models import ToolExecutionEntry
 
-from config import RegistreLibelles
-from gmail import ClientGmailAPI
-from orchestrator import charger_checkpoint, lancer_run_suppression
-from validation import SyntheseInvalideError
+from gmailagent.agent_validation import SyntheseInvalideError
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.pipeline_orchestrator import charger_checkpoint, lancer_run_suppression
 
 REQUETE_SUPPRESSION = 'label:"Agent/traité" label:"Agent/notification" older_than:24h'
 
@@ -268,7 +268,7 @@ class TestAgentSuppressionBoutEnBout:
     ) -> None:
         rid = uuid4()
         service = _FauxService(threads_suppression=["t-sup1"])
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = _scenario_suppression(["t-sup1"], ["m-t-sup1"], ["m-inconnu"])
         scenario += [scenario[-1]] * (

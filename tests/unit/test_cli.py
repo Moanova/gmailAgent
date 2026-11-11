@@ -4,10 +4,10 @@ from uuid import UUID
 
 import pytest
 
-import cli
-from cli import _parse_args, main
-from config import parametres_courants
-from contracts import Meta, RapportFinal, SyntheseClassification
+import gmailagent.cli as cli
+from gmailagent.agent_contracts import Meta, RapportFinal, SyntheseClassification
+from gmailagent.cli import _parse_args, main
+from gmailagent.core_config import parametres_courants
 
 
 @pytest.fixture(autouse=True)
@@ -185,7 +185,7 @@ class TestResumeConsole:
     def test_tri_affiche_resume_console(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        from contracts import ResumeRun
+        from gmailagent.agent_contracts import ResumeRun
 
         meta = Meta(
             run_id=UUID("12345678-1234-5678-1234-567812345678"),
@@ -209,7 +209,7 @@ class TestResumeConsole:
     def test_suppression_affiche_resume_console(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        from contracts import ResumeRun
+        from gmailagent.agent_contracts import ResumeRun
 
         meta = Meta(
             run_id=UUID("12345678-1234-5678-1234-567812345678"),
@@ -311,8 +311,8 @@ class TestFinRunSurIncident:
         run lève une exception (clôture propre en cas d'incident)."""
         import json
 
-        import journalisation
-        from validation import SyntheseInvalideError
+        import gmailagent.core_journalisation as journalisation
+        from gmailagent.agent_validation import SyntheseInvalideError
 
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
         monkeypatch.setattr(journalisation, "_configure", False)

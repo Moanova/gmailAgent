@@ -55,7 +55,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
      - `SESSIONS.md` (pour les décisions passées).
   2. Établir un **plan détaillé** avec :
      - Sous-tâches (ex : « Créer les modèles Pydantic pour `SyntheseEtape` »).
-     - Fichiers à modifier (ex : `src/contracts.py`).
+     - Fichiers à modifier (ex : `src/gmailagent/agent_contracts.py`).
      - Tests associés (ex : TU-01 à TU-05 dans `plan_tests.md`).
 - **Exemple de demande** :
   ```markdown
@@ -120,7 +120,7 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
   - [ ] Tests d'intégration
 
   ## Fichiers modifiés
-  - `src/contracts.py`
+  - `src/gmailagent/agent_contracts.py`
 
   ## Blocages
   - Aucun.
@@ -184,11 +184,11 @@ Il est automatiquement chargé à chaque séance, mais **aucune action structura
 Les actions suivantes peuvent être demandées en séance **sans être référencées dans ce fichier** :
 - **Analyse/Revue** :
   ```markdown
-  Peux-tu analyser la cohérence entre `src/validation.py` et `docs/architecture/validation.md` ?
+  Peux-tu analyser la cohérence entre `src/gmailagent/agent_validation.py` et `docs/architecture/validation.md` ?
   ```
 - **Corrections ponctuelles** :
   ```markdown
-  Peux-tu corriger cette erreur de typage dans `src/contracts.py` ?
+  Peux-tu corriger cette erreur de typage dans `src/gmailagent/agent_contracts.py` ?
   ```
 - **Génération de documentation** :
   ```markdown

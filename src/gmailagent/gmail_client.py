@@ -18,9 +18,9 @@ from typing import Any, cast
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-from config import RACINE_PROJET, parametres_courants
-from journalisation import obtenir_logger
-from labels import ClientGmail, LibelleGmail
+from gmailagent.core_config import RACINE_PROJET, parametres_courants
+from gmailagent.core_journalisation import obtenir_logger
+from gmailagent.gmail_labels import ClientGmail, LibelleGmail
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 

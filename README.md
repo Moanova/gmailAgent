@@ -56,7 +56,7 @@ Exemples :
 gmailagent tri                                   # dry-run : lecture réelle, zéro écriture Gmail
 gmailagent tri --run-id 7e2337c1-...             # reprise sur incident (même run_id)
 gmailagent tri --reel                            # écritures réelles — petit périmètre d'abord
-python -m cli migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage de libellé
+python -m gmailagent.cli migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage de libellé
 ```
 
 Aide : `gmailagent --help`, `gmailagent tri --help`.

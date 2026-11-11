@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from config import RegistreLibelles, charger_registre
+from gmailagent.core_config import RegistreLibelles, charger_registre
 
 Urgence = Literal["haute", "moyenne", "basse"]
 

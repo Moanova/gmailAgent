@@ -28,12 +28,11 @@ dev = [
 ]
 
 [project.scripts]
-gmailagent = "cli:main"
+gmailagent = "gmailagent.cli:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
-packages = []
-py-modules = ["env", "journalisation", "client", "config", "labels", "contracts", "validation", "gmail", "orchestrator", "cli", "prompts", "agents", "dedup", "report"]
+package-dir = {"gmailagent" = "src/gmailagent"}
+packages = ["gmailagent"]
 
 [tool.ruff]
 line-length = 100

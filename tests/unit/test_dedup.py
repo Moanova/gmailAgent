@@ -1,7 +1,7 @@
 import base64
 import hashlib
 
-from dedup import (
+from gmailagent.agent_dedup import (
     empreinte_message,
     empreinte_sha256,
     html_vers_texte,

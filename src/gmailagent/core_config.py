@@ -5,7 +5,7 @@ import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 
 PREFIXE_LIBELLE = "Agent/"
-RACINE_PROJET = Path(__file__).resolve().parent.parent
+RACINE_PROJET = Path(__file__).resolve().parents[2]
 
 
 class RegistreInvalideError(RuntimeError):

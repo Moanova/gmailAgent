@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     MessageClasse,
     Meta,
@@ -10,7 +10,7 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
-from dedup import normaliser_message_id
+from gmailagent.agent_dedup import normaliser_message_id
 
 _STATUTS_ECHEC = {"echec_technique"}
 _STATUTS_VIDES = {"aucun_message"}

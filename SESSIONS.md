@@ -166,3 +166,90 @@ Aucun.
 - Prochaine étape : plan d'exécution détaillé de T9.10 sur demande, puis implémentation,
   validation (ruff/mypy/302 tests/smoke CLI), kanban → « En revue », commit/push sur `dev`
   sur demande explicite.
+
+---
+
+## Séance du 11/11/2026 (suite 10) — validation T9.9 + démarrage T9.10 (plan d'exécution)
+
+### Contexte
+L'utilisateur a rapatrié les changements (`70bd7a5` sur `dev`), valide T9.9 (Terminé) et
+demande le plan d'implémentation de T9.10 (option E, D64). Aucune modification de code
+pour l'instant.
+
+### Actions réalisées
+
+1. **Kanban** : T9.9 « En cours » → **« Terminé »** ; T9.10 « À faire » → **« En cours »**.
+   Fichiers de suivi T9.9 (validation cochée) et T9.10 (plan établi) mis à jour.
+2. **Plan d'exécution T9.10 établi** (voir réponse de séance) : déplacement/renommage des
+   14 modules vers `src/gmailagent/` (git mv + mapping), réécriture des imports internes
+   (`from gmailagent.<module> import …`, y compris imports locaux indentés et
+   `import <mod> as <mod>` pour les monkeypatch), `pyproject.toml` (packages + point
+   d'entrée `gmailagent.cli:main`), mise à jour des chemins `src/x.py` dans la doc vivante,
+   réinstall editable, validation ruff/mypy/302 tests/smoke CLI.
+
+### Décisions clés
+
+Aucune nouvelle (D64 déjà actée).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : à jour avec `origin/dev` (`70bd7a5`) ; mises à jour doc de cette séance
+  **non commitées** (règle C).
+- Kanban : **En cours** = T9.10 ; **À faire** = vide ; **Terminé** = T1.1–T9.9.
+- Prochaine étape : implémentation de T9.10 sur demande explicite, en une passe atomique,
+  puis ruff/mypy/pytest/smoke, kanban → « En revue », commit/push sur `dev` sur demande.
+
+---
+
+## Séance du 11/11/2026 (suite 11) — implémentation T9.10 (option E : package gmailagent + préfixes)
+
+### Contexte
+Demande utilisateur explicite d'implémenter T9.10 selon le plan établi (D64). **Pas de
+commit/push demandé pour l'instant** (règle C) : changements laissés en local.
+
+### Actions réalisées
+
+1. **Déplacement/renommage** : 14 modules `src/*.py` → `src/gmailagent/<prefixe>_<domaine>.py`
+   (`git mv`, renommages détectés), `__init__.py` créé, `src/.gitkeep` supprimé.
+2. **Imports** : 136 imports internes réécrits dans 27 fichiers (src + tests) —
+   `from gmailagent.<module> import …`, `import gmailagent.<module> as <mod>` pour les alias
+   de monkeypatch ; aucun import nu résiduel (grep de contrôle).
+3. **`pyproject.toml`** : `packages = ["gmailagent"]` + `package-dir`, entrée
+   `gmailagent.cli:main` ; `pythonpath`/`files` inchangés ; réinstall editable faite.
+4. **Correction induite** : `RACINE_PROJET` → `parents[2]` dans `core_config.py` (détectée
+   par `test_registre_par_defaut_charge_yaml`) ; `ruff --fix` : 13 I001 isort.
+5. **Doc vivante** : 63 chemins `src/x.py` → `src/gmailagent/…` (AGENTS.md, README, kanban,
+   `docs/architecture/`, conception.md, simplification.md, plan_tests.md) ; `python -m cli`
+   → `python -m gmailagent.cli` (README). Archive et fichiers de tâches historiques
+   inchangés. Aucun `src/*.py` dans les docstrings du code.
+6. **Validation** : `pytest tests -q` → **302 passed** (aucun test modifié en comportement) ;
+   `mypy src` → propre (15 fichiers) ; `ruff check src tests` → 1 seule erreur, le SIM102
+   pré-existant (ex `validation.py:145`) ; smoke `gmailagent --help` et
+   `python -m gmailagent.cli --help` → OK.
+7. **Suivi** : kanban T9.10 → « En revue » ; fichier de suivi T9.10 rempli (réalisation).
+
+### Décisions clés
+
+Aucune nouvelle (D64).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications T9.10 **non commitées** (règle C — commit/push sur demande
+  explicite, en un seul commit atomique).
+- Kanban : **En cours** = vide ; **En revue** = T9.10 ; **Terminé** = T1.1–T9.9.
+- Prochaine étape : validation utilisateur T9.10 (étape 6) → « Terminé » sur demande ; puis
+  commit/push atomique de T9.10 sur `dev` sur demande explicite.
+
+### Ajout même séance (suite 11) — commit/push T9.10
+
+Commit + push sur `dev` effectués sur demande explicite de l'utilisateur (règles C/H), en un
+seul commit atomique (passe complète : déplacement + imports + pyproject + doc). Validation
+utilisateur (test réel) en cours côté utilisateur → T9.10 reste « En revue » en attendant.

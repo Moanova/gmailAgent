@@ -46,7 +46,7 @@ Le libellé UNREAD n'est jamais retiré par le pipeline (action utilisateur).
 
 ### 2.1 Principe
 
-Un orchestrateur Python (`src/orchestrator.py`) pilote séquentiellement les trois agents sous forme de **conversations éphémères** (décision D2 : prompt, outils et schéma de sortie passés à chaque appel, configuration versionnée avec le code). Chaque étape produit une synthèse structurée, validée programmatiquement avant de passer à la suivante. L'état est explicite : en mémoire pendant le run, persisté par checkpoints entre les étapes (`data/checkpoints/<run_id>.json`), et dans Gmail via les libellés (canal persistant entre les runs).
+Un orchestrateur Python (`src/gmailagent/pipeline_orchestrator.py`) pilote séquentiellement les trois agents sous forme de **conversations éphémères** (décision D2 : prompt, outils et schéma de sortie passés à chaque appel, configuration versionnée avec le code). Chaque étape produit une synthèse structurée, validée programmatiquement avant de passer à la suivante. L'état est explicite : en mémoire pendant le run, persisté par checkpoints entre les étapes (`data/checkpoints/<run_id>.json`), et dans Gmail via les libellés (canal persistant entre les runs).
 
 **Configuration.** Deux fichiers YAML dans `config/` : `labels.yaml` (registre des libellés `Agent/*` — clé logique → libellé physique, seule source de vérité pour les libellés, aucun nom physique en dur dans le code) et `settings.yaml` (paramètres du pipeline : chemins, modèle par défaut, plafonds et garde-fous, délai de grâce de la suppression, requête spam de base). Priorité de résolution : variable d'environnement (`MISTRAL_MODEL`, `LOG_FILE`, ...) > `settings.yaml` > défaut du code. Restent volontairement dans le code : les libellés système `TRASH`/`SPAM`/`INBOX` (D43), les prompts et schémas d'outils (D2) et les contrats de validation. Le modèle utilisé est journalisé à chaque conversation (`conversation lancee` dans `logs/gmailagent.log`).
 
@@ -81,7 +81,7 @@ Communication par contrats explicites (voir `docs/architecture/agents.md`) :
 
 ### 2.5 Validation programmatique
 
-À chaque synthèse d'étape, le runner applique (`src/validation.py`) :
+À chaque synthèse d'étape, le runner applique (`src/gmailagent/agent_validation.py`) :
 
 - `collecter_ids_reels` : identifiants réellement manipulés par les outils (arguments et résultats) ;
 - `valider_synthese` : non-contradiction, complétude, authenticité des identifiants (C1–C6) ;
@@ -112,7 +112,7 @@ Un rejet interrompt le run, est journalisé avec son motif, et n'est jamais rest
 L'étape 5 (dédoublonnage) est un **stub no-op en v1** (décision D46 : `nb_doublons=0`, aucun libellé `Agent/doublon` posé). Les fondations sont en place et utilisées à l'étape 4 :
 
 1. **Clé primaire : l'en-tête `Message-ID` (RFC 5322)** — normalisé (espaces et `<>` retirés, minuscules) ;
-2. **Clé secondaire : empreinte SHA-256** du triplet (expéditeur, sujet, corps) normalisés (`src/dedup.py`).
+2. **Clé secondaire : empreinte SHA-256** du triplet (expéditeur, sujet, corps) normalisés (`src/gmailagent/agent_dedup.py`).
 
 L'agent classification déclare `message_id_rfc` et `empreinte` dans sa synthèse ; l'orchestrateur **recalcule** ces valeurs depuis la lecture API réelle (`get_message`) et rejette la synthèse en cas d'écart (C6, anti-hallucination — [docs/architecture/validation.md](../architecture/validation.md)).
 

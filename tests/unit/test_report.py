@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from contracts import (
+from gmailagent.agent_contracts import (
     MessageClasse,
     MessageLu,
     Meta,
@@ -10,7 +10,7 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
-from report import aggreger, formater_console
+from gmailagent.pipeline_report import aggreger, formater_console
 
 
 def _meta() -> Meta:

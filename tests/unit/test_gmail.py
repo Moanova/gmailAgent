@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-import gmail
-from gmail import (
+import gmailagent.gmail_client as gmail
+from gmailagent.gmail_client import (
     ClientGmailAPI,
     PlafondLecturesAtteintError,
     TokenGmailError,

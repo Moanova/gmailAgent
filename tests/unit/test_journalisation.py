@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import journalisation
+import gmailagent.core_journalisation as journalisation
 
 
 def test_entete_et_pied_de_page_par_run(

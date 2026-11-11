@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from config import (
+from gmailagent.core_config import (
     Limites,
     Parametres,
     ParametresInvalidesError,
@@ -13,9 +13,9 @@ from config import (
     definir_parametres,
     parametres_courants,
 )
-from gmail import ClientGmailAPI
-from labels import ResolveurLibelles
-from orchestrator import requete_suppression
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.gmail_labels import ResolveurLibelles
+from gmailagent.pipeline_orchestrator import requete_suppression
 
 
 class _Requete:

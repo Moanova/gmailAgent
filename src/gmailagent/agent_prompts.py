@@ -8,7 +8,7 @@ schémas de sortie des agents sont construits dynamiquement (`contracts.schema_a
 
 from typing import Any
 
-from config import RegistreLibelles
+from gmailagent.core_config import RegistreLibelles
 
 _PREFIXE_CATEGORIE = "classification."
 _URGENCES = ["haute", "moyenne", "basse"]

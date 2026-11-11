@@ -8,13 +8,14 @@ from googleapiclient.errors import HttpError
 from httplib2 import Response
 from mistralai.client.models import ToolExecutionEntry
 
-from client import avec_retry
-from config import RegistreLibelles
-from contracts import AGENT_CLASSIFICATION, AGENT_SPAM, Meta
-from dedup import empreinte_message
-from gmail import ClientGmailAPI
-from labels import LibelleGmail, ResolveurLibelles
-from orchestrator import (
+from gmailagent.agent_contracts import AGENT_CLASSIFICATION, AGENT_SPAM, Meta
+from gmailagent.agent_dedup import empreinte_message
+from gmailagent.agent_validation import SyntheseInvalideError, construire_synthese
+from gmailagent.core_client import avec_retry
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.gmail_labels import LibelleGmail, ResolveurLibelles
+from gmailagent.pipeline_orchestrator import (
     Checkpoint,
     CheckpointError,
     charger_checkpoint,
@@ -25,7 +26,6 @@ from orchestrator import (
     requete_suppression,
     sauvegarder_checkpoint,
 )
-from validation import SyntheseInvalideError, construire_synthese
 
 ETAPES_COMPLETES = [
     "demarrage",

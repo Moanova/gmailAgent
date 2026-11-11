@@ -7,9 +7,9 @@ from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 from mistralai.client.errors import SDKError
 
-from config import parametres_courants
-from env import requis
-from journalisation import obtenir_logger
+from gmailagent.core_config import parametres_courants
+from gmailagent.core_env import requis
+from gmailagent.core_journalisation import obtenir_logger
 
 T = TypeVar("T")
 

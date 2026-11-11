@@ -14,10 +14,10 @@ from uuid import uuid4
 import pytest
 from mistralai.client.models import ToolExecutionEntry
 
-from config import RegistreLibelles
-from gmail import ClientGmailAPI
-from orchestrator import charger_checkpoint, lancer_run_tri
-from validation import SyntheseInvalideError
+from gmailagent.agent_validation import SyntheseInvalideError
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.pipeline_orchestrator import charger_checkpoint, lancer_run_tri
 
 REQUETE_NON_LUS = 'is:unread -label:"Agent/traité"'
 
@@ -274,7 +274,7 @@ class TestAgentSpamBoutEnBout:
         rid = uuid4()
         service = _FauxService(threads=[], threads_spam=["t-spam"])
         api = ClientGmailAPI(service, dry_run=True)
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = _scenario_spam_deplaces(ids=["m-inconnu"])
         scenario += [scenario[-1]] * (

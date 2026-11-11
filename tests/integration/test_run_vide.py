@@ -10,13 +10,18 @@ from uuid import uuid4
 
 import pytest
 
-import cli
-from cli import main
-from config import RegistreLibelles
-from contracts import Meta
-from gmail import ClientGmailAPI
-from orchestrator import Checkpoint, charger_checkpoint, lancer_run_tri, sauvegarder_checkpoint
-from validation import construire_synthese
+import gmailagent.cli as cli
+from gmailagent.agent_contracts import Meta
+from gmailagent.agent_validation import construire_synthese
+from gmailagent.cli import main
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.pipeline_orchestrator import (
+    Checkpoint,
+    charger_checkpoint,
+    lancer_run_tri,
+    sauvegarder_checkpoint,
+)
 
 
 def _conversation_vide(agent: str, requete: str, meta: Meta, **kwargs: object):

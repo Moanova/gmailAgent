@@ -2,14 +2,14 @@ import json
 
 import pytest
 
-from config import RegistreLibelles
-from prompts import (
+from gmailagent.agent_prompts import (
     OUTILS_GMAIL,
     categories,
     prompt_classification,
     prompt_spam,
     prompt_suppression,
 )
+from gmailagent.core_config import RegistreLibelles
 
 
 @pytest.fixture

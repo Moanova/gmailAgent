@@ -16,12 +16,12 @@ import json
 import sys
 from uuid import UUID, uuid4
 
-from config import parametres_courants
-from contracts import RapportFinal
-from gmail import ClientGmailAPI
-from journalisation import configurer, marquer_fin_run, obtenir_logger
-from orchestrator import lancer_run_suppression, lancer_run_tri
-from report import formater_console
+from gmailagent.agent_contracts import RapportFinal
+from gmailagent.core_config import parametres_courants
+from gmailagent.core_journalisation import configurer, marquer_fin_run, obtenir_logger
+from gmailagent.gmail_client import ClientGmailAPI
+from gmailagent.pipeline_orchestrator import lancer_run_suppression, lancer_run_tri
+from gmailagent.pipeline_report import formater_console
 
 AIDE_REEL = "exécute les écritures Gmail (par défaut : dry-run, écritures journalisées)"
 

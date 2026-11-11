@@ -2,9 +2,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import config
-from config import RegistreLibelles
-from contracts import MessageClasse, MessageLu, Meta
+import gmailagent.core_config as config
+from gmailagent.agent_contracts import MessageClasse, MessageLu, Meta
+from gmailagent.core_config import RegistreLibelles
 
 
 @pytest.fixture(autouse=True)

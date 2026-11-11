@@ -6,13 +6,7 @@ from uuid import uuid4
 import pytest
 from mistralai.client.models import ToolExecutionEntry
 
-from agents import (
-    GardeFouAtteintError,
-    executer_outil,
-    lancer_conversation,
-)
-from config import RegistreLibelles
-from contracts import (
+from gmailagent.agent_contracts import (
     AGENT_CLASSIFICATION,
     AGENT_SPAM,
     AGENT_SUPPRESSION,
@@ -21,8 +15,14 @@ from contracts import (
     SyntheseSpam,
     SyntheseSuppression,
 )
-from gmail import ClientGmailAPI
-from validation import SyntheseInvalideError
+from gmailagent.agent_runner import (
+    GardeFouAtteintError,
+    executer_outil,
+    lancer_conversation,
+)
+from gmailagent.agent_validation import SyntheseInvalideError
+from gmailagent.core_config import RegistreLibelles
+from gmailagent.gmail_client import ClientGmailAPI
 
 
 @pytest.fixture(autouse=True)
@@ -242,7 +242,7 @@ class TestLancerConversation:
     def test_rejet_synthese_non_authentique(
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         reponses = _conversation_ok()
         reponses[-1] = _Reponse(_Msg(content=_synthese_payload(message_id="m-inconnu")))
@@ -370,7 +370,7 @@ class TestOutilEnEchec:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import journalisation
+        import gmailagent.core_journalisation as journalisation
 
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
         monkeypatch.setattr(journalisation, "_configure", False)
@@ -418,7 +418,7 @@ class TestOutilEnEchec:
     ) -> None:
         """Si l'erreur persiste, la garde de complétude des threads mène à un abandon
         propre (SyntheseInvalideError) — l'exception Gmail n'est jamais propagée."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
@@ -470,7 +470,7 @@ class TestOutilEnEchec:
     ) -> None:
         """Un id passé à un appel en échec ne doit pas pouvoir figurer dans la synthèse
         (C3 porte sur les exécutions réelles réussies)."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
@@ -534,7 +534,7 @@ class TestSyntheseInvalideRebouclee:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Empreinte non conforme à la 1re tentative → retour au modèle → corrigée ensuite."""
-        import journalisation
+        import gmailagent.core_journalisation as journalisation
 
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
         monkeypatch.setattr(journalisation, "_configure", False)
@@ -577,7 +577,7 @@ class TestSyntheseInvalideRebouclee:
         self, registre: RegistreLibelles, meta: Meta
     ) -> None:
         """Le modèle ne corrige jamais → SyntheseInvalideError après max_tentatives_synthese."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         mauvais = json.loads(_synthese_payload())
         mauvais["messages"][0]["empreinte"] = "zz"
@@ -604,8 +604,8 @@ class TestSyntheseInvalideRebouclee:
 
 class TestApercuBorne:
     def test_corps_tronque_et_empreinte_fournie(self) -> None:
-        from agents import _apercu_message
-        from config import parametres_courants
+        from gmailagent.agent_runner import _apercu_message
+        from gmailagent.core_config import parametres_courants
 
         limite_corps = parametres_courants().limites.limite_corps_apercu
         corps_long = "x" * (limite_corps + 500)
@@ -634,8 +634,8 @@ class TestApercuBorne:
         assert set(apercu["entetes"]) == {"Message-ID", "Subject", "From"}
 
     def test_borner_reponse(self) -> None:
-        from agents import _borner_reponse
-        from config import parametres_courants
+        from gmailagent.agent_runner import _borner_reponse
+        from gmailagent.core_config import parametres_courants
 
         limite = parametres_courants().limites.limite_reponse_outil
         texte = _borner_reponse({"data": "y" * (limite + 100)})
@@ -644,7 +644,7 @@ class TestApercuBorne:
 
 class TestNormaliserPayload:
     def test_enveloppe_deja_conforme(self) -> None:
-        from agents import _normaliser_payload
+        from gmailagent.agent_runner import _normaliser_payload
 
         assert _normaliser_payload({"statut": "synthese", "messages": []}) == {
             "statut": "synthese",
@@ -652,20 +652,20 @@ class TestNormaliserPayload:
         }
 
     def test_objet_message_nu_enveloppe(self) -> None:
-        from agents import _normaliser_payload
+        from gmailagent.agent_runner import _normaliser_payload
 
         msg = {"id": "m1", "objet": "S", "expediteur": "e@x.fr", "motif": "m"}
         assert _normaliser_payload(msg) == {"statut": "synthese", "messages": [msg]}
 
     def test_liste_enveloppee(self) -> None:
-        from agents import _normaliser_payload
+        from gmailagent.agent_runner import _normaliser_payload
 
         msgs = [{"id": "m1", "objet": "S"}]
         assert _normaliser_payload(msgs) == {"statut": "synthese", "messages": msgs}
 
     def test_payload_inattendu_rejete(self) -> None:
-        from agents import _normaliser_payload
-        from validation import SyntheseInvalideError
+        from gmailagent.agent_runner import _normaliser_payload
+        from gmailagent.agent_validation import SyntheseInvalideError
 
         with pytest.raises(SyntheseInvalideError, match="inattendu"):
             _normaliser_payload({"foo": "bar"})
@@ -794,7 +794,7 @@ class TestLimiteTentativesSynthese:
     def test_abandon_apres_3_refus(self, registre: RegistreLibelles, meta: Meta) -> None:
         """Le modèle produit indéfiniment une synthèse incomplète -> abandon propre
         après max_tentatives_synthese refus (pas de boucle infinie)."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
@@ -835,7 +835,7 @@ class TestMaxTokens:
     ) -> None:
         """max_tokens par défaut relevé à 8000 (incident réel 04/11 : synthèse tronquée
         à 4000 sur ~50 messages, garde de complétude puis abandon du run)."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         mistral = _FauxMistral(
             [
@@ -884,8 +884,8 @@ class TestModele:
     def test_modele_par_defaut_est_small(
         self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from agents import modele_effectif
-        from config import parametres_courants
+        from gmailagent.agent_runner import modele_effectif
+        from gmailagent.core_config import parametres_courants
 
         monkeypatch.delenv("MISTRAL_MODEL", raising=False)
         assert parametres_courants().modele.defaut == "mistral-small-latest"
@@ -897,7 +897,7 @@ class TestModele:
     def test_modele_surcharge_par_env(
         self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from agents import modele_effectif
+        from gmailagent.agent_runner import modele_effectif
 
         monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4")
         assert modele_effectif(None) == "mistral-large-4"
@@ -908,7 +908,7 @@ class TestModele:
     def test_modele_explicite_prioritaire_sur_env(
         self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from agents import modele_effectif
+        from gmailagent.agent_runner import modele_effectif
 
         monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4")
         assert modele_effectif("mistral-small-latest") == "mistral-small-latest"
@@ -944,7 +944,7 @@ class TestSubstitutionRequete:
     ) -> None:
         """Périmètre : si le modèle modifie la requête, c'est la requête fournie par
         l'orchestrateur qui est exécutée, la dérive étant journalisée."""
-        import journalisation
+        import gmailagent.core_journalisation as journalisation
 
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
         monkeypatch.setattr(journalisation, "_configure", False)
@@ -1040,7 +1040,7 @@ class TestSubstitutionRequete:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import journalisation
+        import gmailagent.core_journalisation as journalisation
 
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "gmailagent.log"))
         monkeypatch.setattr(journalisation, "_configure", False)
@@ -1076,8 +1076,8 @@ class TestBornageParRun:
         """D58 : maxResults est cappé à cap_threads_recherche() = min(max_threads_par_run,
         (plafond_appels_outils - 1 - marge_appels_reprise) // 2) = 23 par défaut — un run
         conforme (1 search + 2 appels/thread) ne peut pas atteindre le garde-fou (50)."""
-        from agents import executer_outil
-        from config import parametres_courants
+        from gmailagent.agent_runner import executer_outil
+        from gmailagent.core_config import parametres_courants
 
         limites = parametres_courants().limites
         cap = limites.cap_threads_recherche()
@@ -1103,8 +1103,8 @@ class TestBornageParRun:
 
     def test_cap_recherche_suit_plafond_personnalise(self) -> None:
         """Le cap est dérivé du budget d'appels : plafond 20, marge 2 -> cap (20-1-2)//2 = 8."""
-        from agents import executer_outil
-        from config import Limites, Parametres, definir_parametres
+        from gmailagent.agent_runner import executer_outil
+        from gmailagent.core_config import Limites, Parametres, definir_parametres
 
         definir_parametres(
             Parametres(limites=Limites(plafond_appels_outils=20, marge_appels_reprise=2))
@@ -1125,7 +1125,7 @@ class TestBornageParRun:
         executer_outil("search_threads", {"query": "q", "maxResults": 50}, client_gmail)
 
     def test_prompt_distinction_id_vs_rfc(self, registre: RegistreLibelles) -> None:
-        from prompts import prompt_classification
+        from gmailagent.agent_prompts import prompt_classification
 
         prompt = prompt_classification(registre)
         assert "jamais le Message-ID RFC" in prompt
@@ -1187,7 +1187,7 @@ class TestIdsResultats:
 
 class TestPromptAgents:
     def test_prompt_spam_selectionne(self, registre: RegistreLibelles) -> None:
-        from agents import _prompt_systeme
+        from gmailagent.agent_runner import _prompt_systeme
 
         prompt = _prompt_systeme(AGENT_SPAM, registre)
         assert "in:spam" in prompt
@@ -1195,7 +1195,7 @@ class TestPromptAgents:
         assert "Agent/" not in prompt
 
     def test_prompt_suppression_selectionne(self, registre: RegistreLibelles) -> None:
-        from agents import _prompt_systeme
+        from gmailagent.agent_runner import _prompt_systeme
 
         prompt = _prompt_systeme(AGENT_SUPPRESSION, registre)
         assert "TRASH" in prompt
@@ -1310,7 +1310,7 @@ class TestConversationSpam:
     def test_rejet_id_inconnu_spam(
         self, registre: RegistreLibelles, meta_spam: Meta
     ) -> None:
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "in:spam"})])),
@@ -1457,7 +1457,7 @@ class TestConversationSuppression:
     def test_rejet_c3_id_non_manipule(
         self, registre: RegistreLibelles, meta_suppression: Meta
     ) -> None:
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),
@@ -1516,7 +1516,7 @@ class TestConversationSuppression:
     ) -> None:
         """La synthèse ne correspond jamais aux mises à la corbeille réelles -> abandon
         propre après max_tentatives_synthese refus (pas de boucle infinie)."""
-        from config import parametres_courants
+        from gmailagent.core_config import parametres_courants
 
         scenario = [
             _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": REQUETE_SUPPRESSION})])),

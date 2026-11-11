@@ -8,8 +8,8 @@ import structlog.processors
 import structlog.stdlib
 from structlog.types import Processor
 
-from config import parametres_courants
-from env import optionnel
+from gmailagent.core_config import parametres_courants
+from gmailagent.core_env import optionnel
 
 _configure = False
 _run_id_courant: str | None = None

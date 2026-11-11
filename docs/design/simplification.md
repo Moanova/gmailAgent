@@ -18,9 +18,9 @@ Toutes les simplifications ci-dessous ont été **évaluées puis approuvées** 
 
 ### Volet spam
 - **Factoriser les branchements** `_lancer_spam`/`_lancer_classification`/`_lancer_suppression`
-  (~25 lignes quasi identiques chacun, `src/orchestrator.py`) → un helper `_lancer_etape(...)`.
+  (~25 lignes quasi identiques chacun, `src/gmailagent/pipeline_orchestrator.py`) → un helper `_lancer_etape(...)`.
   → T9.6, quick win sûr.
-- **Factoriser le bloc « lecture » commun aux 3 prompts** (`src/prompts.py` : « Obligatoire :
+- **Factoriser le bloc « lecture » commun aux 3 prompts** (`src/gmailagent/agent_prompts.py` : « Obligatoire :
   `search_threads`, puis `get_thread` sur chaque thread… » recopié à l'identique) → bloc injecté.
   → T9.6, quick win sûr.
 - **Court-circuit spam vide** : si `search_threads` renvoie 0 thread, rendre `aucun_message`
@@ -36,7 +36,7 @@ Toutes les simplifications ci-dessous ont été **évaluées puis approuvées** 
 - **Validation en une passe** : fusionner `_recalculer_empreintes` (C6, un `get_message` par
   message) et `_appliquer_libelles_classification` en une seule boucle → moitié des lectures API
   à l'étape `validation_classification`. → **T9.7**, quick win sûr.
-- **Unifier les mécanismes de refus** dans `lancer_conversation` (`src/agents.py`) : D56 (erreur
+- **Unifier les mécanismes de refus** dans `lancer_conversation` (`src/gmailagent/agent_runner.py`) : D56 (erreur
   d'outil), D57 (synthèse invalide), gardes « threads non lus » / « messages non classés » /
   « écart corbeille » → un seul mécanisme « refus avec motif renvoyé au modèle + compteur ».
   Critère d'acceptation : tests existants verts **sans modification**. → **T9.8**, refactor à
@@ -46,7 +46,7 @@ Toutes les simplifications ci-dessous ont été **évaluées puis approuvées** 
 - **Supprimer la clause inerte** `OR label:"Agent/doublon"` de `requete_suppression` (D46,
   phase 6 post-v1 ; à ré-ajouter à la reprise) + l'appel `resoudre(CLE_DOUBLON)` associé.
   Approuvé (D59). → T9.6.
-- **Supprimer la méthode morte `corbeille()`** de `src/gmail.py` (jamais appelée — le TRASH
+- **Supprimer la méthode morte `corbeille()`** de `src/gmailagent/gmail_client.py` (jamais appelée — le TRASH
   passe par `label_message`) + ses tests. Approuvé (D59). → T9.6.
 - Le reste du volet est volontairement contraint (seul volet avec écritures) : corbeille
   uniquement, UNREAD jamais retiré, `notification` seule éligible (D47) — inchangé.
