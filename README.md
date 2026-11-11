@@ -24,7 +24,7 @@ python -m venv .venv
 .venv/bin/pip install -e ".[dev]"    # Windows : .venv\Scripts\pip.exe ...
 ```
 
-La commande `gmailagent` est alors disponible (point d'entrée `cli:main`).
+La commande `gmailagent` est alors disponible (point d'entrée `gmailagent.cli:main` ; équivalent : `python -m gmailagent`).
 
 ## Configuration
 
@@ -56,7 +56,7 @@ Exemples :
 gmailagent tri                                   # dry-run : lecture réelle, zéro écriture Gmail
 gmailagent tri --run-id 7e2337c1-...             # reprise sur incident (même run_id)
 gmailagent tri --reel                            # écritures réelles — petit périmètre d'abord
-python -m gmailagent.cli migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage de libellé
+python -m gmailagent migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage de libellé (≡ gmailagent migrate-labels …)
 ```
 
 Aide : `gmailagent --help`, `gmailagent tri --help`.

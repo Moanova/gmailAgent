@@ -253,3 +253,44 @@ Aucun.
 Commit + push sur `dev` effectués sur demande explicite de l'utilisateur (règles C/H), en un
 seul commit atomique (passe complète : déplacement + imports + pyproject + doc). Validation
 utilisateur (test réel) en cours côté utilisateur → T9.10 reste « En revue » en attendant.
+
+---
+
+## Séance du 11/11/2026 (suite 12) — T9.10 : ajout de `__main__.py`, validation, commit/push
+
+### Contexte
+Après le commit `a6cf216` (T9.10), incident utilisateur sur le poste Windows : le script console
+du venv (`gmailagent.exe_main*.py`) contenait encore l'ancien point d'entrée `from cli import
+main` → `ModuleNotFoundError: No module named 'cli'`. Diagnostic : réinstaller le venv
+(`pip install -e ".[dev]"`) après tout pull modifiant `pyproject.toml` ; contournement
+`python -m gmailagent.cli`. L'utilisateur confirme ensuite `gmailagent tri --reel --tout`
+sans régression (validation T9.10, étape 6) et demande `__main__.py` (plutôt que `src/cli.py`
+racine, écarté pour éviter la collision du nom nu `cli`), puis commit/push.
+
+### Actions réalisées
+
+1. **`src/gmailagent/__main__.py`** créé → `python -m gmailagent …` ≡ commande `gmailagent`
+   (exit code propagé via `sys.exit(main())`). README mis à jour (point d'entrée
+   `gmailagent.cli:main`, exemple `python -m gmailagent migrate-labels …`).
+2. **Validation** : `pytest tests -q` → 302 passed ; `mypy src` → propre (16 fichiers) ;
+   `ruff check src tests` → 1 erreur pré-existante (SIM102) ; smoke `gmailagent --help`,
+   `python -m gmailagent.cli --help`, `python -m gmailagent --help` → OK.
+3. **Kanban** : T9.10 « En revue » → **« Terminé »** (validation utilisateur confirmée : test
+   réel sans régression). Fichier de suivi T9.10 : cases cochées + note `__main__.py`.
+4. **Commit + push sur `dev`** (demande explicite, règles C/H).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D65 | Point d'entrée `python -m gmailagent` via `src/gmailagent/__main__.py` ; `src/cli.py` racine écarté | Visibilité du CLI sans réintroduire un module racine au nom nu `cli` (risque de collision/masquage). |
+
+### Blocages
+
+Aucun. Note récurrente : après un pull modifiant `pyproject.toml`, réexécuter
+`pip install -e ".[dev]"` dans le venv pour régénérer les scripts console.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (T9.10 finalisée).
+- Kanban : **En cours** = vide ; **En revue** = vide ; **À faire** = vide ; **Terminé** = T1.1–T9.10 (projet terminé côté tâches prévues).
