@@ -75,6 +75,8 @@ contexte (voir AGENTS.md, §1).
 | 11/11/2026 | Séance du 11/11/2026 (suite 6) — T9.9 lot 1 : docs/architecture/ canoniques + références | [archive](docs/sessions-archive.md) |
 | 11/11/2026 | Séance du 11/11/2026 (suite 7) — T9.9 lot 2 : demandes complémentaires de restructuration (sans commit) | [archive](docs/sessions-archive.md) |
 | 11/11/2026 | Séance du 11/11/2026 (suite 8) — T9.9 lot 3 : conservation de `conception-studio-apps.md` (D63) + découpe de SESSIONS.md | ci-dessous |
+| 11/11/2026 | Séance du 11/11/2026 (suite 13) — T10.1 créée (étude exécutable autonome, v2, D66) + board Miro synchronisé | ci-dessous |
+| 11/11/2026 | Séance du 11/11/2026 (suite 14) — plan-macro.md mis à jour avec arborescence, scripts et libellés réels | ci-dessous |
 
 ---
 
@@ -294,3 +296,91 @@ Aucun. Note récurrente : après un pull modifiant `pyproject.toml`, réexécute
 
 - Branche `dev` : commit + push effectués (T9.10 finalisée).
 - Kanban : **En cours** = vide ; **En revue** = vide ; **À faire** = vide ; **Terminé** = T1.1–T9.10 (projet terminé côté tâches prévues).
+
+---
+
+## Séance du 11/11/2026 (suite 13) — T10.1 créée (étude exécutable autonome, v2) + board Miro synchronisé
+
+### Contexte
+L'utilisateur demande la création d'une tâche kanban (phase 10) pour l'**étude du packaging en
+exécutable autonome**, dans le cadre d'une éventuelle **v2** à deux matérialisations du même
+service : (1) exécutable autonome sur poste de travail, (2) application déployée sur Mistral
+Studio (base `docs/design/conception-studio-apps.md`, D63). Il demande aussi la mise à jour du
+board Miro gmailAgent pour finaliser proprement le projet. Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **Kanban** (`docs/projet/kanban.md`) : T10.1 ajoutée en « À faire » ; description ajoutée en
+   fin de fichier (étude v2, périmètre volet exécutable, point dur `RACINE_PROJET`, livrable
+   `docs/design/packaging-executable.md`) ; note de phase 10 ajoutée dans l'intro (phase 10 hors
+   kanban sur le poste utilisateur, T10.1 seule tâche = étude v2).
+2. **Fichier de suivi** : `docs/projet/tasks/T10.1_etude_packaging_executable_autonome.md` créé
+   (statut, origine, périmètre, livrables, blocages).
+3. **Board Miro** : synchronisé avec `docs/projet/kanban.md` via le connecteur MCP configuré
+   (T1.1–T9.10 en « Terminé » → lane « Fait », T10.1 en « À faire » ; T5.2/T3.5 ramenées en
+   « Fait », 18 lignes T7.1–T10.1 ajoutées, 2 lignes fantômes du board de test 04/11 supprimées
+   sur confirmation utilisateur).
+4. **Vérifications** : liens internes OK ; `pytest tests -q` → 302 passed (docs uniquement,
+   inchangé) ; `ruff check src tests` et `mypy src` inchangés (aucun changement de code).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D66 | v2 envisagée avec deux matérialisations du même service : exécutable autonome (poste de travail) + application déployée sur Mistral Studio ; tâche d'étude T10.1 (phase 10) créée pour le volet exécutable | Demande utilisateur 11/11/2026 ; base Studio = `conception-studio-apps.md` (D63). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — kanban, fichier de suivi T10.1,
+  SESSIONS.md (ainsi que la mise à jour du suivi T9.10 laissée telle quelle en local).
+- Kanban : **À faire** = T10.1 ; **En cours** = vide ; **En revue** = vide ; **Terminé** = T1.1–T9.10.
+- Board Miro : synchronisé avec le kanban.
+- Reste à faire (hors périmètre) : suppression de `docs/projet/plan-macro.md` en fin de projet
+  (demande utilisateur antérieure).
+
+---
+
+## Séance du 11/11/2026 (suite 14) — plan-macro.md mis à jour avec les valeurs réelles
+
+### Contexte
+Finalisation « propre » du projet : l'utilisateur demande de mettre à jour
+`docs/projet/plan-macro.md` avec l'arborescence réelle du projet, les noms réels des
+modules/scripts et les valeurs réelles des libellés de `config/labels.yaml`. Pas de
+commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **`docs/projet/plan-macro.md`** :
+   - §1 : bloc YAML remplacé par le contenu réel de `config/labels.yaml`
+     (`a-repondre` → `Agent/pour-réponse` ; ajout de `suivi.spam-confirme` →
+     `Agent/spam-confirme`) ;
+   - §2 « Arborescence cible » → « Arborescence réelle du projet » : arbre réel (package
+     `src/gmailagent/` option E D64, `config/settings.yaml`, `scripts/init_oauth.py`,
+     `tests/unit` + `tests/integration`, `docs/`, `data/` et `logs/` runtime ignorés par git,
+     points d'entrée `gmailagent` et `python -m gmailagent`) ;
+   - §3 : phase 2 `validation.py` → `agent_validation.py` ; phase 4 ajout de
+     `Agent/spam-confirme` et de la requête spam réelle `in:spam -label:"Agent/spam-confirme"`
+     (D61) ; phase 7 requête de suppression réelle (clause `doublon` retirée, D59) ;
+     phase 9 sortie réelle (302 tests, CI écartée D48) ;
+   - §4 : clause `doublon` du run de suppression notée retirée en v1 (D59).
+2. **Vérifications** : `pytest tests -q` → 302 passed (docs uniquement, inchangé) ; liens OK.
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — SESSIONS.md, plan-macro.md
+  (cette séance) + kanban.md, suivi T10.1, SESSIONS.md (suite 13) + suivi T9.10 préexistant.
+- Kanban : inchangé — **À faire** = T10.1 ; **Terminé** = T1.1–T9.10.
+- `plan-macro.md` est désormais maintenu avec les valeurs réelles ; sa suppression en fin de
+  projet reste à arbitrer par l'utilisateur.
