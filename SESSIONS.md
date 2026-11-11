@@ -2415,3 +2415,79 @@ Aucun.
 - Prochaine étape : validation utilisateur T9.7 (étape 6) → « Terminé » sur demande, puis
   T9.8 (unification des mécanismes de refus dans le runner — refactor à risque maîtrisé,
   tests existants à garder verts à l'identique).
+
+---
+
+## Séance du 11/11/2026 (suite 3) — validation T9.7 + démarrage T9.8 (plan)
+
+### Contexte
+L'utilisateur a validé T9.7 (test terminé en succès, étape 6) et demande le plan
+d'implémentation de la tâche suivante (T9.8). Contrainte maintenue : code/commentaires bornés
+aux points présents dans les documents de conception et de spécification.
+
+### Actions réalisées
+
+1. **Kanban** : T9.7 « En revue » → **« Terminé »** ; T9.8 « À faire » → **« En cours »**.
+   Fichiers de suivi T9.7 (validation cochée) et T9.8 (plan établi) mis à jour.
+2. **Plan T9.8 établi** (voir réponse de séance) — aucune modification de code pour l'instant.
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : à jour avec `origin/dev` (`17be0fd`, T9.7 poussé) ; mises à jour doc de cette
+  séance (kanban, fichiers de suivi, SESSIONS.md) **non commitées** (règle C).
+- Kanban : **En cours** = T9.8 ; **En revue** = vide ; **À faire** = T9.9 ;
+  **Terminé** = T1.1–T9.7.
+- Prochaine étape : implémentation de T9.8 sur demande explicite (plan ci-dessus) — critère
+  d'acceptation : couverture de tests existante verte **sans modification** (302 tests) ;
+  puis ruff/mypy/pytest, kanban → « En revue », commit/push sur `dev` sur demande explicite.
+
+---
+
+## Séance du 11/11/2026 (suite 4) — implémentation T9.8 (unification des refus dans le runner)
+
+### Contexte
+Demande utilisateur explicite d'implémenter T9.8, puis commit + push sur `dev` (règles C/H).
+Contrainte maintenue : code/commentaires bornés aux points présents dans les documents de
+conception et de spécification (D56/D57 documentés dans le kanban T9.2/T9.3 et ce journal).
+
+### Actions réalisées
+
+1. **`src/agents.py`** : nouveau helper module `_refuser(messages, contenu_final, motif, *,
+   evenement, abandon, tentatives, limite, cause=None, **log_kwargs) -> int` (incrémente le
+   compteur de tentatives, lève `SyntheseInvalideError` au-delà de `max_tentatives_synthese`,
+   journalise, append `AssistantMessage` + `UserMessage(motif)`, retourne le nouveau compteur).
+   Les 4 gardes post-synthèse (threads non lus ; synthèse invalide ; écart corbeille/ids ;
+   messages lus non classés) y renvoient avec leurs textes **inchangés** (`cause` préserve le
+   `raise ... from erreur_synthese` de la garde validation). Le refus de niveau outil
+   (erreur d'outil → `ToolMessage`, kanban T9.2) reste à part, décompté en appels d'outils.
+2. **Critère d'acceptation atteint** : `pytest tests -q` → **302 passed sans aucune
+   modification de test** ; `mypy src` → propre ; `ruff check src tests` → 1 erreur
+   pré-existante (SIM102 `src/validation.py:145`, hors périmètre).
+3. **Docs** : kanban (T9.8 → « En revue » ; T9.7 restée « Terminé » après validation utilisateur),
+   fichier de suivi T9.8, `tests/plan_tests.md`, ce journal. Mises à jour doc de la séance
+   précédente (validation T9.7 + démarrage T9.8) incluses dans le commit.
+4. **Commit + push sur `dev`** (demande explicite).
+
+### Décisions clés
+
+Aucune nouvelle (T9.8 approuvée D60 ; critère « tests existants verts à l'identique » rempli).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (T9.8).
+- Kanban : **En cours** = vide ; **En revue** = T9.8 ; **À faire** = T9.9 ;
+  **Terminé** = T1.1–T9.7.
+- Prochaine étape : validation utilisateur T9.8 (étape 6) → « Terminé » sur demande, puis
+  **T9.9** (remise à plat arborescence + documents, dont la définition canonique de C1–C6).

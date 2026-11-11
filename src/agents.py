@@ -257,6 +257,36 @@ def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
     raise AgentInconnuError(f"agent sans prompt : {agent!r}")
 
 
+def _refuser(
+    messages: list[Message],
+    contenu_final: str,
+    motif: str,
+    *,
+    evenement: str,
+    abandon: str,
+    tentatives: int,
+    limite: int,
+    cause: BaseException | None = None,
+    **log_kwargs: Any,
+) -> int:
+    """Mécanisme unique de refus renvoyé au modèle (T9.8) : incrémente le compteur de
+    tentatives de synthèse, lève `SyntheseInvalideError` au-delà de la limite
+    (`max_tentatives_synthese`, `config/settings.yaml`), journalise l'événement, puis
+    append `AssistantMessage` + `UserMessage(motif)`. Retourne le nouveau compteur.
+    Le refus de niveau outil (erreur d'outil -> `ToolMessage {"erreur": ...}`, kanban T9.2)
+    reste à part : il est décompté en appels d'outils, pas en tentatives de synthèse."""
+    nouvelle = tentatives + 1
+    if nouvelle > limite:
+        erreur = SyntheseInvalideError(abandon)
+        if cause is not None:
+            raise erreur from cause
+        raise erreur
+    obtenir_logger("agents").warning(evenement, tentative=nouvelle, **log_kwargs)
+    messages.append(AssistantMessage(role="assistant", content=contenu_final))
+    messages.append(UserMessage(content=motif, role="user"))
+    return nouvelle
+
+
 def lancer_conversation(
     agent: str,
     requete: str,
@@ -430,29 +460,24 @@ def lancer_conversation(
             raise SyntheseInvalideError("contenu final de l'agent non textuel")
         manquants = sorted(threads_trouves - threads_lus)
         if manquants:
-            tentatives_synthese += 1
-            if tentatives_synthese > limites.max_tentatives_synthese:
-                raise SyntheseInvalideError(
+            tentatives_synthese = _refuser(
+                messages,
+                contenu_final,
+                (
+                    "Synthèse incomplète : tu n'as pas encore lu "
+                    f"{len(manquants)} thread(s) retourné(s) par search_threads "
+                    f"(ids : {', '.join(manquants[:10])}{'…' if len(manquants) > 10 else ''}). "
+                    "Appelle get_thread sur chacun d'eux avant de produire la synthèse."
+                ),
+                evenement="synthese refusee : threads non lus",
+                abandon=(
                     f"synthèse incomplète après {limites.max_tentatives_synthese} tentatives : "
                     f"{len(manquants)} thread(s) non lus — abandon du run"
-                )
-            log.warning(
-                "synthese refusee : threads non lus",
+                ),
+                tentatives=tentatives_synthese,
+                limite=limites.max_tentatives_synthese,
                 manquants=manquants[:10],
                 total=len(manquants),
-                tentative=tentatives_synthese,
-            )
-            messages.append(AssistantMessage(role="assistant", content=contenu_final))
-            messages.append(
-                UserMessage(
-                    content=(
-                        "Synthèse incomplète : tu n'as pas encore lu "
-                        f"{len(manquants)} thread(s) retourné(s) par search_threads "
-                        f"(ids : {', '.join(manquants[:10])}{'…' if len(manquants) > 10 else ''}). "
-                        "Appelle get_thread sur chacun d'eux avant de produire la synthèse."
-                    ),
-                    role="user",
-                )
             )
             continue
         try:
@@ -461,31 +486,27 @@ def lancer_conversation(
             ids_reels = collecter_ids_reels(list(executions)) | ids_resultats
             valider_synthese(synthese, ids_reels)
         except (ExtractionJsonError, SyntheseInvalideError, ValidationError) as erreur_synthese:
-            tentatives_synthese += 1
-            if tentatives_synthese > limites.max_tentatives_synthese:
-                raise SyntheseInvalideError(
+            tentatives_synthese = _refuser(
+                messages,
+                contenu_final,
+                (
+                    f"Synthèse invalide (tentative {tentatives_synthese + 1}/"
+                    f"{limites.max_tentatives_synthese}) : {erreur_synthese}. "
+                    "Corrige ta réponse pour qu'elle soit conforme au schéma imposé "
+                    "(statut, messages, champs requis et formats — ex. `message_id_rfc` "
+                    "normalisé sans chevrons `<>`, `empreinte` SHA-256 en 64 caractères "
+                    "hexadécimaux)."
+                ),
+                evenement="synthese refusee : validation",
+                abandon=(
                     f"synthèse invalide après {limites.max_tentatives_synthese} tentatives "
                     f"— abandon du run : {erreur_synthese}"
-                ) from erreur_synthese
-            log.warning(
-                "synthese refusee : validation",
+                ),
+                tentatives=tentatives_synthese,
+                limite=limites.max_tentatives_synthese,
+                cause=erreur_synthese,
                 agent=agent,
                 erreur=repr(erreur_synthese),
-                tentative=tentatives_synthese,
-            )
-            messages.append(AssistantMessage(role="assistant", content=contenu_final))
-            messages.append(
-                UserMessage(
-                    content=(
-                        f"Synthèse invalide (tentative {tentatives_synthese}/"
-                        f"{limites.max_tentatives_synthese}) : {erreur_synthese}. "
-                        "Corrige ta réponse pour qu'elle soit conforme au schéma imposé "
-                        "(statut, messages, champs requis et formats — ex. `message_id_rfc` "
-                        "normalisé sans chevrons `<>`, `empreinte` SHA-256 en 64 caractères "
-                        "hexadécimaux)."
-                    ),
-                    role="user",
-                )
             )
             continue
         if agent == AGENT_SUPPRESSION and isinstance(synthese, SyntheseSuppression):
@@ -493,32 +514,27 @@ def lancer_conversation(
             if synthese.statut != "supprimes":
                 ecart |= ids_corbeille
             if ecart:
-                tentatives_synthese += 1
-                if tentatives_synthese > limites.max_tentatives_synthese:
-                    raise SyntheseInvalideError(
+                tentatives_synthese = _refuser(
+                    messages,
+                    contenu_final,
+                    (
+                        "Synthèse incohérente : "
+                        f"{len(ecart)} id(s) en écart entre les messages réellement "
+                        "passés à la corbeille (label_message avec TRASH) et le champ "
+                        f"`ids` de ta synthèse (ids : {', '.join(sorted(ecart)[:10])}). "
+                        "Corrige `ids` et `count` pour qu'ils correspondent exactement "
+                        "aux messages mis à la corbeille."
+                    ),
+                    evenement="synthese refusee : ecart corbeille reelle / ids",
+                    abandon=(
                         f"synthèse incohérente avec les mises à la corbeille réelles "
                         f"après {limites.max_tentatives_synthese} tentatives — écart : "
                         f"{sorted(ecart)[:10]} — abandon du run"
-                    )
-                log.warning(
-                    "synthese refusee : ecart corbeille reelle / ids",
+                    ),
+                    tentatives=tentatives_synthese,
+                    limite=limites.max_tentatives_synthese,
                     ecart=sorted(ecart)[:10],
                     total=len(ecart),
-                    tentative=tentatives_synthese,
-                )
-                messages.append(AssistantMessage(role="assistant", content=contenu_final))
-                messages.append(
-                    UserMessage(
-                        content=(
-                            "Synthèse incohérente : "
-                            f"{len(ecart)} id(s) en écart entre les messages réellement "
-                            "passés à la corbeille (label_message avec TRASH) et le champ "
-                            f"`ids` de ta synthèse (ids : {', '.join(sorted(ecart)[:10])}). "
-                            "Corrige `ids` et `count` pour qu'ils correspondent exactement "
-                            "aux messages mis à la corbeille."
-                        ),
-                        role="user",
-                    )
                 )
                 continue
         ids_synthese = {
@@ -530,31 +546,26 @@ def lancer_conversation(
             and messages_manquants
             and synthese.statut not in ("aucun_message", "echec_technique")
         ):
-            tentatives_synthese += 1
-            if tentatives_synthese > limites.max_tentatives_synthese:
-                raise SyntheseInvalideError(
+            tentatives_synthese = _refuser(
+                messages,
+                contenu_final,
+                (
+                    "Synthèse incomplète : "
+                    f"{len(messages_manquants)} message(s) lu(s) via get_thread "
+                    "ou get_message ne figurent pas dans ta synthèse (ids : "
+                    f"{', '.join(messages_manquants[:10])}"
+                    f"{'…' if len(messages_manquants) > 10 else ''}). "
+                    "Classe CHACUN des messages lus avant de produire la synthèse."
+                ),
+                evenement="synthese refusee : messages lus non classes",
+                abandon=(
                     f"synthèse incomplète après {limites.max_tentatives_synthese} tentatives : "
                     f"{len(messages_manquants)} message(s) lus non classés — abandon du run"
-                )
-            log.warning(
-                "synthese refusee : messages lus non classes",
+                ),
+                tentatives=tentatives_synthese,
+                limite=limites.max_tentatives_synthese,
                 manquants=messages_manquants[:10],
                 total=len(messages_manquants),
-                tentative=tentatives_synthese,
-            )
-            messages.append(AssistantMessage(role="assistant", content=contenu_final))
-            messages.append(
-                UserMessage(
-                    content=(
-                        "Synthèse incomplète : "
-                        f"{len(messages_manquants)} message(s) lu(s) via get_thread "
-                        "ou get_message ne figurent pas dans ta synthèse (ids : "
-                        f"{', '.join(messages_manquants[:10])}"
-                        f"{'…' if len(messages_manquants) > 10 else ''}). "
-                        "Classe CHACUN des messages lus avant de produire la synthèse."
-                    ),
-                    role="user",
-                )
             )
             continue
         log.info("synthese validee", agent=agent, statut=synthese.statut, dry_run=dry_run)
