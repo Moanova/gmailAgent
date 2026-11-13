@@ -9,7 +9,9 @@ chemins:
   journal: logs/gmailagent.log   # LOG_FILE prioritaire si définie
 
 modele:
-  defaut: mistral-small-latest    # MISTRAL_MODEL prioritaire si définie (ex. mistral-large-4)
+  defaut: mistral-small-latest    # MISTRAL_MODEL prioritaire si définie (ex. mistral-large-4, zai-glm-latest)
+  temperature: 0.0                # échantillonnage glouton (déterministe, T9.11) ; règle API 3054 : temperature=0 exige top_p=1 (imposé strictement par mistral-large-latest)
+  top_p: 1.0                      # nucleus sampling ; 1 = aucune troncature (obligatoire en glouton)
 
 limites:
   max_tokens: 8000                # relevé de 4000 à 8000 le 04/11/2026 après incident réel (--tout --reel, ~50 messages : synthèse tronquée, run abandonné)

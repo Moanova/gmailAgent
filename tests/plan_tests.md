@@ -6,7 +6,7 @@ Les tests ont été écrits **par phase, avec chaque tâche** (chaque tâche du
 recense tels qu'ils existent réellement (audit de couverture), il ne décrit pas un
 plan idéalisé.
 
-État au 11/11/2026 : **302 tests, tous verts** — 279 unitaires (TU) + 23 d'intégration
+État au 13/11/2026 : **312 tests, tous verts** — 289 unitaires (TU) + 23 d'intégration
 (TI). Recensement : `python -m pytest tests --collect-only -q`.
 
 ## Conventions
@@ -25,13 +25,13 @@ plan idéalisé.
 
 ## Recensement par fichier
 
-### Tests unitaires (`tests/unit/`, 279 tests)
+### Tests unitaires (`tests/unit/`, 289 tests)
 
 | Fichier | Nb | Portée | Tâches |
 | --- | --- | --- | --- |
 | `test_contracts.py` | 62 | Modèles Pydantic, en-tête `meta`, schémas JSON stricts dynamiques (enums depuis le registre), `ResumeRun`, `RapportFinal.resume` (rétro-compat), union discriminée `SyntheseEtape` (D44) | T2.1, T2.2, T2.4, T8.1 |
 | `test_validation.py` | 40 | `extraire_json`, `collecter_ids_reels`, `valider_synthese` (C1–C6), `construire_synthese` (normalisation `message_id_rfc` avant validation, D57) | T2.3, T2.4, T9.3 |
-| `test_agents.py` | 54 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56), synthèse invalide rebouclée au modèle + `message_id_rfc` normalisé (D57), cap de `search_threads` dérivé du budget d'appels + budget énoncé au modèle (D58), court-circuit `aucun_message` sans appel au modèle si 0 thread (T9.6), unification des refus post-synthèse via `_refuser` (T9.8, refactor interne sans changement de comportement) | T4.2, T5.2, T7.2, T9.2, T9.3, T9.4, T9.6, T9.8 |
+| `test_agents.py` | 59 | Runner `lancer_conversation` (boucle tool-calls, garde-fou, plafonds), prompts sélectionnés par agent, gardes de complétude (threads lus, messages classés, corbeille réelle == `ids`), rejets C3, abandon après 3 refus, erreurs d'outils renvoyées au modèle + warning `outil en echec` (D56), synthèse invalide rebouclée au modèle + `message_id_rfc` normalisé (D57), cap de `search_threads` dérivé du budget d'appels + budget énoncé au modèle (D58), court-circuit `aucun_message` sans appel au modèle si 0 thread (T9.6), unification des refus post-synthèse via `_refuser` (T9.8, refactor interne sans changement de comportement), contenu en chunks : texte seul retenu, raisonnement ignoré, refus propre si aucun chunk `text` + sampling `temperature`/`top_p` passé depuis la config (T9.11) | T4.2, T5.2, T7.2, T9.2, T9.3, T9.4, T9.6, T9.8, T9.11 |
 | `test_orchestrator.py` | 35 | Requêtes depuis le registre (idempotence, spam avec exclusion `spam-confirme` T9.6, suppression D47 + clause doublon retirée D59), cycle de run, checkpoints, reprise sur incident, étapes 1–4 (spam/classification, pose `spam-confirme` sur `aucun_message` T9.6), validation classification en une passe `_valider_et_labelliser_classification` (T9.7 : un seul `messages.get` par message, rejet recalcul C6 avant toute écriture), run de suppression (T7.3), `resume` des rapports (T8.2) | T3.2, T4.3, T5.4, T7.3, T8.2, T9.6, T9.7 |
 | `test_prompts.py` | 20 | Prompts sans libellé physique en dur, enums/clés depuis le registre, conservatisme/véracité, corbeille uniquement, catégorie notification seule éligible (D47), bloc « lecture » commun injecté dans les 3 prompts (T9.6), schémas d'outils | T4.1, T5.1, T7.1, T9.6 |
 | `test_cli.py` | 20 | Parsing (`--reel`, `--run-id`, `--tout`), dry-run par défaut, commandes `tri`/`suppression`/`migrate-labels`, résumé console (T8.2), boucle `--tout` (`TestTout` : épuisement, plafond, dry-run 1 run, arrêt sur échec) | T3.3, T7.3, T8.2, T3.5 |
@@ -39,7 +39,7 @@ plan idéalisé.
 | `test_dedup.py` | 11 | Normalisation (Message-ID RFC, sujet, corps), SHA-256 déterministe, `empreinte_message` depuis `get_thread` | T5.3 |
 | `test_report.py` | 8 | `aggreger` (comptes déterministes), `formater_console` (résumé, aucun `Agent/` en dur) | T8.2 |
 | `test_journalisation.py` | 2 | Bornes de run `debut_run`/`fin_run` horodatées dans le log | modif. journalisation 04/11/2026 |
-| `test_config.py` | 12 | Paramètres (défauts du code, `settings.yaml`, fusion partielle, rejets), `Limites.cap_threads_recherche()` et invariant budget `plafond ≥ 2×cap + 1 + marge` (D58), câblages (requête suppression, `max_resultats`) | T1.5, T9.4 |
+| `test_config.py` | 17 | Paramètres (défauts du code, `settings.yaml`, fusion partielle, rejets), `Limites.cap_threads_recherche()` et invariant budget `plafond ≥ 2×cap + 1 + marge` (D58), câblages (requête suppression, `max_resultats`), sampling `modele.temperature`/`top_p` : défauts, bornes, règle glouton `temperature=0` ⇒ `top_p=1` (T9.11) | T1.5, T9.4, T9.11 |
 
 ### Tests d'intégration (`tests/integration/`, 23 tests)
 

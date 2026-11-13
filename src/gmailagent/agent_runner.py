@@ -1,8 +1,8 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : agent_runner.py
-# Version      : 1.0
-# Date         : 11-11-2026
+# Version      : 1.1
+# Date         : 13-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
 # -------------------------------------------------------------------
@@ -268,6 +268,31 @@ def _normaliser_payload(payload: Any) -> dict[str, Any]:
     )
 
 
+def _contenu_texte(contenu: Any) -> str:
+    """Extrait le texte d'un contenu de message : `str` tel quel ; liste de chunks (réponse des
+    modèles récents, ex. `mistral-large-latest`) -> concaténation des champs `text` des chunks de
+    type `"text"` uniquement — le raisonnement (`ThinkChunk`, type `"thinking"`) est ignoré (T9.11).
+    `None` ou tout autre forme -> chaîne vide (le refus de synthèse passera alors par
+    `extraire_json` -> `_refuser`)."""
+    if isinstance(contenu, str):
+        return contenu
+    if not isinstance(contenu, list):
+        return ""
+    textes: list[str] = []
+    for chunk in contenu:
+        if isinstance(chunk, dict):
+            if chunk.get("type") != "text":
+                continue
+            texte = chunk.get("text")
+        else:
+            if getattr(chunk, "type", None) != "text":
+                continue
+            texte = getattr(chunk, "text", None)
+        if isinstance(texte, str):
+            textes.append(texte)
+    return "".join(textes)
+
+
 def _prompt_systeme(agent: str, registre: RegistreLibelles) -> str:
     """Retourne le prompt système de l'agent demandé ; lève `AgentInconnuError` sinon."""
     if agent == AGENT_CLASSIFICATION:
@@ -325,6 +350,7 @@ def lancer_conversation(
     """Lance une conversation éphémère et retourne (synthèse validée, exécutions réussies)."""
     log = obtenir_logger("agents")
     limites = parametres_courants().limites
+    param_modele = parametres_courants().modele
     modele = modele_effectif(modele)
     if max_tokens is None:
         max_tokens = limites.max_tokens
@@ -335,6 +361,8 @@ def lancer_conversation(
         agent=agent,
         modele=modele,
         max_tokens=max_tokens,
+        temperature=param_modele.temperature,
+        top_p=param_modele.top_p,
         dry_run=dry_run,
     )
     messages: list[Message] = [
@@ -369,7 +397,8 @@ def lancer_conversation(
                 messages=messages,
                 tools=outils,
                 response_format=format_sortie,
-                temperature=0.0,
+                temperature=param_modele.temperature,
+                top_p=param_modele.top_p,
                 max_tokens=max_tokens,
             )
         )
@@ -378,7 +407,7 @@ def lancer_conversation(
             raise SyntheseInvalideError("réponse Mistral sans message")
         appels_tool = message.tool_calls
         if appels_tool:
-            contenu = message.content if isinstance(message.content, str) else ""
+            contenu = _contenu_texte(message.content)
             messages.append(
                 AssistantMessage(
                     role="assistant",
@@ -477,9 +506,7 @@ def lancer_conversation(
                     )
                 )
             continue
-        contenu_final = message.content
-        if not isinstance(contenu_final, str):
-            raise SyntheseInvalideError("contenu final de l'agent non textuel")
+        contenu_final = _contenu_texte(message.content)
         manquants = sorted(threads_trouves - threads_lus)
         if manquants:
             tentatives_synthese = _refuser(

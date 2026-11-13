@@ -65,7 +65,7 @@ def meta_suppression(meta: Meta) -> Meta:
 
 
 class _Msg:
-    def __init__(self, content: str | None = None, tool_calls: list[Any] | None = None) -> None:
+    def __init__(self, content: Any = None, tool_calls: list[Any] | None = None) -> None:
         self.content = content
         self.tool_calls = tool_calls
 
@@ -1580,3 +1580,123 @@ class TestConversationSuppression:
         )
         assert isinstance(synthese, SyntheseSuppression)
         assert synthese.ids == ["m1"]
+
+
+class TestContenuEnChunks:
+    """T9.11 : un modèle à raisonnement (ex. `mistral-large-latest`, `reasoning_effort=high` par
+    défaut) renvoie `message.content` en liste de chunks (`ThinkChunk` + `TextChunk`) ; seul le
+    texte des chunks `type=="text"` est retenu, le raisonnement est ignoré."""
+
+    def _lance(
+        self, registre: RegistreLibelles, meta: Meta, mistral: _FauxMistral
+    ) -> tuple[Any, list[Any]]:
+        return lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=ClientGmailAPI(_FauxService(), dry_run=True),
+            registre=registre,
+        )
+
+    def test_final_en_chunks_thinking_plus_text(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        from mistralai.client.models import TextChunk, ThinkChunk
+
+        contenu = [
+            ThinkChunk(thinking=[TextChunk(text="réflexion interne du modèle")]),
+            TextChunk(text=_synthese_payload()),
+        ]
+        mistral = _FauxMistral(
+            [
+                _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=contenu)),
+            ]
+        )
+        synthese, _ = self._lance(registre, meta, mistral)
+        assert synthese.statut == "synthese"
+        for appel in mistral.chat.appels:
+            for m in appel["messages"]:
+                assert "réflexion interne" not in str(getattr(m, "content", ""))
+
+    def test_final_sans_chunk_text_refus_puis_abandon(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        from mistralai.client.models import TextChunk, ThinkChunk
+
+        contenu = [ThinkChunk(thinking=[TextChunk(text="que du raisonnement")])]
+        reponses = [
+            _Reponse(_Msg(tool_calls=[_appel("search_threads", {"query": "is:unread"})])),
+            _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+        ] + [_Reponse(_Msg(content=list(contenu))) for _ in range(4)]
+        mistral = _FauxMistral(reponses)
+        with pytest.raises(SyntheseInvalideError, match="abandon du run"):
+            self._lance(registre, meta, mistral)
+
+    def test_message_outil_content_en_chunks_rejoue_en_texte(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        from mistralai.client.models import TextChunk, ThinkChunk
+
+        contenu = [
+            ThinkChunk(thinking=[TextChunk(text="réflexion")]),
+            TextChunk(text="texte visible"),
+        ]
+        mistral = _FauxMistral(
+            [
+                _Reponse(
+                    _Msg(
+                        content=contenu,
+                        tool_calls=[_appel("search_threads", {"query": "is:unread"})],
+                    )
+                ),
+                _Reponse(_Msg(tool_calls=[_appel("get_thread", {"threadId": "t1"})])),
+                _Reponse(_Msg(content=_synthese_payload())),
+            ]
+        )
+        synthese, _ = self._lance(registre, meta, mistral)
+        assert synthese.statut == "synthese"
+        assistants = [
+            m
+            for m in mistral.chat.appels[-1]["messages"]
+            if getattr(m, "role", None) == "assistant"
+        ]
+        assert assistants[0].content == "texte visible"
+
+
+class TestSamplingConfigurable:
+    """T9.11 : `temperature`/`top_p` lus depuis la configuration et passés explicitement à l'API
+    (`top_p=1.0` avec `temperature=0.0` par défaut — règle glouton, code API 3054)."""
+
+    def test_top_p_explicite_par_defaut(
+        self, registre: RegistreLibelles, meta: Meta
+    ) -> None:
+        mistral = _FauxMistral(_conversation_ok())
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=ClientGmailAPI(_FauxService(), dry_run=True),
+            registre=registre,
+        )
+        assert mistral.chat.appels[0]["temperature"] == 0.0
+        assert mistral.chat.appels[0]["top_p"] == 1.0
+
+    def test_sampling_depuis_config(self, registre: RegistreLibelles, meta: Meta) -> None:
+        from gmailagent.core_config import Modele, Parametres, definir_parametres
+
+        definir_parametres(Parametres(modele=Modele(temperature=0.7, top_p=0.95)))
+        mistral = _FauxMistral(_conversation_ok())
+        lancer_conversation(
+            AGENT_CLASSIFICATION,
+            "is:unread",
+            meta,
+            client_mistral=mistral,  # type: ignore[arg-type]
+            client_gmail=ClientGmailAPI(_FauxService(), dry_run=True),
+            registre=registre,
+        )
+        assert mistral.chat.appels[0]["temperature"] == 0.7
+        assert mistral.chat.appels[0]["top_p"] == 0.95

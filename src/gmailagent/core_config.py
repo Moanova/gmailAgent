@@ -1,8 +1,8 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : core_config.py
-# Version      : 1.0
-# Date         : 11-11-2026
+# Version      : 1.1
+# Date         : 13-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
 # -------------------------------------------------------------------
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import yaml
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 PREFIXE_LIBELLE = "Agent/"
 RACINE_PROJET = Path(__file__).resolve().parents[2]
@@ -125,10 +125,24 @@ class Chemins(BaseModel):
 
 
 class Modele(BaseModel):
-    """Modèle Mistral par défaut (la variable d'environnement `MISTRAL_MODEL` reste prioritaire)."""
+    """Modèle Mistral et paramètres de sampling (la variable d'environnement `MISTRAL_MODEL` reste
+    prioritaire pour le nom du modèle)."""
     model_config = ConfigDict(extra="forbid")
 
     defaut: str = Field(min_length=1, default="mistral-small-latest")
+    temperature: float = Field(ge=0.0, le=2.0, default=0.0)
+    top_p: float = Field(gt=0.0, le=1.0, default=1.0)
+
+    @model_validator(mode="after")
+    def _glouton_coherent(self) -> "Modele":
+        """Règle API (code 3054, imposée strictement par ex. `mistral-large-latest`) :
+        l'échantillonnage glouton (`temperature == 0`) exige `top_p == 1` (T9.11)."""
+        if self.temperature == 0.0 and self.top_p != 1.0:
+            raise ValueError(
+                f"temperature=0.0 (glouton) exige top_p=1.0, reçu top_p={self.top_p} "
+                "(sinon l'API renvoie 400 code 3054)"
+            )
+        return self
 
 
 class Limites(BaseModel):

@@ -79,6 +79,8 @@ contexte (voir AGENTS.md, §1).
 | 11/11/2026 | Séance du 11/11/2026 (suite 14) — plan-macro.md mis à jour avec arborescence, scripts et libellés réels | ci-dessous |
 | 11/11/2026 | Séance du 11/11/2026 (suite 15) — docstrings complètes sur src/gmailagent + scripts/init_oauth.py | ci-dessous |
 | 11/11/2026 | Séance du 11/11/2026 (suite 16) — en-têtes de présentation ajoutés aux 17 scripts applicatifs | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 — incident modèle (`mistral-large-latest`) : diagnostic + tâche T9.11 créée (plan) | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite) — implémentation T9.11 + commit/push sur `dev` | ci-dessous |
 
 ---
 
@@ -475,3 +477,108 @@ L'utilisateur fusionnera ensuite `dev` dans `main` lui-même. **Fin de séance**
 séance portera sur T10.1 (étude de la mise en œuvre d'un exécutable autonome) et sur les
 grandes lignes de conception d'une version déployée sur Mistral Studio
 (base `docs/design/conception-studio-apps.md`, D63/D66).
+
+---
+
+## Séance du 13/11/2026 — incident modèle (`mistral-large-latest`) : diagnostic + création de la tâche T9.11 (plan)
+
+### Contexte
+L'utilisateur passe le modèle de `mistral-small-latest` à `mistral-large-latest` et constate deux
+erreurs en `gmailagent tri --reel` (runs `0403d989-…` puis `c43b9301-…`, fichiers rétablis ensuite) :
+400 code 3054 « top_p must be 1 when using greedy sampling », puis, après ajout manuel de `top_p=1`,
+`SyntheseInvalideError("contenu final de l'agent non textuel")`. Diagnostic en séance : règle glouton
+imposée strictement par ML4 (`temperature=0.0` sans `top_p`, `agent_runner.py:372` — le SDK exclut
+`top_p` du corps quand `None`) ; et contenu final renvoyé en **liste de chunks** (`ThinkChunk` +
+`TextChunk`, contrat SDK `str | list[ContentChunk]`) car ML4 est un modèle à raisonnement
+(`reasoning_effort=high` par défaut), d'où le garde `isinstance(str)` de `agent_runner.py:481-482`.
+Vérifié aussi : Mistral héberge GLM en tiers (`zai-glm-latest`, alias valide sur `api.mistral.ai`).
+Demande utilisateur : avis sur la cohérence de 3 points (chunks réponse uniquement, `top_p` explicite,
+`temperature`/`top_p` dans le fichier de configuration) puis création d'une tâche kanban + plan.
+Pas de commit/push (règle C).
+
+### Actions réalisées
+
+1. **Diagnostic** (références : `agent_runner.py:372`, `:390`, `:481-482` ; SDK `mistralai` 3.x :
+   `ChatCompletionRequest.top_p` exclu si `None`, `AssistantMessage.content` =
+   `str | list[ContentChunk]` avec `TextChunk`/`ThinkChunk`).
+2. **Kanban** (`docs/projet/kanban.md`) : tâche **T9.11** ajoutée en « À faire » (avec T10.1) +
+   description en fin de fichier + mention dans l'intro (correctif de robustesse, incident 13/11/2026,
+   pattern T9.2–T9.4).
+3. **Fichier de suivi** : `docs/projet/tasks/T9.11_compatibilite_modeles_chunks_sampling.md` créé —
+   origine (incident), plan détaillé (3 volets : `_contenu_texte` ne gardant que les chunks `text`,
+   `top_p` explicite, `modele.temperature`/`modele.top_p` dans `settings.yaml` + validation croisée
+   `temperature==0` ⇒ `top_p==1`), fichiers, tests (TU `test_agents.py`/`test_config.py`), docs
+   vivantes, invariants, hors périmètre (`reasoning_effort`).
+4. **SESSIONS.md** : cette entrée.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D67 | T9.11 rattachée à la phase 9 (correctif de robustesse) : normalisation du contenu en chunks (texte uniquement, raisonnement ignoré), `top_p` explicite, `temperature`/`top_p` configurables via `settings.yaml` avec validation croisée au chargement (`temperature==0` ⇒ `top_p==1`) | Incident réel 13/11/2026 ; cohérence avec la règle API (code 3054) et le contrat SDK ; fail-fast au chargement plutôt que 400 en plein run ; le modèle par défaut reste `mistral-small-latest`. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — `docs/projet/kanban.md`,
+  `SESSIONS.md`, nouveau `docs/projet/tasks/T9.11_….md`.
+- Kanban : **À faire** = T9.11, T10.1 ; **Terminé** = T1.1–T9.10.
+- Prochaine étape : implémentation de T9.11 sur demande explicite (plan dans le fichier de suivi),
+  validation ruff/mypy/pytest/smoke + dry-run réel avec `mistral-large-latest` côté utilisateur, puis
+  kanban → « En revue », commit/push sur `dev` sur demande explicite. Board Miro non synchronisé
+  (non demandé cette séance).
+
+---
+
+## Séance du 13/11/2026 (suite) — implémentation T9.11 + commit/push sur `dev`
+
+### Contexte
+Feu vert utilisateur : implémenter T9.11 selon le plan, puis commit + push sur `dev` (règles C/H
+levées pour cette action). Board Miro : synchronisation reportée en fin de séance.
+
+### Actions réalisées
+
+1. **Code** : `src/gmailagent/agent_runner.py` (v1.1, 13-11-2026) — helper `_contenu_texte`
+   (chunks `type=="text"` uniquement, raisonnement `thinking` ignoré), appliqué au message final
+   (raise « non textuel » supprimé : texte vide → `ExtractionJsonError` → refus `_refuser`) et au
+   message assistant rejoué avec tool-calls ; `temperature`/`top_p` depuis
+   `parametres_courants().modele`, passés explicitement à `chat.complete` (`top_p=1.0` avec
+   `temperature=0.0` par défaut) et journalisés dans `conversation lancee`.
+   `src/gmailagent/core_config.py` (v1.1, 13-11-2026) — `Modele.temperature` (défaut 0.0, [0,2]) et
+   `Modele.top_p` (défaut 1.0, ]0,1]) + `model_validator` glouton (`temperature==0` ⇒ `top_p==1`,
+   erreur de config explicite mentionnant le code API 3054).
+2. **Config** : `config/settings.yaml` — `modele.temperature: 0.0` / `modele.top_p: 1.0`
+   documentés (défaut du modèle inchangé : `mistral-small-latest`).
+3. **Tests** : +10 TU — `test_agents.py` (`TestContenuEnChunks` : final en chunks
+   thinking+text, aucun chunk text → refus puis abandon propre, message outil en chunks rejoué en
+   texte ; `TestSamplingConfigurable` : `top_p=1.0` explicite par défaut, sampling depuis la
+   config) ; `test_config.py` (`TestModeleSampling` : défauts, `settings.yaml`, bornes, règle
+   glouton). `tests/plan_tests.md` resynchronisé (312 tests : 289 TU + 23 TI).
+4. **Docs** : `docs/architecture/agents.md` (sampling configurable + contenu en chunks),
+   `docs/design/conception.md` (mesures, point 6), kanban T9.11 → « En revue », fichier de suivi
+   T9.11 rempli.
+5. **Validation** : `pytest tests -q` → **312 passed** ; `mypy src` → propre (16 fichiers) ;
+   `ruff check src tests` → 4 erreurs, **toutes pré-existantes sur HEAD** (vérifié par stash :
+   3× I001 + 1× SIM102, dues à la version de ruff du sandbox) ; smoke `gmailagent --help` OK.
+6. **Commit + push** sur `dev` (demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D68 | Sampling externalisé dans `settings.yaml` (`modele.temperature`/`top_p`, défauts 0.0/1.0) avec validation croisée glouton au chargement ; contenu de réponse normalisé en chunks (texte seul, raisonnement ignoré) via `_contenu_texte` | Incident réel 13/11/2026 (400 code 3054 puis « contenu non textuel » avec `mistral-large-latest`) ; fail-fast au chargement plutôt que 400 en run ; robustesse indépendante du modèle (ML4, GLM…). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (T9.11).
+- Kanban : **En revue** = T9.11 ; **À faire** = T10.1 ; **Terminé** = T1.1–T9.10.
+- Reste : validation utilisateur en conditions réelles (dry-run puis petit périmètre `--reel` avec
+  `MISTRAL_MODEL=mistral-large-latest`) → T9.11 « Terminé » sur demande ; sync board Miro en fin de
+  séance.

@@ -124,6 +124,46 @@ class TestCablages:
         assert service.appels == [{"q": "q", "maxResults": 10}]
 
 
+class TestModeleSampling:
+    """T9.11 : `temperature`/`top_p` configurables et bornés, avec la règle glouton
+    (`temperature=0` exige `top_p=1`, code API 3054 imposé par ex. `mistral-large-latest`)."""
+
+    def test_defauts_glouton(self) -> None:
+        modele = Parametres().modele
+        assert modele.temperature == 0.0
+        assert modele.top_p == 1.0
+
+    def test_settings_du_depot(self) -> None:
+        p = charger_parametres()
+        assert p.modele.temperature == 0.0
+        assert p.modele.top_p == 1.0
+
+    def test_valeurs_custom_chargees(self, tmp_path: Path) -> None:
+        cible = tmp_path / "settings.yaml"
+        cible.write_text("modele:\n  temperature: 0.7\n  top_p: 0.95\n", encoding="utf-8")
+        p = charger_parametres(cible)
+        assert p.modele.temperature == 0.7
+        assert p.modele.top_p == 0.95
+
+    def test_glouton_sans_top_p_1_rejete(self, tmp_path: Path) -> None:
+        cible = tmp_path / "settings.yaml"
+        cible.write_text("modele:\n  temperature: 0.0\n  top_p: 0.9\n", encoding="utf-8")
+        with pytest.raises(ParametresInvalidesError, match="3054"):
+            charger_parametres(cible)
+
+    def test_hors_bornes_rejetes(self, tmp_path: Path) -> None:
+        textes = (
+            "modele:\n  temperature: 2.5\n",
+            "modele:\n  top_p: 0\n",
+            "modele:\n  top_p: 1.5\n",
+        )
+        for texte in textes:
+            cible = tmp_path / "settings.yaml"
+            cible.write_text(texte, encoding="utf-8")
+            with pytest.raises(ParametresInvalidesError):
+                charger_parametres(cible)
+
+
 class TestCapThreadsRecherche:
     """D58 : le cap de threads recherchés est dérivé du budget d'appels (jamais l'inverse),
     pour qu'un run conforme n'atteigne jamais le garde-fou anti-boucle."""

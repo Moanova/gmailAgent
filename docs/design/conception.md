@@ -129,7 +129,7 @@ Mesures en place :
 3. **Garde-fou anti-boucle** : plafond d'appels d'outils (`plafond_appels_outils: 50`) et plafond de lectures (`plafond_lectures: 100`) ; au-delà, abandon propre du run.
 4. **Cache intra-run** : `list_labels` mis en cache par run.
 5. **Lissage de charge** : run de suppression séparé (T+24h), planification en heures creuses.
-6. **Plafonds de modèle** : `temperature: 0.0`, `max_tokens: 8000`, timeout HTTP 300 s (`config/settings.yaml`).
+6. **Plafonds de modèle** : `max_tokens: 8000`, timeout HTTP 300 s, sampling `temperature`/`top_p` (défauts 0.0/1.0, glouton — `temperature=0` exige `top_p=1`, code API 3054) dans `config/settings.yaml` (T9.11).
 7. **Observabilité** : chaque exécution d'outil journalisée avec ses arguments bornés (`outil execute` dans `logs/gmailagent.log`), chaque run encadré par `debut_run`/`fin_run` horodatés.
 
 ---
