@@ -89,6 +89,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 — déploiement v1 scripté Windows 11 : `installation/Windows/` + guide (D71) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite) — parcours « téléchargement manuel du ZIP + install.bat » retenu (D72) ; `bootstrap.bat` = mises à jour ; `recreer-venv.bat` pour le déplacement du projet | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B du guide (création projet Google Cloud) + fichier de suivi T1.7 | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 3) — archive allégée via .gitattributes (D73) + scripts/ déplacé sous installation/ | ci-dessous |
 
 ---
 
@@ -906,3 +907,31 @@ Aucun.
 - Branche `dev` : commit + push effectués (annexe B + T1.7 + README + SESSIONS.md).
 - v1 documentée de bout en bout : guide d'installation Windows 11 (parcours, secrets, OAuth, dépannage, sécurité, annexe B Google Cloud) + scripts `installation/Windows/`.
 - En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H).
+
+---
+
+## Séance du 16/11/2026 (suite 3) — archive allégée (.gitattributes) + scripts/ déplacé sous installation/ (D73)
+
+### Contexte
+Deux demandes utilisateur : (1) l'utilisateur qui télécharge le ZIP ne devrait recevoir que README + installation + code fonctionnel, pas la doc projet — `.gitignore` ne pouvant pas être conditionnel par branche (effet local uniquement), la piste retenue est `.gitattributes` + `export-ignore` (appliqué par `git archive`, donc aux ZIP servis par GitHub ; testé : aucun effet sur `git clone`) ; (2) le dossier `scripts/` (qui ne contient que `init_oauth.py`, outil one-shot d'installation) déplacé sous `installation/`.
+
+### Actions réalisées
+
+1. **`.gitattributes`** (nouveau, racine) : `export-ignore` sur `docs/`, `tests/`, `SESSIONS.md`, `AGENTS.md`, `.gitignore`. Vérifié par `git archive --worktree-attributes` : l'archive ne contient plus que `README.md`, `installation/`, `src/`, `config/`, `pyproject.toml`, `.env.example` (template conservé : documenté, aucun secret). Un seul fichier sur `dev`, propagé à `main` au prochain merge (règle H) ; les clones restent complets.
+2. **`git mv scripts/init_oauth.py installation/init_oauth.py`** (dossier `scripts/` supprimé ; `installation/` = niveau commun, le script étant cross-plateforme, et `RACINE = parent.parent` reste valide à cette profondeur). Références mises à jour : `installation/init_oauth.py` (usage + en-tête v1.1), `src/gmailagent/gmail_client.py` (docstring + message d'erreur, v1.1), `README.md` (2 refs), `docs/projet/kanban.md` (T1.7 partie B), `docs/projet/plan-macro.md` (arborescence), `docs/projet/tasks/T1.7_prerequis_oauth_google.md`, `installation/guide-installation-windows11.md` (v1.3), `installation/Windows/lancer.ps1` (mode oauth, v1.1), `pyproject.toml` (exclude mypy `scripts/` → `installation/`). Références historiques laissées telles quelles (`docs/sessions-archive.md`, descriptions de tâches terminées T9.10, étude v2 suspendue `packaging-executable.md`).
+3. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D73 | **Archive ZIP allégée via `.gitattributes` + `export-ignore`** (`docs/`, `tests/`, `SESSIONS.md`, `AGENTS.md`, `.gitignore`) : le ZIP téléchargé sur GitHub ne contient que README, `installation/`, `src/`, `config/`, `pyproject.toml`, `.env.example` ; **aucun effet sur les clones**. `scripts/` déplacé sous `installation/` (`init_oauth.py`) | Demande utilisateur 16/11/2026 ; `.gitignore` ne peut pas être conditionnel par branche (effet local uniquement), `export-ignore` oui pour les archives servies par GitHub (testé localement). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (.gitattributes + déplacement scripts/→installation/ + refs + SESSIONS.md).
+- En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf (ZIP de `main` allégé) ; merge `dev` → `main` à sa main (règle H).

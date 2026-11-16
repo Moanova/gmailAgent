@@ -54,8 +54,10 @@ gmailAgent/
 ├── config/
 │   ├── labels.yaml            # registre clé logique -> libellé physique (section 1)
 │   └── settings.yaml          # paramètres du pipeline (chemins, modèle, limites, délai de grâce)
-├── scripts/
-│   └── init_oauth.py          # script one-shot : 1er flux OAuth Gmail -> data/gmail_token.json
+├── installation/
+│   ├── init_oauth.py          # script one-shot : 1er flux OAuth Gmail -> data/gmail_token.json
+│   ├── guide-installation-windows11.md  # guide utilisateur non technique (Windows 11)
+│   └── Windows/               # scripts d'installation Windows 11 (install.bat, lanceurs, bootstrap.bat)
 ├── src/gmailagent/            # package unique + préfixes de domaine (option E, D64)
 │   ├── __init__.py
 │   ├── __main__.py            # `python -m gmailagent ...` (D65)

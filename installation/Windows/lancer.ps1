@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : lancer.ps1
-# Version      : 1.0
+# Version      : 1.1
 # Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
@@ -11,7 +11,7 @@
 #    d'environnement du processus (le projet ne lit que os.environ, règle D).
 # 2. Si data\gmail_token.json existe, ses client_id / client_secret priment
 #    sur le vault (option A : valorisation dynamique depuis le token).
-# 3. Exécute gmailagent (mode cli) ou scripts\init_oauth.py (mode oauth).
+# 3. Exécute gmailagent (mode cli) ou installation\init_oauth.py (mode oauth).
 # Usage : lancer.ps1 [-Mode cli|oauth] [args...]
 param(
     [string]$Mode = "cli",
@@ -40,7 +40,7 @@ if (Test-Path $token) {
 
 # 3. Exécution
 if ($Mode -eq "oauth") {
-    & (Join-Path $PSScriptRoot ".venv\Scripts\python.exe") (Join-Path $PSScriptRoot "scripts\init_oauth.py")
+    & (Join-Path $PSScriptRoot ".venv\Scripts\python.exe") (Join-Path $PSScriptRoot "installation\init_oauth.py")
 } else {
     & (Join-Path $PSScriptRoot ".venv\Scripts\gmailagent.exe") @Args
 }

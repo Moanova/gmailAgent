@@ -17,7 +17,7 @@ workflow : [docs/design/workflow.md](docs/design/workflow.md).
 - Clé API Mistral dans la variable d'environnement `MISTRAL_API_KEY` (voir `.env.example`)
 - Modèle Mistral optionnel via `MISTRAL_MODEL` (défaut : `mistral-small-latest`, ex. `mistral-large-4`) ; chaque appel est journalisé avec le modèle utilisé dans `logs/gmailagent.log`
 - Token Gmail dans `data/gmail_token.json`, généré une seule fois par
-  `python scripts/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
+  `python installation/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
   [docs/projet/kanban.md](docs/projet/kanban.md))
 
 ## Installation
@@ -86,7 +86,7 @@ python -m pytest tests -q         # unitaires + intégration mockés (aucun appe
 
 ## Convention d'en-tête des scripts
 
-Chaque script applicatif (`src/gmailagent/*.py`, `scripts/init_oauth.py`) commence par un
+Chaque script applicatif (`src/gmailagent/*.py`, `installation/init_oauth.py`) commence par un
 en-tête de présentation (Application / Script / Version / Date / Design / Build). `Script`
 porte le **nom réel du fichier** ; `Version` et `Date` sont **mis à jour à chaque modification
 du code** (l'historique détaillé reste dans git). Les fichiers de test (`tests/`) n'ont pas
