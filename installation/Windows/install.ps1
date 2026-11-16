@@ -1,16 +1,18 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : install.ps1
-# Version      : 1.0
+# Version      : 1.1
 # Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
 # -------------------------------------------------------------------
-# Appelé par bootstrap.bat. Racine du projet = 2 niveaux au-dessus de ce
-# script (installation\Windows). Installe Python (cible 3.14, min 3.11) via
-# winget si besoin, crée le venv, installe le package en éditable, copie les
-# lanceurs à la racine du projet, puis lance la saisie des secrets.
+# Appelé par install.bat (1ère installation) ou bootstrap.bat /
+# recreer-venv.bat (mise à jour, venv recréé). Racine du projet = 2 niveaux
+# au-dessus de ce script (installation\Windows).
+#   -SansPython  : ne propose pas d'installer/monter Python (utilise la version détectée)
+#   -SansSecrets : ne relance pas la saisie des secrets
 $ErrorActionPreference = "Stop"
+param([switch]$SansPython, [switch]$SansSecrets)
 $Racine = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $Racine
 Write-Host "Racine du projet : $Racine"
@@ -49,17 +51,23 @@ function Install-PythonCible {
 
 $python = Get-Python
 if ($null -eq $python) {
+    if ($SansPython) { throw "Aucun Python détecté (requis pour créer le venv) — relancer sans -SansPython." }
     Write-Host "Aucun Python détecté : installation de Python $VersionCible via winget..."
     Install-PythonCible
     $python = Get-Python
     if ($null -eq $python) { throw "Python introuvable après l'installation winget." }
 }
 elseif ($python.Version -lt $VersionCible) {
-    Write-Host "Python $($python.Version) détecté ($($python.Exe)) — antérieur à la cible $VersionCible."
-    $choix = Read-Host "Monter en $VersionCible [M] ou annuler l'installation [A] ?"
-    if ($choix -match "^[Aa]") { Write-Host "Installation annulée à la demande de l'utilisateur."; exit 1 }
-    Install-PythonCible
-    $python = Get-Python
+    if (-not $SansPython) {
+        Write-Host "Python $($python.Version) détecté ($($python.Exe)) — antérieur à la cible $VersionCible."
+        $choix = Read-Host "Monter en $VersionCible [M] ou annuler l'installation [A] ?"
+        if ($choix -match "^[Aa]") { Write-Host "Installation annulée à la demande de l'utilisateur."; exit 1 }
+        Install-PythonCible
+        $python = Get-Python
+    }
+    else {
+        Write-Host "Python $($python.Version) retenu tel quel (-SansPython)."
+    }
 }
 else {
     Write-Host "Python $($python.Version) détecté ($($python.Exe)) — conforme à la cible $VersionCible, aucun changement."
@@ -76,13 +84,15 @@ Write-Host "Python retenu pour le venv : $($python.Version)"
 
 # Lanceurs copiés à la racine du projet, sans écraser une version existante
 $dossier = Join-Path $Racine "installation\Windows"
-foreach ($f in @("lancer.ps1","tri.bat","tri-reel.bat","tri-reel-auto.bat","suppression.bat","init-oauth.bat")) {
+foreach ($f in @("lancer.ps1","tri.bat","tri-reel.bat","tri-reel-auto.bat","suppression.bat","init-oauth.bat","recreer-venv.bat")) {
     $cible = Join-Path $Racine $f
     if (-not (Test-Path $cible)) { Copy-Item (Join-Path $dossier $f) $cible }
 }
 
-# Saisie unique des secrets -> Credential Manager Windows (chiffré, lié au compte)
-powershell -ExecutionPolicy Bypass -File (Join-Path $dossier "configurer-secrets.ps1")
+# Saisie des secrets -> Credential Manager Windows (chiffré, lié au compte) ; ignorée si déjà présents
+if (-not $SansSecrets) {
+    powershell -ExecutionPolicy Bypass -File (Join-Path $dossier "configurer-secrets.ps1")
+}
 
 Write-Host "Installation terminée."
 Write-Host "  1) Double-clic sur init-oauth.bat   (autoriser Gmail, une seule fois)"

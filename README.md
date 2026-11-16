@@ -29,7 +29,14 @@ python -m venv .venv
 
 La commande `gmailagent` est alors disponible (point d'entrée `gmailagent.cli:main` ; équivalent : `python -m gmailagent`).
 
-> **Poste Windows 11 non développeur** (sans git ni Python préinstallé) : déploiement scripté en un seul geste — voir le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (scripts dans [`installation/Windows/`](installation/Windows/)).
+## Installation sur un poste Windows 11 (utilisateur non technique)
+
+Pas besoin de git ni de Python préinstallé : télécharger l'ensemble du dépôt sous forme d'archive ZIP de la branche **`main`** :
+
+- **Méthode 1 (interface GitHub)** : ouvrir [github.com/Moanova/gmailAgent](https://github.com/Moanova/gmailAgent) → sélecteur de branche en haut à gauche (par défaut `dev`) → onglet « Branches » → choisir **`main`** → bouton vert « <> Code » → « Download ZIP » (`gmailAgent-main.zip`, ~1 Mo) ;
+- **Méthode 2 (URL directe)** : `https://github.com/Moanova/gmailAgent/archive/refs/heads/main.zip` dans la barre d'adresse du navigateur.
+
+Puis : clic droit sur le ZIP → « Extraire tout… » → choisir le dossier d'installation → renommer le dossier extrait `gmailAgent-main` en `gmailAgent`. Ensuite suivre le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (premier geste : double-clic sur `installation\Windows\install.bat` ; scripts dans [`installation/Windows/`](installation/Windows/)).
 
 ## Configuration
 

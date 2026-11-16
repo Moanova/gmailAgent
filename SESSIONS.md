@@ -87,6 +87,7 @@ contexte (voir AGENTS.md, §1).
 | 13/11/2026 | Séance du 13/11/2026 (suite 5) — v2 retenue (D69, PyInstaller onedir) + Q/R SmartScreen / certificat / faux positifs AV (note §8.7) | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite 6) — fin de séance : D69 suspendue (D70, v2 à réévaluer), commit/push des docs sur `dev` | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 — déploiement v1 scripté Windows 11 : `installation/Windows/` + guide (D71) | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite) — parcours « téléchargement manuel du ZIP + install.bat » retenu (D72) ; `bootstrap.bat` = mises à jour ; `recreer-venv.bat` pour le déplacement du projet | ci-dessous |
 
 ---
 
@@ -842,4 +843,37 @@ Aucun.
 - Branche `dev` : commit + push effectués (ce lot `installation/` + `SESSIONS.md` + `README.md`).
 - Kanban : inchangé (**En cours** = T10.1, étude ; déploiement v1 réalisé hors kanban, phase 10).
 - Board Miro : non synchronisé (non demandé cette séance).
-- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` servie par `bootstrap.bat` embarque `installation/`.
+- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` téléchargée embarque `installation/`.
+
+---
+
+## Séance du 16/11/2026 (suite) — parcours « téléchargement manuel + install.bat » (D72)
+
+### Contexte
+L'utilisateur juge illogique d'exiger le copier-coller du `bootstrap.bat` par un non-technicien : il préfère que l'utilisateur télécharge lui-même tout le dépôt (sans git), puis suive le guide. Demande : nouvelle section README dédiée (méthodes 1 et 2 de téléchargement du ZIP), mise à jour des scripts et du guide, et un script dédié au cas où le projet est déplacé (le venv embarque des chemins absolus).
+
+### Actions réalisées
+
+1. **`README.md`** : nouvelle section « Installation sur un poste Windows 11 (utilisateur non technique) » — méthode 1 (interface GitHub : sélecteur de branche `main`, bouton « Code » → « Download ZIP » ; la branche par défaut du dépôt est `dev`, d'où le changement de branche explicite) et méthode 2 (URL directe `…/archive/refs/heads/main.zip`), extraction + renommage en `gmailAgent`.
+2. **`installation/Windows/install.bat`** (nouveau) : point d'entrée du 1er lancement, lancé depuis `installation\Windows\` du dépôt téléchargé → appelle `install.ps1` avec `-ExecutionPolicy Bypass`.
+3. **`installation/Windows/bootstrap.bat`** v1.1 : repositionné en **mise à jour locale** — plus de choix automatique du dossier (`C:\Users\Public\Documents` testé puis fallback) : l'utilisateur choisit lui-même où extraire le projet ; le script calcule la racine du projet (2 niveaux au-dessus de lui), se relance depuis `%TEMP%` (le dossier projet est modifié en place), télécharge le ZIP de `main` et recopie le code avec `robocopy /E /XD .venv data logs`, puis relance `install.ps1 -SansPython -SansSecrets` (réinstall éditable + lanceurs).
+4. **`installation/Windows/install.ps1`** v1.1 : switchs `-SansPython` (détecte la version existante sans proposer l'installation/montée) et `-SansSecrets` (ne relance pas la saisie) ; copie aussi `recreer-venv.bat` à la racine.
+5. **`installation/Windows/recreer-venv.bat`** (nouveau, copié à la racine) : supprime `.venv` et relance `install.ps1 -SansPython -SansSecrets` — à utiliser après un **déplacement du dossier projet** (documenté dans le guide §7).
+6. **`installation/Windows/configurer-secrets.ps1`** v1.1 : idempotent (si une entrée `gmailAgent` existe déjà dans le vault, aucune saisie n'est redemandée).
+7. **`installation/guide-installation-windows11.md`** v1.1 : étape 1 = téléchargement manuel du ZIP (méthodes 1/2) + extraction + choix du dossier + renommage ; étape 2 = `install.bat` ; §7 déplacement → `recreer-venv.bat` ; §8 mises à jour via `bootstrap.bat` ; annexe A (copier-coller) supprimée.
+8. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D72 | Parcours retenu : l'utilisateur télécharge lui-même l'archive ZIP de `main` (méthodes 1/2 dans le README) et lance `installation\Windows\install.bat` ; `bootstrap.bat` ne sert plus qu'aux mises à jour (recopie locale, `.venv`/`data`/`logs` conservés) ; le dossier d'installation est au choix de l'utilisateur ; déplacement du projet → `recreer-venv.bat` | Demande utilisateur 16/11/2026 : éviter tout copier-coller pour un non-technicien ; le venv embarque des chemins absolus (incident T1.7 documenté). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (mise à jour `installation/` + README + SESSIONS.md).
+- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` téléchargée embarque `installation/`.

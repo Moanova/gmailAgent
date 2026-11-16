@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : configurer-secrets.ps1
-# Version      : 1.0
+# Version      : 1.1
 # Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
@@ -12,8 +12,16 @@
 # GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET ne servent que si
 # data\gmail_token.json est absent (1er flux OAuth / ré-autorisation) ;
 # ensuite, lancer.ps1 les lit directement dans le token.
+# Idempotent : si une entrée gmailAgent existe déjà, aucune saisie n'est demandée.
 [Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime] | Out-Null
 $vault = New-Object Windows.Security.Credentials.PasswordVault
+try {
+    $vault.Retrieve("gmailAgent", "MISTRAL_API_KEY") | Out-Null
+    Write-Host "Secrets déjà enregistrés dans le Credential Manager — aucune saisie requise."
+    Write-Host "(Pour les re-saisir : supprimer les entrées 'gmailAgent' dans le Gestionnaire d'identifiants Windows, puis relancer.)"
+    exit 0
+} catch { }
+
 foreach ($nom in @("MISTRAL_API_KEY","GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET")) {
     $sec = Read-Host "Valeur de $nom (affichage masqué)" -AsSecureString
     $clair = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
