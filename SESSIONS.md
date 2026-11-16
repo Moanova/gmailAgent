@@ -92,6 +92,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 3) — archive allégée via .gitattributes (D73) + scripts/ déplacé sous installation/ | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 4) — merge dev → main (83ff8e2, règle H sur demande explicite) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 5) — report dev → main (2e19506, commit abb630e poussé depuis le poste utilisateur) | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 6) — clôture v1 : T10.1 Terminé (D74, v2 = Mistral Studio), 312 tests verts, acceptation/README à jour | ci-dessous |
 
 ---
 
@@ -992,3 +993,34 @@ Aucun.
 
 - `main` = à jour de `dev` (resync après cette entrée) ; ZIP de `main` allégé et complet (`installation/` présent).
 - Côté utilisateur : récupérer `main` en local (procédure ci-dessus), puis test du parcours sur poste Windows 11 neuf.
+
+---
+
+## Séance du 16/11/2026 (suite 6) — clôture v1 (T10.1 Terminé, D74 ; tests bouclés ; docs à jour)
+
+### Contexte
+L'utilisateur demande si la v1 peut être considérée comme terminée et ce qui reste en suspens. Bilan : kanban T1.1–T9.11 Terminé, seul T10.1 « En cours » (étude v2, D70 suspendue) ; 4 tests en échec préexistants (c7230f5) ; acceptation.md obsolète ; badge README « In development » ; Miro non synchronisé depuis le 16/11. Demandes : T10.1 → Terminé avec v2 = Mistral Studio ; boucler proprement les tests ; tests réels considérés comme terminés ; badge → « projet clos » ; tenter la synchro Miro (sinon abandon).
+
+### Actions réalisées
+
+1. **Tests en échec — diagnostic et correction propre** : cause racine = divergence introduite par `c7230f5` (`settings.yaml` → `mistral-large-latest`) sans aligner le défaut du **code** (`core_config.py` : `mistral-small-latest`). Correctifs : (a) alignement du défaut du code sur le dépôt (`core_config.py` v1.2, `default="mistral-large-latest"`) — les 3 tests de cohérence dépôt↔code (`charger_parametres() == Parametres()`) redeviennent verts et gardent leur rôle de détection ; (b) découplage des tests du nom du modèle — `test_config.py` compare désormais à `Modele().defaut`, `test_agents.py` à la valeur chargée (`parametres_courants().modele.defaut`) ou à un modèle fictif explicite (`modele-explicite-test`) ; `.env.example` à jour. Résultat : **pytest 312 passed**, `mypy src` propre, `ruff` 4 erreurs préexistantes (version de ruff, déjà présentes sur `origin/dev`).
+2. **Kanban** : T10.1 « En cours » → **« Terminé »** ; description clôturée (D74).
+3. **`docs/test/acceptation.md`** rafraîchi (validation au 16/11/2026 ; 312 tests verts ; T9.9–T9.11 Terminé ; phase 10 = déploiement v1 scripté livré dans `installation/`, tests réels terminés par décision utilisateur).
+4. **README** : badge « Status: Projet clos (v1) ».
+5. **Miro** : tentative de synchro du board (voir ci-dessous).
+6. **Commit + push sur `dev`**, puis merge `dev` → `main` (règle H, demande explicite de clôture).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D74 | **v2 = déploiement sur Mistral Studio** (base `docs/design/conception-studio-apps.md`) ; le volet exécutable autonome PyInstaller est abandonné (D70 clôturé) ; T10.1 Terminé ; la v1 scriptée (`installation/Windows/`) est la version de production ; **v1 clôturée** | Demande utilisateur 16/11/2026. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- v1 clôturée : kanban 100 % Terminé (T1.1–T10.1), 312 tests verts, mypy propre, déploiement scripté sur `main` (ZIP allégé), docs à jour.
+- Board Miro : synchronisé si le connecteur a fonctionné (voir actions), sinon abandonné sur décision utilisateur.

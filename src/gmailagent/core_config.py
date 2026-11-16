@@ -1,8 +1,8 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : core_config.py
-# Version      : 1.1
-# Date         : 13-11-2026
+# Version      : 1.2
+# Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
 # -------------------------------------------------------------------
@@ -129,7 +129,7 @@ class Modele(BaseModel):
     prioritaire pour le nom du modèle)."""
     model_config = ConfigDict(extra="forbid")
 
-    defaut: str = Field(min_length=1, default="mistral-small-latest")
+    defaut: str = Field(min_length=1, default="mistral-large-latest")
     temperature: float = Field(ge=0.0, le=2.0, default=0.0)
     top_p: float = Field(gt=0.0, le=1.0, default=1.0)
 

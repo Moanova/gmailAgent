@@ -888,11 +888,11 @@ class TestModele:
         from gmailagent.core_config import parametres_courants
 
         monkeypatch.delenv("MISTRAL_MODEL", raising=False)
-        assert parametres_courants().modele.defaut == "mistral-small-latest"
-        assert modele_effectif(None) == "mistral-small-latest"
+        defaut = parametres_courants().modele.defaut
+        assert modele_effectif(None) == defaut
         mistral = _FauxMistral(self._conversation_vide())
         self._lancer(registre, meta, mistral)
-        assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
+        assert mistral.chat.appels[0]["model"] == defaut
 
     def test_modele_surcharge_par_env(
         self, registre: RegistreLibelles, meta: Meta, monkeypatch: pytest.MonkeyPatch
@@ -911,10 +911,10 @@ class TestModele:
         from gmailagent.agent_runner import modele_effectif
 
         monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4")
-        assert modele_effectif("mistral-small-latest") == "mistral-small-latest"
+        assert modele_effectif("modele-explicite-test") == "modele-explicite-test"
         mistral = _FauxMistral(self._conversation_vide())
-        self._lancer(registre, meta, mistral, modele="mistral-small-latest")
-        assert mistral.chat.appels[0]["model"] == "mistral-small-latest"
+        self._lancer(registre, meta, mistral, modele="modele-explicite-test")
+        assert mistral.chat.appels[0]["model"] == "modele-explicite-test"
 
 
 class _ServiceQ:
