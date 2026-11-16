@@ -1,0 +1,10 @@
+# Archives exportées (ZIP/tar.gz servis par GitHub via `git archive`) allégées pour
+# l'utilisateur non développeur : ni doc projet, ni tests, ni outillage git
+# (.gitignore est inutile sans dépôt local — le ZIP n'en embarque pas).
+# Aucun effet sur `git clone` / `git fetch` : les clones conservent tous les
+# fichiers trackés, attributs ou pas.
+docs/ export-ignore
+tests/ export-ignore
+SESSIONS.md export-ignore
+AGENTS.md export-ignore
+.gitignore export-ignore
