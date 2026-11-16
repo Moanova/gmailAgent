@@ -90,6 +90,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite) — parcours « téléchargement manuel du ZIP + install.bat » retenu (D72) ; `bootstrap.bat` = mises à jour ; `recreer-venv.bat` pour le déplacement du projet | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B du guide (création projet Google Cloud) + fichier de suivi T1.7 | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 3) — archive allégée via .gitattributes (D73) + scripts/ déplacé sous installation/ | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 4) — merge dev → main (83ff8e2, règle H sur demande explicite) | ci-dessous |
 
 ---
 
@@ -935,3 +936,30 @@ Aucun.
 
 - Branche `dev` : commit + push effectués (.gitattributes + déplacement scripts/→installation/ + refs + SESSIONS.md).
 - En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf (ZIP de `main` allégé) ; merge `dev` → `main` à sa main (règle H).
+
+---
+
+## Séance du 16/11/2026 (suite 4) — merge dev → main (demande explicite, règle H)
+
+### Contexte
+L'utilisateur demande explicitement le merge `dev` → `main` (règle H : `main` alimentée uniquement par merge à sa demande) et annonce récupérer `main` juste après.
+
+### Actions réalisées
+
+1. `git fetch origin` ; constat : `main` avait divergé (18811de, merge précédent) → merge commit nécessaire.
+2. Branche locale `main` mise à jour (`--ff-only` sur `origin/main`), puis `git merge origin/dev --no-edit` → **merge propre, aucun conflit** (uniquement les ajouts de `dev` : `installation/`, `.gitattributes`, déplacement `init_oauth.py`, docs) ; commit de merge `83ff8e2`, push `18811de..83ff8e2 main -> main`.
+3. Vérification : `git archive origin/main` → le ZIP servi par GitHub pour `main` est **allégé** (racine : `README.md`, `.env.example`, `.gitattributes`, `pyproject.toml`, `config/`, `src/gmailagent/`, `installation/`) ; `docs/`, `tests/`, `SESSIONS.md`, `AGENTS.md`, `.gitignore` absents ; `installation/Windows/install.bat`, `installation/init_oauth.py`, `installation/guide-installation-windows11.md` présents.
+4. Commit + push sur `dev` (cette entrée) ; `main` resynchronisé ensuite.
+
+### Décisions clés
+
+Aucune nouvelle (règle H appliquée sur demande explicite).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- `main` à jour de `dev` (merge `83ff8e2` puis resync après cette entrée) ; le ZIP de `main` est prêt pour le test sur un poste Windows 11 neuf.
+- Rappel hors scope signalé : 4 tests en échec préexistants sur `dev` (assertions `mistral-small-latest` vs réalignement `c7230f5` → `mistral-large-latest`) — décision utilisateur en attente.
