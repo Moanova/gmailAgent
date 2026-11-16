@@ -86,6 +86,7 @@ contexte (voir AGENTS.md, §1).
 | 13/11/2026 | Séance du 13/11/2026 (suite 4) — plan détaillé PyInstaller documenté (note §8) ; portabilité + impact CLI confirmés | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite 5) — v2 retenue (D69, PyInstaller onedir) + Q/R SmartScreen / certificat / faux positifs AV (note §8.7) | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite 6) — fin de séance : D69 suspendue (D70, v2 à réévaluer), commit/push des docs sur `dev` | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 — déploiement v1 scripté Windows 11 : `installation/Windows/` + guide (D71) | ci-dessous |
 
 ---
 
@@ -806,3 +807,39 @@ Aucun.
 - Board Miro : synchronisé.
 - En attente côté utilisateur : test réel `gmailagent suppression --reel` à T+24h (phase 7, D47) ;
   merge `dev` → `main` à sa main (règle H).
+
+---
+
+## Séance du 16/11/2026 — déploiement v1 scripté Windows 11 (`installation/Windows/` + guide)
+
+### Contexte
+L'utilisateur acte le retour à la proposition initiale (v1 : venv + `python`/`py`, sans exécutable autonome — D70 reste suspendu) et demande un déploiement scripté pour une utilisatrice non technique sur Windows 11, poste neuf (Python non installé, git non installé ni à installer), branche cible `main`. Demande explicite de commit + push sur `dev` (règle C levée pour cette action, règle H : push direct sur `dev`).
+
+### Actions réalisées
+
+1. **`installation/Windows/`** (nouveau dossier, 9 scripts, en-têtes de présentation conventionnels) :
+   - `bootstrap.bat` — seul fichier à copier-coller au 1er lancement : télécharge l'archive ZIP de la branche `main` (`curl`, natif Win11), extrait (`tar`, natif Win11), installe dans `C:\Users\Public\Documents\gmailAgent` (test d'accès en écriture) sinon `%USERPROFILE%\Documents\gmailAgent` ; en mise à jour, conserve `.venv`, `data`, `logs`, `*.bat`, `*.ps1` ; garde-fou `pyproject.toml` ; délègue à `install.ps1` via `powershell -ExecutionPolicy Bypass -File` (les `.bat` passent la stratégie d'exécution qui bloque les `.ps1` en double-clic).
+   - `install.ps1` — détection de Python (`py` puis `python`, stub Store `WindowsApps` ignoré) ; cible 3.14 (3.14.3 confirmée fonctionnelle par l'utilisateur), min 3.11 (`pyproject.toml`) ; si absent → `winget install Python.Python.3.14 --scope user` ; si présent et < cible → question `[M]onter / [A]nnuler` ; venv + `pip install -e .` (éditable obligatoire) + smoke `gmailagent.exe --help` ; copie des lanceurs à la racine sans écraser ; lance la saisie des secrets.
+   - `configurer-secrets.ps1` — saisie masquée de `MISTRAL_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` → Credential Manager (PasswordVault, chiffré DPAPI, lié au compte Windows).
+   - `lancer.ps1` — peuple `os.environ` depuis le vault, puis **option A validée** : si `data\gmail_token.json` existe, ses `client_id`/`client_secret` priment (valorisation dynamique depuis le token) ; exécute `gmailagent.exe` (mode `cli`) ou `scripts\init_oauth.py` (mode `oauth`).
+   - Lanceurs `.bat` à la racine : `tri.bat` (dry-run), `tri-reel.bat`, `tri-reel-auto.bat` (sans `pause`, pour la tâche planifiée), `suppression.bat`, `init-oauth.bat`.
+2. **`installation/guide-installation-windows11.md`** — guide utilisateur complet (prérequis fournis, un seul geste via `bootstrap.bat`, flux OAuth, dry-run puis réel, tâche planifiée, mises à jour, dépannage, sécurité, annexe A = `bootstrap.bat` à copier-coller).
+3. **`README.md`** — pointeur vers le guide dans la section Installation.
+4. **Commit + push sur `dev`** (demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D71 | **v1 retenue comme mode de déploiement** : arborescence de la branche `main` + scripts dans `installation/Windows/` (`bootstrap.bat` → `install.ps1` → lanceurs `.bat`), sans exécutable autonome (D70 suspendu), sans git installé sur le poste cible. Secrets : Credential Manager (vault) + lecture dynamique de `client_id`/`client_secret` depuis `data/gmail_token.json` quand il existe (option A ; dans `src/`, seule `MISTRAL_API_KEY` est lue en variable d'environnement, `core_client.py:38`) | Demande utilisateur 16/11/2026 ; cohérence règle D (aucun secret en clair dans les fichiers, `data/` ignoré par git). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (ce lot `installation/` + `SESSIONS.md` + `README.md`).
+- Kanban : inchangé (**En cours** = T10.1, étude ; déploiement v1 réalisé hors kanban, phase 10).
+- Board Miro : non synchronisé (non demandé cette séance).
+- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` servie par `bootstrap.bat` embarque `installation/`.

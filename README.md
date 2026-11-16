@@ -29,6 +29,8 @@ python -m venv .venv
 
 La commande `gmailagent` est alors disponible (point d'entrée `gmailagent.cli:main` ; équivalent : `python -m gmailagent`).
 
+> **Poste Windows 11 non développeur** (sans git ni Python préinstallé) : déploiement scripté en un seul geste — voir le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (scripts dans [`installation/Windows/`](installation/Windows/)).
+
 ## Configuration
 
 - `config/labels.yaml` : registre des libellés `Agent/*` (clé logique → libellé physique).
