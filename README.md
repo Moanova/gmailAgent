@@ -17,7 +17,7 @@ workflow : [docs/design/workflow.md](docs/design/workflow.md).
 - Clé API Mistral dans la variable d'environnement `MISTRAL_API_KEY` (voir `.env.example`)
 - Modèle Mistral optionnel via `MISTRAL_MODEL` (défaut : `mistral-small-latest`, ex. `mistral-large-4`) ; chaque appel est journalisé avec le modèle utilisé dans `logs/gmailagent.log`
 - Token Gmail dans `data/gmail_token.json`, généré une seule fois par
-  `python scripts/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
+  `python installation/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
   [docs/projet/kanban.md](docs/projet/kanban.md))
 
 ## Installation
@@ -28,6 +28,15 @@ python -m venv .venv
 ```
 
 La commande `gmailagent` est alors disponible (point d'entrée `gmailagent.cli:main` ; équivalent : `python -m gmailagent`).
+
+## Installation sur un poste Windows 11 (utilisateur non technique)
+
+Pas besoin de git ni de Python préinstallé : télécharger l'ensemble du dépôt sous forme d'archive ZIP de la branche **`main`** :
+
+- **Méthode 1 (interface GitHub)** : ouvrir [github.com/Moanova/gmailAgent](https://github.com/Moanova/gmailAgent) → sélecteur de branche en haut à gauche (par défaut `dev`) → onglet « Branches » → choisir **`main`** → bouton vert « <> Code » → « Download ZIP » (`gmailAgent-main.zip`, ~1 Mo) ;
+- **Méthode 2 (URL directe)** : `https://github.com/Moanova/gmailAgent/archive/refs/heads/main.zip` dans la barre d'adresse du navigateur.
+
+Puis : clic droit sur le ZIP → « Extraire tout… » → choisir le dossier d'installation → renommer le dossier extrait `gmailAgent-main` en `gmailAgent`. Ensuite suivre le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (premier geste : double-clic sur `installation\Windows\install.bat` ; scripts dans [`installation/Windows/`](installation/Windows/)). La création du projet Google Cloud (API Gmail, écran de consentement « En production », client OAuth « Application de bureau ») est documentée pas à pas en annexe B du guide.
 
 ## Configuration
 
@@ -77,7 +86,7 @@ python -m pytest tests -q         # unitaires + intégration mockés (aucun appe
 
 ## Convention d'en-tête des scripts
 
-Chaque script applicatif (`src/gmailagent/*.py`, `scripts/init_oauth.py`) commence par un
+Chaque script applicatif (`src/gmailagent/*.py`, `installation/init_oauth.py`) commence par un
 en-tête de présentation (Application / Script / Version / Date / Design / Build). `Script`
 porte le **nom réel du fichier** ; `Version` et `Date` sont **mis à jour à chaque modification
 du code** (l'historique détaillé reste dans git). Les fichiers de test (`tests/`) n'ont pas

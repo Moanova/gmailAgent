@@ -46,7 +46,7 @@ select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["src"]
-exclude = '(?x)(^|[/\\])(agent0\d[a-c]?\.py|scripts/)$'
+exclude = '(?x)(^|[/\\])(agent0\d[a-c]?\.py|installation/)$'
 
 [[tool.mypy.overrides]]
 module = ["google_auth_oauthlib.*"]

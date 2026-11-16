@@ -86,6 +86,10 @@ contexte (voir AGENTS.md, §1).
 | 13/11/2026 | Séance du 13/11/2026 (suite 4) — plan détaillé PyInstaller documenté (note §8) ; portabilité + impact CLI confirmés | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite 5) — v2 retenue (D69, PyInstaller onedir) + Q/R SmartScreen / certificat / faux positifs AV (note §8.7) | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite 6) — fin de séance : D69 suspendue (D70, v2 à réévaluer), commit/push des docs sur `dev` | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 — déploiement v1 scripté Windows 11 : `installation/Windows/` + guide (D71) | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite) — parcours « téléchargement manuel du ZIP + install.bat » retenu (D72) ; `bootstrap.bat` = mises à jour ; `recreer-venv.bat` pour le déplacement du projet | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B du guide (création projet Google Cloud) + fichier de suivi T1.7 | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 3) — archive allégée via .gitattributes (D73) + scripts/ déplacé sous installation/ | ci-dessous |
 
 ---
 
@@ -806,3 +810,128 @@ Aucun.
 - Board Miro : synchronisé.
 - En attente côté utilisateur : test réel `gmailagent suppression --reel` à T+24h (phase 7, D47) ;
   merge `dev` → `main` à sa main (règle H).
+
+---
+
+## Séance du 16/11/2026 — déploiement v1 scripté Windows 11 (`installation/Windows/` + guide)
+
+### Contexte
+L'utilisateur acte le retour à la proposition initiale (v1 : venv + `python`/`py`, sans exécutable autonome — D70 reste suspendu) et demande un déploiement scripté pour une utilisatrice non technique sur Windows 11, poste neuf (Python non installé, git non installé ni à installer), branche cible `main`. Demande explicite de commit + push sur `dev` (règle C levée pour cette action, règle H : push direct sur `dev`).
+
+### Actions réalisées
+
+1. **`installation/Windows/`** (nouveau dossier, 9 scripts, en-têtes de présentation conventionnels) :
+   - `bootstrap.bat` — seul fichier à copier-coller au 1er lancement : télécharge l'archive ZIP de la branche `main` (`curl`, natif Win11), extrait (`tar`, natif Win11), installe dans `C:\Users\Public\Documents\gmailAgent` (test d'accès en écriture) sinon `%USERPROFILE%\Documents\gmailAgent` ; en mise à jour, conserve `.venv`, `data`, `logs`, `*.bat`, `*.ps1` ; garde-fou `pyproject.toml` ; délègue à `install.ps1` via `powershell -ExecutionPolicy Bypass -File` (les `.bat` passent la stratégie d'exécution qui bloque les `.ps1` en double-clic).
+   - `install.ps1` — détection de Python (`py` puis `python`, stub Store `WindowsApps` ignoré) ; cible 3.14 (3.14.3 confirmée fonctionnelle par l'utilisateur), min 3.11 (`pyproject.toml`) ; si absent → `winget install Python.Python.3.14 --scope user` ; si présent et < cible → question `[M]onter / [A]nnuler` ; venv + `pip install -e .` (éditable obligatoire) + smoke `gmailagent.exe --help` ; copie des lanceurs à la racine sans écraser ; lance la saisie des secrets.
+   - `configurer-secrets.ps1` — saisie masquée de `MISTRAL_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` → Credential Manager (PasswordVault, chiffré DPAPI, lié au compte Windows).
+   - `lancer.ps1` — peuple `os.environ` depuis le vault, puis **option A validée** : si `data\gmail_token.json` existe, ses `client_id`/`client_secret` priment (valorisation dynamique depuis le token) ; exécute `gmailagent.exe` (mode `cli`) ou `scripts\init_oauth.py` (mode `oauth`).
+   - Lanceurs `.bat` à la racine : `tri.bat` (dry-run), `tri-reel.bat`, `tri-reel-auto.bat` (sans `pause`, pour la tâche planifiée), `suppression.bat`, `init-oauth.bat`.
+2. **`installation/guide-installation-windows11.md`** — guide utilisateur complet (prérequis fournis, un seul geste via `bootstrap.bat`, flux OAuth, dry-run puis réel, tâche planifiée, mises à jour, dépannage, sécurité, annexe A = `bootstrap.bat` à copier-coller).
+3. **`README.md`** — pointeur vers le guide dans la section Installation.
+4. **Commit + push sur `dev`** (demande explicite).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D71 | **v1 retenue comme mode de déploiement** : arborescence de la branche `main` + scripts dans `installation/Windows/` (`bootstrap.bat` → `install.ps1` → lanceurs `.bat`), sans exécutable autonome (D70 suspendu), sans git installé sur le poste cible. Secrets : Credential Manager (vault) + lecture dynamique de `client_id`/`client_secret` depuis `data/gmail_token.json` quand il existe (option A ; dans `src/`, seule `MISTRAL_API_KEY` est lue en variable d'environnement, `core_client.py:38`) | Demande utilisateur 16/11/2026 ; cohérence règle D (aucun secret en clair dans les fichiers, `data/` ignoré par git). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (ce lot `installation/` + `SESSIONS.md` + `README.md`).
+- Kanban : inchangé (**En cours** = T10.1, étude ; déploiement v1 réalisé hors kanban, phase 10).
+- Board Miro : non synchronisé (non demandé cette séance).
+- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` téléchargée embarque `installation/`.
+
+---
+
+## Séance du 16/11/2026 (suite) — parcours « téléchargement manuel + install.bat » (D72)
+
+### Contexte
+L'utilisateur juge illogique d'exiger le copier-coller du `bootstrap.bat` par un non-technicien : il préfère que l'utilisateur télécharge lui-même tout le dépôt (sans git), puis suive le guide. Demande : nouvelle section README dédiée (méthodes 1 et 2 de téléchargement du ZIP), mise à jour des scripts et du guide, et un script dédié au cas où le projet est déplacé (le venv embarque des chemins absolus).
+
+### Actions réalisées
+
+1. **`README.md`** : nouvelle section « Installation sur un poste Windows 11 (utilisateur non technique) » — méthode 1 (interface GitHub : sélecteur de branche `main`, bouton « Code » → « Download ZIP » ; la branche par défaut du dépôt est `dev`, d'où le changement de branche explicite) et méthode 2 (URL directe `…/archive/refs/heads/main.zip`), extraction + renommage en `gmailAgent`.
+2. **`installation/Windows/install.bat`** (nouveau) : point d'entrée du 1er lancement, lancé depuis `installation\Windows\` du dépôt téléchargé → appelle `install.ps1` avec `-ExecutionPolicy Bypass`.
+3. **`installation/Windows/bootstrap.bat`** v1.1 : repositionné en **mise à jour locale** — plus de choix automatique du dossier (`C:\Users\Public\Documents` testé puis fallback) : l'utilisateur choisit lui-même où extraire le projet ; le script calcule la racine du projet (2 niveaux au-dessus de lui), se relance depuis `%TEMP%` (le dossier projet est modifié en place), télécharge le ZIP de `main` et recopie le code avec `robocopy /E /XD .venv data logs`, puis relance `install.ps1 -SansPython -SansSecrets` (réinstall éditable + lanceurs).
+4. **`installation/Windows/install.ps1`** v1.1 : switchs `-SansPython` (détecte la version existante sans proposer l'installation/montée) et `-SansSecrets` (ne relance pas la saisie) ; copie aussi `recreer-venv.bat` à la racine.
+5. **`installation/Windows/recreer-venv.bat`** (nouveau, copié à la racine) : supprime `.venv` et relance `install.ps1 -SansPython -SansSecrets` — à utiliser après un **déplacement du dossier projet** (documenté dans le guide §7).
+6. **`installation/Windows/configurer-secrets.ps1`** v1.1 : idempotent (si une entrée `gmailAgent` existe déjà dans le vault, aucune saisie n'est redemandée).
+7. **`installation/guide-installation-windows11.md`** v1.1 : étape 1 = téléchargement manuel du ZIP (méthodes 1/2) + extraction + choix du dossier + renommage ; étape 2 = `install.bat` ; §7 déplacement → `recreer-venv.bat` ; §8 mises à jour via `bootstrap.bat` ; annexe A (copier-coller) supprimée.
+8. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D72 | Parcours retenu : l'utilisateur télécharge lui-même l'archive ZIP de `main` (méthodes 1/2 dans le README) et lance `installation\Windows\install.bat` ; `bootstrap.bat` ne sert plus qu'aux mises à jour (recopie locale, `.venv`/`data`/`logs` conservés) ; le dossier d'installation est au choix de l'utilisateur ; déplacement du projet → `recreer-venv.bat` | Demande utilisateur 16/11/2026 : éviter tout copier-coller pour un non-technicien ; le venv embarque des chemins absolus (incident T1.7 documenté). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (mise à jour `installation/` + README + SESSIONS.md).
+- En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` téléchargée embarque `installation/`.
+
+---
+
+## Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B (Google Cloud) + suivi T1.7
+
+### Contexte
+Avant de clore la v1, l'utilisateur demande si la création du projet Google Cloud (nécessaire aux appels API Gmail) est documentée. Constat : oui mais partiellement — kanban T1.7 partie A (3 puces), `docs/sessions-archive.md:321,326` (déroulement réel), `.env.example`, README (prérequis) ; mais aucun fichier de suivi `docs/projet/tasks/T1.7_*.md` et aucune procédure pas à pas. Proposition validée : annexe B du guide + fichier de suivi T1.7.
+
+### Actions réalisées
+
+1. **`installation/guide-installation-windows11.md`** v1.2 : nouvelle **annexe B** « Créer le projet Google Cloud (API Gmail) » — procédure pas à pas pour l'administrateur (créer le projet, activer l'API Gmail, écran de consentement « Externe » puis « Publier l'application » → « En production » obligatoire, écran « app non vérifiée » contourné, client « Application de bureau » → `client_id`/`client_secret`, aucune facturation requise, scopes `gmail.modify` seul), complétée par les cas d'invalidation du refresh token (supprimer `data\gmail_token.json` puis relancer `init-oauth.bat` ; identifiants depuis le Credential Manager ou l'ancien token via `lancer.ps1`, option A).
+2. **`docs/projet/tasks/T1.7_prerequis_oauth_google.md`** (nouveau) : fichier de suivi T1.7 au format standard (statut, fichiers, détails parties A/B, vérification, blocages) — boucle la série T1.x.
+3. **`README.md`** : la section non-technicien pointe désormais vers l'annexe B du guide.
+4. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+Aucune nouvelle (documentation de clôture v1 ; D71/D72 actées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (annexe B + T1.7 + README + SESSIONS.md).
+- v1 documentée de bout en bout : guide d'installation Windows 11 (parcours, secrets, OAuth, dépannage, sécurité, annexe B Google Cloud) + scripts `installation/Windows/`.
+- En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H).
+
+---
+
+## Séance du 16/11/2026 (suite 3) — archive allégée (.gitattributes) + scripts/ déplacé sous installation/ (D73)
+
+### Contexte
+Deux demandes utilisateur : (1) l'utilisateur qui télécharge le ZIP ne devrait recevoir que README + installation + code fonctionnel, pas la doc projet — `.gitignore` ne pouvant pas être conditionnel par branche (effet local uniquement), la piste retenue est `.gitattributes` + `export-ignore` (appliqué par `git archive`, donc aux ZIP servis par GitHub ; testé : aucun effet sur `git clone`) ; (2) le dossier `scripts/` (qui ne contient que `init_oauth.py`, outil one-shot d'installation) déplacé sous `installation/`.
+
+### Actions réalisées
+
+1. **`.gitattributes`** (nouveau, racine) : `export-ignore` sur `docs/`, `tests/`, `SESSIONS.md`, `AGENTS.md`, `.gitignore`. Vérifié par `git archive --worktree-attributes` : l'archive ne contient plus que `README.md`, `installation/`, `src/`, `config/`, `pyproject.toml`, `.env.example` (template conservé : documenté, aucun secret). Un seul fichier sur `dev`, propagé à `main` au prochain merge (règle H) ; les clones restent complets.
+2. **`git mv scripts/init_oauth.py installation/init_oauth.py`** (dossier `scripts/` supprimé ; `installation/` = niveau commun, le script étant cross-plateforme, et `RACINE = parent.parent` reste valide à cette profondeur). Références mises à jour : `installation/init_oauth.py` (usage + en-tête v1.1), `src/gmailagent/gmail_client.py` (docstring + message d'erreur, v1.1), `README.md` (2 refs), `docs/projet/kanban.md` (T1.7 partie B), `docs/projet/plan-macro.md` (arborescence), `docs/projet/tasks/T1.7_prerequis_oauth_google.md`, `installation/guide-installation-windows11.md` (v1.3), `installation/Windows/lancer.ps1` (mode oauth, v1.1), `pyproject.toml` (exclude mypy `scripts/` → `installation/`). Références historiques laissées telles quelles (`docs/sessions-archive.md`, descriptions de tâches terminées T9.10, étude v2 suspendue `packaging-executable.md`).
+3. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D73 | **Archive ZIP allégée via `.gitattributes` + `export-ignore`** (`docs/`, `tests/`, `SESSIONS.md`, `AGENTS.md`, `.gitignore`) : le ZIP téléchargé sur GitHub ne contient que README, `installation/`, `src/`, `config/`, `pyproject.toml`, `.env.example` ; **aucun effet sur les clones**. `scripts/` déplacé sous `installation/` (`init_oauth.py`) | Demande utilisateur 16/11/2026 ; `.gitignore` ne peut pas être conditionnel par branche (effet local uniquement), `export-ignore` oui pour les archives servies par GitHub (testé localement). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (.gitattributes + déplacement scripts/→installation/ + refs + SESSIONS.md).
+- En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf (ZIP de `main` allégé) ; merge `dev` → `main` à sa main (règle H).

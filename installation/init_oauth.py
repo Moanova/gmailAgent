@@ -4,9 +4,9 @@
 
 # Script       : init_oauth.py
 
-# Version      : 1.0
+# Version      : 1.1
 
-# Date         : 11-11-2026
+# Date         : 16-11-2026
 
 # Design       : TSC + Mistral Vibe
 
@@ -27,7 +27,7 @@ Pré-requis (tâche T1.7) :
     console Google Cloud (sinon le refresh_token expire après 7 jours).
 
 Usage :
-  python scripts/init_oauth.py
+  python installation/init_oauth.py
 """
 
 import json

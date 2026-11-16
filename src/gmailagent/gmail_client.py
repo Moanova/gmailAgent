@@ -1,15 +1,15 @@
 # -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : gmail_client.py
-# Version      : 1.0
-# Date         : 11-11-2026
+# Version      : 1.1
+# Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
 # -------------------------------------------------------------------
 
 """Client Gmail concret : câblage OAuth (refresh token) + API Gmail.
 
-Le token est produit une seule fois par `scripts/init_oauth.py` (tâche T1.7)
+Le token est produit une seule fois par `installation/init_oauth.py` (tâche T1.7)
 dans `data/gmail_token.json` (dossier `data/` ignoré par git) et rechargé ici
 via `Credentials.from_authorized_user_info` ; `google-auth` renouvelle
 l'access_token automatiquement (pas d'expiration calendaire du refresh token
@@ -56,7 +56,8 @@ def charger_credentials(chemin: str | Path | None = None) -> Credentials:
         donnees = json.loads(cible.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as erreur:
         raise TokenGmailError(
-            f"token Gmail illisible : {cible} — réexécuter scripts/init_oauth.py (T1.7 partie B)"
+            f"token Gmail illisible : {cible} — "
+            "réexécuter installation/init_oauth.py (T1.7 partie B)"
         ) from erreur
     if not isinstance(donnees, dict):
         raise TokenGmailError(f"token Gmail malformé (objet JSON attendu) : {cible}")
