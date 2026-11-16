@@ -1,6 +1,6 @@
 # Guide d'installation — gmailAgent sur Windows 11 (poste neuf)
 
-- **Version** : 1.1 — **Date** : 16-11-2026 — **Branche cible** : `main`
+- **Version** : 1.2 — **Date** : 16-11-2026 — **Branche cible** : `main`
 - **Public** : utilisatrice non technique. **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
 
 ## 0. Avant de commencer — ce qu'on vous a fourni
@@ -102,3 +102,19 @@ Double-clic sur **`installation\Windows\bootstrap.bat`** : il retélécharge la 
 ---
 
 Les scripts d'installation sont dans **`installation\Windows\`** : `install.bat` (1ère installation), `bootstrap.bat` (mises à jour), `recreer-venv.bat` (après déplacement du dossier), `lancer.ps1` + `configurer-secrets.ps1` (secrets), et les lanceurs copiés à la racine du projet.
+
+---
+
+## Annexe B — Créer le projet Google Cloud (API Gmail) — à faire par l'administrateur, une seule fois
+
+Cette partie se fait dans la [console Google Cloud](https://console.cloud.google.com), avec le compte Google qui hébergera l'application. **Aucune facturation n'est requise** pour l'API Gmail en usage personnel. Résultat attendu : un `client_id` et un `client_secret`, à transmettre de façon sécurisée à l'utilisateur (ils seront saisis une fois via `configurer-secrets.ps1` — jamais par e-mail ou messagerie).
+
+1. **Créer un projet** : en haut de la console, « Sélectionner un projet » → « Nouveau projet » → nom (ex. `gmailAgent`) → « Créer ».
+2. **Activer l'API Gmail** : menu « API et services » → « Bibliothèque » → rechercher « Gmail API » → « Activer ».
+3. **Écran de consentement OAuth** : « Google Auth Platform » → « Écran de consentement » → type d'utilisateur **« Externe »** → « Créer » → renseigner le nom de l'application (`gmailAgent`) et l'e-mail d'assistance → enregistrer. Puis **« Publier l'application »** pour passer le statut à **« En production »**.
+   - « En production » est **obligatoire** : en « Testing », seuls les utilisateurs de test peuvent se connecter et le refresh token expire après 7 jours.
+   - L'écran « application non vérifiée » affiché au consentement est normal (usage < 100 utilisateurs, scope `gmail.modify`) : le contourner par « Avancé » → « Continuer vers gmailAgent (non sécurisé) ».
+4. **Créer les identifiants OAuth** : « Google Auth Platform » → « Clients » → « Créer un client » → type **« Application de bureau »** → nom → « Créer ». Copier le **`client_id`** et le **`client_secret`** affichés.
+5. **Scopes** : définis dans le code (`scripts/init_oauth.py`) : `https://www.googleapis.com/auth/gmail.modify` uniquement (lecture, libellés, corbeille). `gmail.send` est volontairement **exclu** (moindre privilège).
+
+Côté utilisateur, le flux d'autorisation se termine par `init-oauth.bat` → `data\gmail_token.json` (permissions 600). En « En production », le refresh token n'a **pas d'expiration calendaire** ; il est invalidé en cas de révocation, 6 mois d'inactivité, changement de mot de passe Google (scopes Gmail) ou plafond d'environ 50 tokens actifs par compte/client. Dans ce cas : supprimer `data\gmail_token.json` (`init_oauth.py` refuse de se relancer sinon) et relancer `init-oauth.bat` — les identifiants Google proviennent alors du Credential Manager (saisis à l'installation) ou de l'ancien token encore présent (lus automatiquement par `lancer.ps1`).

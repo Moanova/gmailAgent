@@ -36,7 +36,7 @@ Pas besoin de git ni de Python préinstallé : télécharger l'ensemble du dép�
 - **Méthode 1 (interface GitHub)** : ouvrir [github.com/Moanova/gmailAgent](https://github.com/Moanova/gmailAgent) → sélecteur de branche en haut à gauche (par défaut `dev`) → onglet « Branches » → choisir **`main`** → bouton vert « <> Code » → « Download ZIP » (`gmailAgent-main.zip`, ~1 Mo) ;
 - **Méthode 2 (URL directe)** : `https://github.com/Moanova/gmailAgent/archive/refs/heads/main.zip` dans la barre d'adresse du navigateur.
 
-Puis : clic droit sur le ZIP → « Extraire tout… » → choisir le dossier d'installation → renommer le dossier extrait `gmailAgent-main` en `gmailAgent`. Ensuite suivre le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (premier geste : double-clic sur `installation\Windows\install.bat` ; scripts dans [`installation/Windows/`](installation/Windows/)).
+Puis : clic droit sur le ZIP → « Extraire tout… » → choisir le dossier d'installation → renommer le dossier extrait `gmailAgent-main` en `gmailAgent`. Ensuite suivre le [guide d'installation Windows 11](installation/guide-installation-windows11.md) (premier geste : double-clic sur `installation\Windows\install.bat` ; scripts dans [`installation/Windows/`](installation/Windows/)). La création du projet Google Cloud (API Gmail, écran de consentement « En production », client OAuth « Application de bureau ») est documentée pas à pas en annexe B du guide.
 
 ## Configuration
 

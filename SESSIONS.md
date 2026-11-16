@@ -88,6 +88,7 @@ contexte (voir AGENTS.md, §1).
 | 13/11/2026 | Séance du 13/11/2026 (suite 6) — fin de séance : D69 suspendue (D70, v2 à réévaluer), commit/push des docs sur `dev` | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 — déploiement v1 scripté Windows 11 : `installation/Windows/` + guide (D71) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite) — parcours « téléchargement manuel du ZIP + install.bat » retenu (D72) ; `bootstrap.bat` = mises à jour ; `recreer-venv.bat` pour le déplacement du projet | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B du guide (création projet Google Cloud) + fichier de suivi T1.7 | ci-dessous |
 
 ---
 
@@ -877,3 +878,31 @@ Aucun.
 
 - Branche `dev` : commit + push effectués (mise à jour `installation/` + README + SESSIONS.md).
 - En attente côté utilisateur : test du parcours complet sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H) pour que la branche `main` téléchargée embarque `installation/`.
+
+---
+
+## Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B (Google Cloud) + suivi T1.7
+
+### Contexte
+Avant de clore la v1, l'utilisateur demande si la création du projet Google Cloud (nécessaire aux appels API Gmail) est documentée. Constat : oui mais partiellement — kanban T1.7 partie A (3 puces), `docs/sessions-archive.md:321,326` (déroulement réel), `.env.example`, README (prérequis) ; mais aucun fichier de suivi `docs/projet/tasks/T1.7_*.md` et aucune procédure pas à pas. Proposition validée : annexe B du guide + fichier de suivi T1.7.
+
+### Actions réalisées
+
+1. **`installation/guide-installation-windows11.md`** v1.2 : nouvelle **annexe B** « Créer le projet Google Cloud (API Gmail) » — procédure pas à pas pour l'administrateur (créer le projet, activer l'API Gmail, écran de consentement « Externe » puis « Publier l'application » → « En production » obligatoire, écran « app non vérifiée » contourné, client « Application de bureau » → `client_id`/`client_secret`, aucune facturation requise, scopes `gmail.modify` seul), complétée par les cas d'invalidation du refresh token (supprimer `data\gmail_token.json` puis relancer `init-oauth.bat` ; identifiants depuis le Credential Manager ou l'ancien token via `lancer.ps1`, option A).
+2. **`docs/projet/tasks/T1.7_prerequis_oauth_google.md`** (nouveau) : fichier de suivi T1.7 au format standard (statut, fichiers, détails parties A/B, vérification, blocages) — boucle la série T1.x.
+3. **`README.md`** : la section non-technicien pointe désormais vers l'annexe B du guide.
+4. **Commit + push sur `dev`** (dans la continuité de la demande de sauvegarde de cette séance).
+
+### Décisions clés
+
+Aucune nouvelle (documentation de clôture v1 ; D71/D72 actées).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (annexe B + T1.7 + README + SESSIONS.md).
+- v1 documentée de bout en bout : guide d'installation Windows 11 (parcours, secrets, OAuth, dépannage, sécurité, annexe B Google Cloud) + scripts `installation/Windows/`.
+- En attente côté utilisateur : test du parcours sur un poste Windows 11 neuf ; merge `dev` → `main` à sa main (règle H).
