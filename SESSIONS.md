@@ -81,6 +81,11 @@ contexte (voir AGENTS.md, §1).
 | 11/11/2026 | Séance du 11/11/2026 (suite 16) — en-têtes de présentation ajoutés aux 17 scripts applicatifs | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 — incident modèle (`mistral-large-latest`) : diagnostic + tâche T9.11 créée (plan) | ci-dessous |
 | 13/11/2026 | Séance du 13/11/2026 (suite) — implémentation T9.11 + commit/push sur `dev` | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite 2) — validation utilisateur T9.11 (tri --reel OK sur 3 modèles) → Terminé + Miro | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite 3) — T10.1 démarrée : note d'étude packaging rédigée (PyInstaller onedir recommandé) | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite 4) — plan détaillé PyInstaller documenté (note §8) ; portabilité + impact CLI confirmés | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite 5) — v2 retenue (D69, PyInstaller onedir) + Q/R SmartScreen / certificat / faux positifs AV (note §8.7) | ci-dessous |
+| 13/11/2026 | Séance du 13/11/2026 (suite 6) — fin de séance : D69 suspendue (D70, v2 à réévaluer), commit/push des docs sur `dev` | ci-dessous |
 
 ---
 
@@ -582,3 +587,222 @@ Aucun.
 - Reste : validation utilisateur en conditions réelles (dry-run puis petit périmètre `--reel` avec
   `MISTRAL_MODEL=mistral-large-latest`) → T9.11 « Terminé » sur demande ; sync board Miro en fin de
   séance.
+
+---
+
+## Séance du 13/11/2026 (suite 2) — validation utilisateur T9.11 → Terminé + sync Miro
+
+### Contexte
+L'utilisateur rapporte que `gmailagent tri --reel` est **concluant avec les trois modèles**
+(`mistral-small-latest`, `mistral-large-latest`, `zai-glm-latest`) : T9.11 est validée en conditions
+réelles (étape 6). Demande : déplacer T9.11 en « Terminé » dans le kanban. Il demande aussi un
+rappel de la règle appliquée à `gmailagent suppression --reel`. Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **Kanban** (`docs/projet/kanban.md`) : T9.11 « En revue » → **« Terminé »** ; note de description
+   mise à jour (validée le 13/11/2026, 3 modèles testés en `--reel`, commit `edfb7d6`).
+2. **Fichier de suivi T9.11** : case « Validation utilisateur » cochée (tri `--reel` concluant sur
+   les 3 modèles).
+3. **Board Miro** (« Kanban - gmailAgent") : ligne T9.11 passée de « En revue » à **« Fait »**,
+   description complétée (validation réelle 13/11/2026).
+4. **SESSIONS.md** : cette entrée.
+5. **Rappel règle `gmailagent suppression --reel`** (réponse de séance) : run de suppression
+   **séparé, planifié T+24h** (D47) ; périmètre restreint — requête
+   `label:"Agent/traité" label:"Agent/notification" older_than:24h` (délai
+   `suppression.delai_grace: 24h` dans `config/settings.yaml`, notifications seules éligibles,
+   clause doublon retirée D59) ; **corbeille uniquement** — l'agent applique lui-même `TRASH` via
+   `label_message`, jamais de suppression définitive ; **dry-run par défaut (règle E)** — sans
+   `--reel` les écritures sont journalisées sans être exécutées, `--reel` les applique ; validation
+   C1–C6 + garde « écart corbeille réelle / ids » avant checkpoint, rejet → `echec_partiel` +
+   `etape_fautive` (arrêt propre), idempotence par la requête `older_than` et l'exclusion TRASH de
+   la recherche Gmail, reprise sur incident via `--run-id`.
+
+### Décisions clés
+
+Aucune nouvelle (D68 acté).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C — aucun commit/push demandé) —
+  `docs/projet/kanban.md`, `docs/projet/tasks/T9.11_….md`, `SESSIONS.md`.
+- Kanban : **Terminé** = T1.1–T9.11 ; **À faire** = T10.1.
+- Board Miro : synchronisé (T9.11 en « Fait »).
+- Prochaine étape : commit/push des mises à jour doc sur `dev` sur demande explicite (règle C).
+
+---
+
+## Séance du 13/11/2026 (suite 3) — T10.1 démarrée : étude du packaging en exécutable autonome
+
+### Contexte
+L'utilisateur passe à la tâche T10.1 (seule tâche « À faire ») et demande (1) la documentation de
+la synthèse sur les outils de packaging, (2) une explication du fonctionnement de PyInstaller
+(méconnaissance : l'exe serait « régénéré à chaque lancement »), (3) si Briefcase est gratuit
+(intérêt pour un autre projet GUI). Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **Note d'étude** `docs/design/packaging-executable.md` rédigée : fonctionnement de PyInstaller
+   (build unique ; onefile = extraction vers `%TEMP%` à chaque lancement, onedir = aucune
+   extraction), tableau comparatif (PyInstaller, Nuitka, cx_Freeze, Briefcase, PyOxidizer écarté,
+   zipapp + python-build-standalone), contraintes projet (deps lourdes, cron/timer, point dur
+   `RACINE_PROJET`, règle D/E, corbeille uniquement), **recommandation PyInstaller `onedir` +
+   config externe + `.bat`**, plan de réalisation si v2 retenue, risques, références.
+2. **Kanban** : T10.1 « À faire » → **« En cours »** + bilan dans la description.
+3. **Fichier de suivi T10.1** : cases cochées + section « Réalisation (13/11/2026) ».
+4. **Board Miro** : ligne T10.1 « À faire » → **« En cours »**.
+5. **SESSIONS.md** : cette entrée.
+6. **Réponses de séance** : PyInstaller ne régénère rien à chaque lancement — le build est unique ;
+   en `--onefile` c'est le *payload embarqué* qui est extrait vers `%TEMP%` à chaque run (coût de
+   démarrage), l'exe restant inchangé ; `--onedir` n'extrait rien. Briefcase (BeeWare) est
+   **gratuit et open-source (licence BSD)**, financé par dons (PSF/BeeWare) — aucun coût de licence ;
+   seul un certificat de signature de code serait payant en distribution Windows signée.
+
+### Décisions clés
+
+Aucune nouvelle (D66 acté ; la recommandation PyInstaller onedir est une proposition d'étude, la
+rétention de la v2 reste à décider par l'utilisateur).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — `docs/design/packaging-executable.md`
+  (nouveau), `docs/projet/kanban.md`, `docs/projet/tasks/T10.1_….md`, `SESSIONS.md`, + les mises à
+  jour T9.11 de la suite 2.
+- Kanban : **En cours** = T10.1 ; **Terminé** = T1.1–T9.11.
+- Board Miro : synchronisé (T9.11 « Fait », T10.1 « En cours »).
+- Prochaine étape : décision utilisateur sur la v2 (D66) ; commit/push des docs sur `dev` sur
+  demande explicite.
+
+---
+
+## Séance du 13/11/2026 (suite 4) — plan détaillé PyInstaller documenté dans la note T10.1
+
+### Contexte
+L'utilisateur demande (1) de documenter le plan détaillé PyInstaller, (2) confirmation de la
+portabilité du binaire sur tout poste Windows modulo variables d'environnement, (3) si les
+modifications de code nécessaires (résolution des chemins) ont un impact sur l'exécution CLI
+actuelle. Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **`docs/design/packaging-executable.md`** : nouveau §8 « Plan détaillé PyInstaller » —
+   prérequis (build sur Windows, venv propre, pyinstaller dans le groupe `dev`), étapes (entry
+   script `scripts/pyinstaller_entry.py`, spec `scripts/gmailagent.spec` avec `pathex=['src']`,
+   `datas=[('config','config')]`, `onefile=False`, UPX off, script de build, `.bat`, zip onedir),
+   changement de code `sys.frozen`/`GMAILAGENT_HOME`, pièges dépendances (googleapiclient discovery
+   +50 Mo, pydantic-core, warn-*.txt, taille ~100–200 Mo), validation (qualité inchangée, smoke
+   poste nu, dry-run réel, `--reel` petit périmètre), §8.6 portabilité. Références renumérotées §9.
+2. **Kanban** : description T10.1 complétée (plan détaillé documenté).
+3. **Board Miro** : description T10.1 mise à jour (reste « En cours »).
+4. **SESSIONS.md** : cette entrée.
+
+### Réponses de séance (confirmations)
+
+- **Portabilité** : oui — le dossier onedir embarque CPython, distribuable sur tout poste Windows
+  10/11 x86_64 sans Python, modulo : env (`MISTRAL_API_KEY`, `GOOGLE_CLIENT_ID/SECRET` via `setx`),
+  token OAuth provisionné (`init_oauth.py` ou copie `data/gmail_token.json`), dossier de l'exe en
+  écriture (`data/`, `logs/`), `config/` externe, SmartScreen/AV si non signé.
+- **Impact sur le CLI actuel : aucun** — `getattr(sys, "frozen", False)` est False hors binaire, donc
+  `RACINE_PROJET` et la résolution de `config/` sont strictement inchangées en venv ; l'override
+  `GMAILAGENT_HOME` est optionnel et inactif par défaut ; branche figée couverte par TU (mock
+  `sys.frozen`), `test_settings_du_depot_charges` reste vert.
+
+### Décisions clés
+
+Aucune nouvelle.
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — note T10.1, kanban, SESSIONS.md (+ mises
+  à jour T9.11/T10.1 des suites 2–3).
+- Kanban : **En cours** = T10.1 ; **Terminé** = T1.1–T9.11.
+- Prochaine étape : décision v2 (D66) ; commit/push des docs sur `dev` sur demande explicite.
+
+---
+
+## Séance du 13/11/2026 (suite 5) — v2 retenue (D69, PyInstaller onedir) + Q/R SmartScreen / certificat / faux positifs AV
+
+### Contexte
+L'utilisateur **valide le principe de l'exécutable autonome pour la v2 avec PyInstaller** et pose
+trois questions : (1) qu'est-ce que SmartScreen, (2) à quel moment un certificat est-il nécessaire,
+(3) que sont les faux positifs AV. Pas de commit/push demandé (règle C).
+
+### Actions réalisées
+
+1. **`docs/design/packaging-executable.md`** : nouveau §8.7 « SmartScreen, signature de code et
+   faux positifs AV » (réputation Defender + Mark-of-the-Web ; certificat OV ~100 €/an ou Azure
+   Artifact Signing ~9,99 $/mois, signer chaque release avec la même identité, EV inutile pour
+   SmartScreen depuis 2024 ; faux positifs AV PyInstaller : bootloader/dropper, mitigations onedir +
+   `--noupx` + bootloader recompilé + signature + soumission aux éditeurs).
+2. **Kanban** : description T10.1 complétée — v2 retenue (D69), implémentation à ouvrir en tâche
+   dédiée sur demande.
+3. **Board Miro** : description T10.1 mise à jour (v2 retenue D69).
+4. **SESSIONS.md** : cette entrée.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D69 | **v2 retenue** pour le volet exécutable autonome : PyInstaller `onedir` + config externe + lanceur `.bat` (étude T10.1 validée) — **suspendue le 13/11/2026 (voir D70)** | Validation utilisateur 13/11/2026 de la recommandation de l'étude `docs/design/packaging-executable.md`, puis suspension en fin de séance. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : modifications **non commitées** (règle C) — note T10.1, kanban, SESSIONS.md (+
+  suites 2–4).
+- Kanban : **En cours** = T10.1 (étude validée, v2 retenue D69) ; **Terminé** = T1.1–T9.11.
+- Prochaine étape : commit/push des docs sur `dev` sur demande explicite ; ouverture d'une tâche
+  d'implémentation v2 (recodage `RACINE_PROJET` + build PyInstaller) sur demande.
+
+---
+
+## Séance du 13/11/2026 (suite 6) — fin de séance : décision v2 suspendue (D70) + commit/push sur `dev`
+
+### Contexte
+L'utilisateur met fin à la séance. Il demande de **remettre en suspens la validation de la v2 avec
+PyInstaller** (D69) — à réévaluer, la piste paraît trop lourde pour le besoin — et de
+**commiter les changements en attente et de tout pousser sur le dépôt** (règle C levée pour cette
+action, branche `dev` selon règle H).
+
+### Actions réalisées
+
+1. **D69 suspendue** : annotée dans la suite 5 (voir D70) ; statut ajouté en tête de
+   `docs/design/packaging-executable.md` ; description T10.1 du kanban mise à jour ; board Miro
+   synchronisé.
+2. **Commit + push sur `dev`** de l'ensemble des modifications en attente (suites 2–6) :
+   `docs/projet/kanban.md`, `SESSIONS.md`, `docs/projet/tasks/T9.11_….md`,
+   `docs/projet/tasks/T10.1_….md`, `docs/design/packaging-executable.md`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D70 | D69 suspendue : la v2 (exécutable autonome PyInstaller `onedir`) est **remise en suspens et devra être réévaluée** — piste jugée trop lourde pour le besoin ; la **v1 (CLI venv + cron local) reste la version de production** | Demande utilisateur, fin de séance du 13/11/2026. L'étude `packaging-executable.md` est conservée comme base si la v2 est relancée. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- Branche `dev` : commit + push effectués (toutes les mises à jour doc des suites 2–6).
+- Kanban : **En cours** = T10.1 (étude faite, décision v2 suspendue D70) ; **Terminé** = T1.1–T9.11 ;
+  **À faire** = vide.
+- Board Miro : synchronisé.
+- En attente côté utilisateur : test réel `gmailagent suppression --reel` à T+24h (phase 7, D47) ;
+  merge `dev` → `main` à sa main (règle H).
