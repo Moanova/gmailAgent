@@ -16,7 +16,6 @@ Ce document suit l'avancement des tâches pour l'implémentation du projet **gma
 ## À faire
 
 ## En cours
-T10.1
 
 ## En revue
 
@@ -64,6 +63,7 @@ T9.8
 T9.9
 T9.10
 T9.11
+T10.1
 
 
 ## Annulé
@@ -234,4 +234,4 @@ l'installation éditable est obligatoire pour la résolution des chemins) docume
 11/11/2026.
 Livrable : note d'étude `docs/design/packaging-executable.md` (options comparées, risques,
 recommandation, plan de réalisation si la v2 est retenue) + bilan dans ce kanban.
-Plan/scope : [docs/projet/tasks/T10.1](tasks/T10.1_etude_packaging_executable_autonome.md). *(Étude rédigée le 13/11/2026 : note `docs/design/packaging-executable.md` — comparaison des outils, point dur `RACINE_PROJET`, recommandation **PyInstaller onedir + config externe + lanceur `.bat`**, plan détaillé PyInstaller (§8 : entry script, spec, build, pièges googleapiclient/pydantic, portabilité Windows 10/11 x86_64 modulo env + token OAuth, impact CLI actuel nul, §8.7 SmartScreen/signature/AV) ; étude validée mais **décision v2 suspendue le 13/11/2026 (D70)** — piste PyInstaller jugée trop lourde pour le besoin, à réévaluer ; la v1 (CLI + cron local) reste la version de production.)*
+Plan/scope : [docs/projet/tasks/T10.1](tasks/T10.1_etude_packaging_executable_autonome.md). *(Étude rédigée le 13/11/2026 : note `docs/design/packaging-executable.md` — comparaison des outils, point dur `RACINE_PROJET`, recommandation **PyInstaller onedir + config externe + lanceur `.bat`**, plan détaillé PyInstaller (§8 : entry script, spec, build, pièges googleapiclient/pydantic, portabilité Windows 10/11 x86_64 modulo env + token OAuth, impact CLI actuel nul, §8.7 SmartScreen/signature/AV) ; étude validée mais **décision v2 suspendue le 13/11/2026 (D70)** — piste PyInstaller jugée trop lourde pour le besoin, à réévaluer ; la v1 (CLI + cron local) reste la version de production.)* *(Clôture 16/11/2026, D74 : la **v2 retenue est le déploiement sur Mistral Studio** (base [conception-studio-apps.md](../design/conception-studio-apps.md)) ; le volet exécutable autonome PyInstaller est abandonné (D70 clôturé). La v1 scriptée (`installation/Windows/`) est la version de production. Tâche déplacée en « Terminé ».)*

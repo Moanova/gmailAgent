@@ -5,6 +5,7 @@ import pytest
 
 from gmailagent.core_config import (
     Limites,
+    Modele,
     Parametres,
     ParametresInvalidesError,
     ParametresSuppression,
@@ -49,7 +50,7 @@ class _FauxServiceThreads:
 class TestParametresDefauts:
     def test_defauts_code(self) -> None:
         p = Parametres()
-        assert p.modele.defaut == "mistral-small-latest"
+        assert p.modele.defaut == Modele().defaut
         assert p.limites.max_tokens == 8000
         assert p.limites.plafond_appels_outils == 50
         assert p.limites.max_tentatives_synthese == 3
@@ -80,7 +81,7 @@ class TestParametresDefauts:
         p = charger_parametres(cible)
         assert p.limites.max_tokens == 4000
         assert p.limites.max_threads_par_run == 25
-        assert p.modele.defaut == "mistral-small-latest"
+        assert p.modele.defaut == Modele().defaut
 
     def test_cle_inconnue_rejetee(self, tmp_path: Path) -> None:
         cible = tmp_path / "settings.yaml"

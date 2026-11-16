@@ -5,7 +5,7 @@ Agent personnel de traitement des messages Gmail : pipeline de tri orchestré en
 Spécification : [docs/design/conception.md](docs/design/conception.md).
 workflow : [docs/design/workflow.md](docs/design/workflow.md).
 
-![Status: In development](https://img.shields.io/badge/Statut-En%20développement-orange)
+![Status: Projet clos (v1)](https://img.shields.io/badge/Statut-Projet%20clos%20(v1)-brightgreen)
 ![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg?logo=python)
 
 ## Prérequis
