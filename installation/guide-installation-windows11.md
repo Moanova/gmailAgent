@@ -1,9 +1,9 @@
-# Guide d'installation — gmailAgent sur Windows 11 (poste neuf)
+# Guide d'installation — gmailAgent sur Windows 11
 
-- **Version** : 1.3 — **Date** : 16-11-2026 — **Branche cible** : `main`
-- **Public** : utilisatrice non technique. **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
+- **Version** : 1.3 - **Date** : 16-11-2026 - **Branche cible** : `main`
+- **Public** : utilisatrut final (non développeur). **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
 
-## 0. Avant de commencer — ce qu'on vous a fourni
+## 0. Avant de commencer - ce qu'on vous a fourni
 
 1. Une **clé API Mistral** (créée sur [console.mistral.ai](https://console.mistral.ai)). Le modèle utilisé par défaut est `mistral-large-latest` (voir `config/settings.yaml`) ; la variable `MISTRAL_MODEL` permet de le changer.
 2. Les **identifiants Google** `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET` (fournis par l'administrateur du projet Google Cloud : API Gmail activée, écran de consentement OAuth « En production »). Ils ne serviront qu'au premier flux d'autorisation.
@@ -11,23 +11,23 @@
 
 > **Sécurité** : ne transmettez jamais ces valeurs par e-mail ou messagerie.
 
-## 1. Télécharger le projet (sans git)
+## 1. Télécharger le projet
 
-Le projet se télécharge sous forme d'archive ZIP de la branche **`main`** — git n'est ni installé ni nécessaire.
+Le projet se télécharge sous forme d'archive ZIP de la branche **`main`** - git n'est ni installé ni nécessaire.
 
-**Méthode 1 — via l'interface GitHub (recommandée) :**
+**Méthode 1 - via l'interface GitHub :**
 
 1. Ouvrir [github.com/Moanova/gmailAgent](https://github.com/Moanova/gmailAgent).
 2. En haut à gauche de la liste des fichiers, le sélecteur de branche affiche **« dev »** (branche par défaut du dépôt) → cliquer dessus → onglet **« Branches »** → choisir **`main`**.
 3. Bouton vert **« <> Code »** → **« Download ZIP »** : le navigateur télécharge `gmailAgent-main.zip` (~1 Mo).
 
-**Méthode 2 — URL directe** (à copier dans la barre d'adresse du navigateur) :
+**Méthode 2 - URL directe** (à copier dans la barre d'adresse du navigateur) :
 
 ```
 https://github.com/Moanova/gmailAgent/archive/refs/heads/main.zip
 ```
 
-**Extraction** (commun aux deux méthodes) : clic droit sur le ZIP → **« Extraire tout… »** → choisir le dossier d'installation de votre choix (par exemple `C:\Users\Public\Documents`, ou vos `Documents` personnels si le dossier Public n'est pas accessible) → renommer le dossier extrait `gmailAgent-main` en **`gmailAgent`**.
+**Extraction** (commun aux deux méthodes) : clic droit sur le ZIP → **« Extraire tout… »** → choisir le dossier d'installation de votre choix (par exemple `C:\Users\Public\Documents`, ou vos `Documents` personnels) → renommer le dossier extrait `gmailAgent-main` en **`gmailAgent`**.
 
 > Notez bien l'emplacement choisi : si vous déplacez le dossier plus tard, voir §7 (`recreer-venv.bat`).
 
@@ -42,24 +42,24 @@ Double-clic sur **`installation\Windows\install.bat`** dans le dossier extrait. 
 
 > Pourquoi des `.bat` et pas des `.ps1` en direct : la stratégie d'exécution de Windows bloque les scripts PowerShell lancés par double-clic (« exécution de scripts désactivée »). Les `.bat` passent toujours ; ils appellent PowerShell avec `-ExecutionPolicy Bypass` **pour ce seul processus**, sans modifier aucun réglage du poste.
 
-## 3. Autoriser l'accès à Gmail — une seule fois
+## 3. Autoriser l'accès à Gmail - une seule fois
 
 Double-clic sur **`init-oauth.bat`** (à la racine du dossier projet) → le navigateur s'ouvre sur le consentement Google :
 
 1. Choisir le compte Gmail concerné.
-2. Si « application non vérifiée » apparaît : « Avancé » → « Continuer vers gmailAgent (non sécurisé) » — normal pour un usage personnel.
-3. Accorder la permission demandée (lecture, libellés, corbeille — scope `gmail.modify`), puis « Continuer ».
+2. Si « application non vérifiée » apparaît : « Avancé » → « Continuer vers gmailAgent (non sécurisé) » - normal pour un usage personnel.
+3. Accorder la permission demandée (lecture, libellés, corbeille - scope `gmail.modify`), puis « Continuer ».
 
-Succès quand s'affiche : `refresh_token stocké dans data\gmail_token.json`. **À partir de ce moment, les identifiants Google (`client_id`/`client_secret`) sont lus automatiquement dans ce fichier** par `lancer.ps1` : plus besoin de les saisir, y compris en cas de ré-autorisation. Le fichier `data\gmail_token.json` est confidentiel (équivalent à un mot de passe) — ne jamais le partager.
+Succès quand s'affiche : `refresh_token stocké dans data\gmail_token.json`. **À partir de ce moment, les identifiants Google (`client_id`/`client_secret`) sont lus automatiquement dans ce fichier** par `lancer.ps1` : plus besoin de les saisir, y compris en cas de ré-autorisation. Le fichier `data\gmail_token.json` est confidentiel (équivalent à un mot de passe) - ne jamais le partager.
 
-## 4. Premier essai — dry-run (aucune modification dans Gmail)
+## 4. Premier essai - dry-run (aucune modification dans Gmail)
 
 Double-clic sur **`tri.bat`**. Par défaut, gmailAgent est en **dry-run** (règle de sécurité du projet) : il lit réellement la boîte, mais n'appose aucun libellé et ne met rien à la corbeille. Le rapport s'affiche dans la fenêtre noire ; le détail est journalisé dans `logs\gmailagent.log` (ouvrable avec le Bloc-notes).
 
 ## 5. Passage en réel
 
-- **`tri-reel.bat`** : écritures réelles (apposition des libellés `Agent/*`) — commencer sur un petit volume de messages non lus.
-- **`suppression.bat`** : run de suppression T+24h en dry-run ; corbeille uniquement, sur les notifications déjà traitées de plus de 24 h — jamais de suppression définitive.
+- **`tri-reel.bat`** : écritures réelles (apposition des libellés `Agent/*`) - commencer sur un petit volume de messages non lus.
+- **`suppression.bat`** : run de suppression T+24h en dry-run ; corbeille uniquement, sur les notifications déjà traitées de plus de 24 h - jamais de suppression définitive.
 
 ## 6. Automatisation quotidienne (optionnel)
 
@@ -73,7 +73,7 @@ Ouvrir le **Planificateur de tâches** (`Win + R` → `taskschd.msc`) → « Cr�
 
 ## 7. Si vous déplacez le dossier du projet : `recreer-venv.bat`
 
-L'environnement virtuel `.venv` embarque des **chemins absolus** : si vous déplacez le dossier `gmailAgent`, le venv ne fonctionne plus. Dans ce cas : double-clic sur **`recreer-venv.bat`** (à la racine du projet) — il supprime `.venv` et le recrée à la nouvelle adresse (Python et secrets déjà en place : rien n'est re-demandé).
+L'environnement virtuel `.venv` embarque des **chemins absolus** : si vous déplacez le dossier `gmailAgent`, le venv ne fonctionne plus. Dans ce cas : double-clic sur **`recreer-venv.bat`** (à la racine du projet) - il supprime `.venv` et le recrée à la nouvelle adresse (Python et secrets déjà en place : rien n'est re-demandé).
 
 ## 8. Mises à jour
 
@@ -105,9 +105,9 @@ Les scripts d'installation sont dans **`installation\Windows\`** : `install.bat`
 
 ---
 
-## Annexe B — Créer le projet Google Cloud (API Gmail) — à faire par l'administrateur, une seule fois
+## Annexe B — Créer le projet Google Cloud (API Gmail) - à faire par l'administrateur, une seule fois
 
-Cette partie se fait dans la [console Google Cloud](https://console.cloud.google.com), avec le compte Google qui hébergera l'application. **Aucune facturation n'est requise** pour l'API Gmail en usage personnel. Résultat attendu : un `client_id` et un `client_secret`, à transmettre de façon sécurisée à l'utilisateur (ils seront saisis une fois via `configurer-secrets.ps1` — jamais par e-mail ou messagerie).
+Cette partie se fait dans la [console Google Cloud](https://console.cloud.google.com), avec le compte Google qui hébergera l'application. **Aucune facturation n'est requise** pour l'API Gmail en usage personnel. Résultat attendu : un `client_id` et un `client_secret`, à transmettre de façon sécurisée à l'utilisateur (ils seront saisis une fois via `configurer-secrets.ps1` - jamais par e-mail ou messagerie).
 
 1. **Créer un projet** : en haut de la console, « Sélectionner un projet » → « Nouveau projet » → nom (ex. `gmailAgent`) → « Créer ».
 2. **Activer l'API Gmail** : menu « API et services » → « Bibliothèque » → rechercher « Gmail API » → « Activer ».
@@ -117,4 +117,4 @@ Cette partie se fait dans la [console Google Cloud](https://console.cloud.google
 4. **Créer les identifiants OAuth** : « Google Auth Platform » → « Clients » → « Créer un client » → type **« Application de bureau »** → nom → « Créer ». Copier le **`client_id`** et le **`client_secret`** affichés.
 5. **Scopes** : définis dans le code (`installation/init_oauth.py`) : `https://www.googleapis.com/auth/gmail.modify` uniquement (lecture, libellés, corbeille). `gmail.send` est volontairement **exclu** (moindre privilège).
 
-Côté utilisateur, le flux d'autorisation se termine par `init-oauth.bat` → `data\gmail_token.json` (permissions 600). En « En production », le refresh token n'a **pas d'expiration calendaire** ; il est invalidé en cas de révocation, 6 mois d'inactivité, changement de mot de passe Google (scopes Gmail) ou plafond d'environ 50 tokens actifs par compte/client. Dans ce cas : supprimer `data\gmail_token.json` (`init_oauth.py` refuse de se relancer sinon) et relancer `init-oauth.bat` — les identifiants Google proviennent alors du Credential Manager (saisis à l'installation) ou de l'ancien token encore présent (lus automatiquement par `lancer.ps1`).
+Côté utilisateur, le flux d'autorisation se termine par `init-oauth.bat` → `data\gmail_token.json` (permissions 600). En « En production », le refresh token n'a **pas d'expiration calendaire** ; il est invalidé en cas de révocation, 6 mois d'inactivité, changement de mot de passe Google (scopes Gmail) ou plafond d'environ 50 tokens actifs par compte/client. Dans ce cas : supprimer `data\gmail_token.json` (`init_oauth.py` refuse de se relancer sinon) et relancer `init-oauth.bat` - les identifiants Google proviennent alors du Credential Manager (saisis à l'installation) ou de l'ancien token encore présent (lus automatiquement par `lancer.ps1`).
