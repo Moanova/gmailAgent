@@ -91,6 +91,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 2) — clôture doc v1 : annexe B du guide (création projet Google Cloud) + fichier de suivi T1.7 | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 3) — archive allégée via .gitattributes (D73) + scripts/ déplacé sous installation/ | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 4) — merge dev → main (83ff8e2, règle H sur demande explicite) | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 5) — report dev → main (2e19506, commit abb630e poussé depuis le poste utilisateur) | ci-dessous |
 
 ---
 
@@ -963,3 +964,31 @@ Aucun.
 
 - `main` à jour de `dev` (merge `83ff8e2` puis resync après cette entrée) ; le ZIP de `main` est prêt pour le test sur un poste Windows 11 neuf.
 - Rappel hors scope signalé : 4 tests en échec préexistants sur `dev` (assertions `mistral-small-latest` vs réalignement `c7230f5` → `mistral-large-latest`) — décision utilisateur en attente.
+
+---
+
+## Séance du 16/11/2026 (suite 5) — report dev → main (demande utilisateur)
+
+### Contexte
+L'utilisateur signale un problème avec son repository local et demande de reporter les changements de `dev` vers `main` pour récupérer le `main` correct en local.
+
+### Actions réalisées
+
+1. `git fetch origin` : `origin/dev` avait avancé (`abb630e` « MAJ mineure README », poussé depuis le poste de l'utilisateur + merge `066f739`) ; `origin/main` = `dce1489`. Constat : `dev` hors de `main` → merge nécessaire. Aucun fichier modifié côté `main` depuis le merge-base → merge triviale.
+2. Merge `origin/dev` dans `main` locale (à jour), aucun conflit (README.md + `installation/guide-installation-windows11.md` uniquement), push : `dce1489..2e19506 main -> main`.
+3. Vérification : `git archive origin/main` toujours allégé (15 fichiers sous `installation/`, exclus OK).
+4. Commit + push sur `dev` (cette entrée) ; `main` resynchronisé ensuite.
+5. Procédure communiquée à l'utilisateur pour récupérer `main` en local : `git fetch origin`, `git switch main`, `git reset --hard origin/main` (ou `git pull --ff-only` si sa branche locale est propre et ancêtre).
+
+### Décisions clés
+
+Aucune nouvelle (règle H appliquée sur demande explicite).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- `main` = à jour de `dev` (resync après cette entrée) ; ZIP de `main` allégé et complet (`installation/` présent).
+- Côté utilisateur : récupérer `main` en local (procédure ci-dessus), puis test du parcours sur poste Windows 11 neuf.
