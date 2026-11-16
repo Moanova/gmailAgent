@@ -1,11 +1,8 @@
 # gmailAgent
 
-Agent personnel de traitement des messages Gmail : pipeline de tri orchestré en Python
-(lecture du spam, classification des non lus, suppression différée en
-corbeille — dédoublonnage en option post-v1, non actif en v1, D46), avec conversations éphémères Mistral et validation programmatique des
-synthèses (authenticité des identifiants, complétude, empreintes recalculées).
+Agent personnel de traitement des messages Gmail : pipeline de tri orchestré en Python (lecture du spam, classification des non lus, suppression différée en corbeille - dédoublonnage en option post-v1, non actif en v1), avec conversations éphémères Mistral et validation programmatique des synthèses (authenticité des identifiants, complétude, empreintes recalculées).
 
-Spécification : [docs/design/conception.md](docs/design/conception.md) —
+Spécification : [docs/design/conception.md](docs/design/conception.md).
 workflow : [docs/design/workflow.md](docs/design/workflow.md).
 
 ![Status: In development](https://img.shields.io/badge/Statut-En%20développement-orange)
@@ -15,10 +12,8 @@ workflow : [docs/design/workflow.md](docs/design/workflow.md).
 
 - Python ≥ 3.11
 - Clé API Mistral dans la variable d'environnement `MISTRAL_API_KEY` (voir `.env.example`)
-- Modèle Mistral optionnel via `MISTRAL_MODEL` (défaut : `mistral-small-latest`, ex. `mistral-large-4`) ; chaque appel est journalisé avec le modèle utilisé dans `logs/gmailagent.log`
-- Token Gmail dans `data/gmail_token.json`, généré une seule fois par
-  `python installation/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans
-  [docs/projet/kanban.md](docs/projet/kanban.md))
+- Modèle Mistral optionnel via `MISTRAL_MODEL` (défaut : `mistral-large-latest`, ex. `mistral-small-latest`) ; chaque appel est journalisé avec le modèle utilisé dans `logs/gmailagent.log`
+- Token Gmail dans `data/gmail_token.json`, généré une seule fois par `python installation/init_oauth.py` (premier flux OAuth, voir tâche T1.7 dans [docs/projet/kanban.md](docs/projet/kanban.md))
 
 ## Installation
 
@@ -29,7 +24,7 @@ python -m venv .venv
 
 La commande `gmailagent` est alors disponible (point d'entrée `gmailagent.cli:main` ; équivalent : `python -m gmailagent`).
 
-## Installation sur un poste Windows 11 (utilisateur non technique)
+## Installation sur un poste Windows 11 (utilisateur final - non développeur)
 
 Pas besoin de git ni de Python préinstallé : télécharger l'ensemble du dépôt sous forme d'archive ZIP de la branche **`main`** :
 
@@ -41,18 +36,13 @@ Puis : clic droit sur le ZIP → « Extraire tout… » → choisir le dossier d
 ## Configuration
 
 - `config/labels.yaml` : registre des libellés `Agent/*` (clé logique → libellé physique).
-- `config/settings.yaml` : paramètres du pipeline (chemins, modèle par défaut, plafonds et
-  garde-fous, délai de grâce de la suppression T+24h, requête spam). Priorité :
-  variable d'environnement (`MISTRAL_MODEL`, `LOG_FILE`) > `settings.yaml` > défaut du code.
+- `config/settings.yaml` : paramètres du pipeline (chemins, modèle par défaut, plafonds et garde-fous, délai de grâce de la suppression T+24h, requête spam). Priorité : variable d'environnement (`MISTRAL_MODEL`, `LOG_FILE`) > `settings.yaml` > défaut du code.
 
 ## Usage
 
-**Dry-run par défaut** (règle E) : aucune écriture Gmail sans `--reel` — en dry-run,
-les écritures sont journalisées dans `logs/gmailagent.log`, non exécutées.
+**Dry-run par défaut** (règle E) : aucune écriture Gmail sans `--reel` — en dry-run, les écritures sont journalisées dans `logs/gmailagent.log`, non exécutées.
 
-Chaque run est encadré dans `logs/gmailagent.log` par des lignes d'événements
-`debut_run` / `fin_run` horodatées (chaque ligne JSON porte aussi `run_id`) :
-`jq 'select(.evenement=="debut_run" or .evenement=="fin_run")' logs/gmailagent.log`.
+Chaque run est encadré dans `logs/gmailagent.log` par des lignes d'événements `debut_run` / `fin_run` horodatées (chaque ligne JSON porte aussi `run_id`) : `jq 'select(.evenement=="debut_run" or .evenement=="fin_run")' logs/gmailagent.log`.
 
 | Commande | Options | Description |
 | --- | --- | --- |
@@ -73,8 +63,7 @@ python -m gmailagent migrate-labels "Agent/ancien" "Agent/nouveau"   # renommage
 
 Aide : `gmailagent --help`, `gmailagent tri --help`.
 
-> `--tout` (tâche T3.5, conception §2.6) : rattrapage d'un retard volumineux en une seule
-> invocation — alternative ponctuelle au cron (qui reste le mode quotidien, phase 10).
+> `--tout` (tâche T3.5, conception §2.6) : rattrapage d'un retard volumineux en une seule invocation - alternative ponctuelle au cron (qui reste le mode quotidien, phase 10).
 
 ## Tests et qualité
 
@@ -86,11 +75,7 @@ python -m pytest tests -q         # unitaires + intégration mockés (aucun appe
 
 ## Convention d'en-tête des scripts
 
-Chaque script applicatif (`src/gmailagent/*.py`, `installation/init_oauth.py`) commence par un
-en-tête de présentation (Application / Script / Version / Date / Design / Build). `Script`
-porte le **nom réel du fichier** ; `Version` et `Date` sont **mis à jour à chaque modification
-du code** (l'historique détaillé reste dans git). Les fichiers de test (`tests/`) n'ont pas
-d'en-tête.
+Chaque script applicatif (`src/gmailagent/*.py`, `installation/init_oauth.py`) commence par un en-tête de présentation (Application / Script / Version / Date / Design / Build). `Script` porte le **nom réel du fichier** ; `Version` et `Date` sont **mis à jour à chaque modification du code** (l'historique détaillé reste dans git). Les fichiers de test (`tests/`) n'ont pas d'en-tête.
 
 ## Documentation du projet
 
@@ -102,4 +87,4 @@ d'en-tête.
 - [docs/projet/kanban.md](docs/projet/kanban.md) — suivi des tâches (+ [fichiers de suivi](docs/projet/tasks/))
 - [SESSIONS.md](SESSIONS.md) — index du journal des séances (décisions D1…D66) + [archive](docs/sessions-archive.md)
 
-Branche de travail unique : `dev` (push direct, pas de PR ni de branche dédiée).
+Branche de travail unique : `dev`.
