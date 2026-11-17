@@ -8,7 +8,7 @@ rem Design       : TSC + Mistral Vibe
 rem Build        : Mistral Vibe
 rem -------------------------------------------------------------------
 rem Premier flux OAuth Gmail (UNE SEULE FOIS) : ouvre le consentement Google
-rem dans le navigateur et écrit data\gmail_token.json (permissions 600).
+rem dans le navigateur et ecrit data\gmail_token.json (permissions 600).
 cd /d "%~dp0"
 powershell -ExecutionPolicy Bypass -File "%~dp0\lancer.ps1" oauth
 pause
