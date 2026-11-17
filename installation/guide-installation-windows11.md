@@ -1,6 +1,6 @@
 # Guide d'installation — gmailAgent sur Windows 11
 
-- **Version** : 1.3 - **Date** : 16-11-2026 - **Branche cible** : `main`
+- **Version** : 1.4 - **Date** : 16-11-2026 - **Branche cible** : `main`
 - **Public** : utilisatrut final (non développeur). **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
 
 ## 0. Avant de commencer - ce qu'on vous a fourni
@@ -92,6 +92,7 @@ Double-clic sur **`installation\Windows\bootstrap.bat`** : il retélécharge la 
 | Écran Google « app non vérifiée » | Normal : « Avancé » → « Continuer vers gmailAgent (non sécurisé) » |
 | Windows bloque un fichier | « Informations complémentaires » → « Exécuter quand même » |
 | Poste en « mode S » | Installer Python depuis le Microsoft Store à la place de `winget` |
+| Erreurs de parsing PowerShell (accents bizarres, « terminateur manquant », « jeton inattendu ») | Les `.ps1` sont livrés en UTF-8 **avec BOM** + CRLF (lu correctement par Windows PowerShell 5.1) et les `.bat` en ASCII + CRLF. Ne pas rééditer les scripts à la main (un éditeur qui perd le BOM ou repasse en LF sans BOM provoque cette erreur) : re-télécharger le ZIP de `main` |
 
 ## 10. Règles de sécurité
 

@@ -93,6 +93,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 4) — merge dev → main (83ff8e2, règle H sur demande explicite) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 5) — report dev → main (2e19506, commit abb630e poussé depuis le poste utilisateur) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 6) — clôture v1 : T10.1 Terminé (D74, v2 = Mistral Studio), 312 tests verts, acceptation/README à jour | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 7) — incident encodage Windows (D75) : .ps1 en UTF-8 BOM+CRLF, .bat en ASCII+CRLF, .gitattributes -text | ci-dessous |
 
 ---
 
@@ -1024,3 +1025,36 @@ Aucun.
 
 - v1 clôturée : kanban 100 % Terminé (T1.1–T10.1), 312 tests verts, mypy propre, déploiement scripté sur `main` (ZIP allégé), docs à jour.
 - Board Miro : synchronisé si le connecteur a fonctionné (voir actions), sinon abandonné sur décision utilisateur.
+
+---
+
+## Séance du 16/11/2026 (suite 7) — incident encodage Windows (D75)
+
+### Contexte
+Premier test réel sur un poste Windows 11 : `installation.bat` (via `install.ps1`) échoue avec des erreurs ParserError PowerShell (« Jeton inattendu », « terminateur \" manquant », accents en mojibake `dÃ©tectÃ©`). L'utilisateur avait dû convertir LF→CRLF à la main après extraction du ZIP.
+
+### Diagnostic (cause racine)
+Les fichiers livrés étaient en **UTF-8 sans BOM et LF pur**. Windows PowerShell 5.1 (le `powershell` appelé par les `.bat`) lit un `.ps1` sans BOM en **ANSI (cp1252)** : les accents UTF-8 deviennent du mojibake et certains multi-octets cassent le parser (ex. `—` = E2 80 94, dont 0x94 vaut `"` en cp1252 → « terminateur de chaîne manquant »). Vérifié localement : 0 BOM, 0 CRLF sur tous les fichiers `installation/Windows/`.
+
+### Actions réalisées
+
+1. `.ps1` (install.ps1, lancer.ps1, configurer-secrets.ps1) → **UTF-8 avec BOM + CRLF** (PS 5.1 détecte le BOM et lit en UTF-8) ; vérifié `efbbbf` + CRLF.
+2. `.bat` (8 fichiers) → **ASCII pur + CRLF** (cmd.exe lit en OEM/ANSI : l'ASCII évite tout mojibake et tout risque de caractère spécial `& | > "` issu d'un mauvais décodage) ; vérifié 0 octet non-ASCII.
+3. `.gitattributes` : `installation/Windows/*.bat -text` et `*.ps1 -text` — git ne normalise plus ces fichiers ; les blobs (et donc le **ZIP servi par GitHub**, qui exporte les blobs tels quels) gardent BOM+CRLF. Plus de conversion manuelle nécessaire après téléchargement.
+4. Guide v1.4 : ligne de dépannage dédiée (ne pas rééditer les scripts à la main, re-télécharger le ZIP si doute).
+5. Vérification post-commit : blob commité contient bien BOM+CRLF ; `git archive origin/main` sert le `.ps1` avec BOM+CRLF.
+6. Commit + push `dev`, merge `dev` → `main`, push `main`.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D75 | Fichiers Windows d'installation fixés en encodage/fins de ligne dans le dépôt : `.ps1` = UTF-8 BOM + CRLF, `.bat` = ASCII + CRLF, `.gitattributes` `-text` sur `installation/Windows/*.{bat,ps1}` | Incident réel poste Windows 16/11/2026 : PS 5.1 lit UTF-8 sans BOM en ANSI → ParserError. Le ZIP GitHub sert les blobs tels quels : les fixer dans le dépôt garantit le bon format sans action manuelle. |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- `dev` et `main` à jour avec le correctif d'encodage ; à retester sur le poste Windows (re-télécharger le ZIP de `main`, double-clic `installation\Windows\install.bat`, plus de conversion LF→CRLF nécessaire).

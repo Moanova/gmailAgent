@@ -8,3 +8,7 @@ tests/ export-ignore
 SESSIONS.md export-ignore
 AGENTS.md export-ignore
 .gitignore export-ignore
+
+# Fichiers Windows : encodage/fins de ligne fixes dans le depot (le ZIP GitHub sert les blobs tels quels)
+installation/Windows/*.bat -text
+installation/Windows/*.ps1 -text
