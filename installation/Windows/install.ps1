@@ -1,7 +1,7 @@
 ﻿# -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : install.ps1
-# Version      : 1.2
+# Version      : 1.3
 # Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
@@ -103,9 +103,9 @@ try {
     }
     Write-Etape "Lanceurs copies a la racine du projet."
 
-    # Saisie des secrets -> Credential Manager Windows (chiffre, lie au compte) ; ignoree si deja presents
+    # Creation de secrets.env (cles vides) ; l'utilisateur le remplit avec le Bloc-notes
     if (-not $SansSecrets) {
-        Write-Etape "Saisie des secrets (Credential Manager)..."
+        Write-Etape "Creation de secrets.env (a remplir avec le Bloc-notes)..."
         powershell -ExecutionPolicy Bypass -File (Join-Path $dossier "configurer-secrets.ps1")
     }
 
