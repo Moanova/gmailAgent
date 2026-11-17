@@ -95,6 +95,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 6) — clôture v1 : T10.1 Terminé (D74, v2 = Mistral Studio), 312 tests verts, acceptation/README à jour | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 7) — incident encodage Windows (D75) : .ps1 en UTF-8 BOM+CRLF, .bat en ASCII+CRLF, .gitattributes -text | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 8) — fix install.ps1 (param en tête) + journalisation installation (console horodatée + logs\installation.log) | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 9) — secrets via secrets.env éditable (D76), vault abandonné | ci-dessous |
 
 ---
 
@@ -1087,3 +1088,35 @@ Aucun.
 ### État en fin de séance
 
 - À retester sur le poste Windows : re-télécharger le ZIP de `main`, `installation\Windows\install.bat` — l'installation doit se dérouler avec étapes horodatées + `logs\installation.log`.
+
+---
+
+## Séance du 16/11/2026 (suite 9) — secrets via `secrets.env` éditable (D76)
+
+### Contexte
+Test réel réussi jusqu'au bout sur le poste Windows, mais la saisie interactive des secrets (PasswordVault via Read-Host) n'est pas viable, et l'utilisateur ne peut pas modifier les entrées dans le Gestionnaire d'identifiants Windows (option indisponible). Question : créées par un autre compte ?
+
+### Réponse et diagnostic
+
+Non — les entrées `PasswordVault` sont des entrées **génériques** créées par l'API WinRT, liées au **compte Windows de la session active** (chiffrées DPAPI) ; l'interface du Gestionnaire d'identifiants n'offre pour ce type que **Supprimer**, pas « Modifier » (la mise à jour passe par Remove+Add, ce que faisait le script). Le vault n'est donc pas éditable « à la main ».
+
+### Actions réalisées (D76)
+
+1. **Nouveau mécanisme** : fichier local **`secrets.env`** à la racine du projet — créé **vide** (3 clés + mode d'emploi en commentaires) par `configurer-secrets.ps1` v1.2 (plus de saisie interactive) ; **ignoré par git** (couvert par `*.env`, vérifié `git check-ignore`) ; **éditable avec le Bloc-notes** à tout moment. `lancer.ps1` v1.2 lit `secrets.env` (`NOM=valeur`) et injecte les valeurs dans `os.environ` du processus — le pipeline continue de ne lire que `os.environ` (règle D respectée : aucun secret dans le dépôt ni les commits). L'option A (token `data\gmail_token.json` prioritaire pour les identifiants Google) est conservée. `install.ps1` v1.3 : message mis à jour.
+2. **Guide v1.6** : section « 2bis. Remplir les secrets (`secrets.env`) » (où, format `NOM=valeur`, modifier plus tard sans redémarrage), dépannage et sécurité mis à jour.
+3. Fichiers `.ps1` en UTF-8 BOM + CRLF (D75). 312 tests toujours verts (aucun `.py` modifié).
+4. Commit + push `dev`, merge `dev` → `main`, push `main` ; blobs vérifiés BOM+CRLF.
+
+### Décisions clés
+
+| # | Décision | Justification |
+| --- | --- | --- |
+| D76 | **Secrets via `secrets.env`** (fichier local créé vide, édité au Bloc-notes, ignoré par git `*.env`, lu par `lancer.ps1` → `os.environ`) ; le PasswordVault WinRT est abandonné (entrées génériques non éditables dans l'UI du Gestionnaire d'identifiants) | Test réel 16/11/2026 : saisie interactive non viable + entrées vault non modifiables manuellement. Règle D conservée (secrets hors dépôt, injectés via l'environnement au runtime). |
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- À retester : re-télécharger le ZIP de `main`, `install.bat` crée `secrets.env` vide, l'utilisateur le remplit au Bloc-notes, puis `init-oauth.bat` / `tri.bat`.
