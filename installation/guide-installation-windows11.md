@@ -42,6 +42,20 @@ Double-clic sur **`installation\Windows\install.bat`** dans le dossier extrait. 
 
 > Pourquoi des `.bat` et pas des `.ps1` en direct : la stratégie d'exécution de Windows bloque les scripts PowerShell lancés par double-clic (« exécution de scripts désactivée »). Les `.bat` passent toujours ; ils appellent PowerShell avec `-ExecutionPolicy Bypass` **pour ce seul processus**, sans modifier aucun réglage du poste.
 
+## 2bis. Remplir les secrets (`secrets.env`)
+
+1. À la racine du dossier projet, ouvrir **`secrets.env`** avec le Bloc-notes (clic droit → « Ouvrir avec » → Bloc-notes).
+2. Remplacer les 3 lignes vides par les valeurs reçues de l'administrateur :
+   ```
+   MISTRAL_API_KEY=la-cle-mistral-recue
+   GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=xxx
+   ```
+   Format : `NOM=valeur`, **pas d'espace autour du `=`**, pas de guillemets.
+3. Enregistrer (Ctrl+S) et fermer.
+
+**Pour modifier les secrets plus tard** : rouvrir `secrets.env`, modifier, enregistrer — la modification est prise en compte à chaque lancement, aucun redémarrage nécessaire.
+
 ## 3. Autoriser l'accès à Gmail - une seule fois
 
 Double-clic sur **`init-oauth.bat`** (à la racine du dossier projet) → le navigateur s'ouvre sur le consentement Google :
@@ -86,7 +100,7 @@ Double-clic sur **`installation\Windows\bootstrap.bat`** : il retélécharge la 
 | « exécution de scripts désactivée » en lançant un `.ps1` | Toujours passer par les `.bat` (ils appellent PowerShell avec `-ExecutionPolicy Bypass` pour ce seul processus) |
 | `winget` introuvable | Mettre à jour « App Installer » depuis le Microsoft Store, puis relancer `install.bat` |
 | Python détecté mais version < 3.14 | Répondre `M` (montée de version en 3.14) ou `A` (annulation) à la question posée |
-| « Variable d'environnement MISTRAL_API_KEY requise » | Relancer `configurer-secrets.ps1` (dans `installation\Windows\`) pour re-saisir les secrets |
+| « Variable d'environnement MISTRAL_API_KEY requise » | Vérifier `secrets.env` à la racine du projet : la ligne `MISTRAL_API_KEY=` doit contenir la valeur (pas d'espace autour du `=`) |
 | Échec du téléchargement (`curl`) | Vérifier la connexion ; en entreprise, définir `HTTP_PROXY` / `HTTPS_PROXY` avant de lancer |
 | Le dossier projet a été déplacé | Double-clic sur `recreer-venv.bat` (voir §7) |
 | Écran Google « app non vérifiée » | Normal : « Avancé » → « Continuer vers gmailAgent (non sécurisé) » |
@@ -97,9 +111,9 @@ Double-clic sur **`installation\Windows\bootstrap.bat`** : il retélécharge la 
 
 ## 10. Règles de sécurité
 
-- Les secrets (clé Mistral, identifiants Google) vivent **chiffrés** dans le Credential Manager Windows, liés à votre compte ; aucun secret en clair dans les fichiers du projet (`.env` et `data/` sont ignorés par git).
+- Les secrets (clé Mistral, identifiants Google) vivent dans **`secrets.env`**, fichier local à la racine du projet, **ignoré par git** (`*.env`) — ne jamais le partager ni le commiter ; `data/` est également ignoré par git.
 - Ne jamais partager `data\gmail_token.json`, la clé Mistral, ni les entrées `gmailAgent` du Gestionnaire d'identifiants.
-- En cas de fuite suspectée : révoquer la clé sur [console.mistral.ai](https://console.mistral.ai), révoquer l'accès dans le compte Google (Sécurité → Gestion de l'accès tiers), supprimer les entrées `gmailAgent` dans le Gestionnaire d'identifiants Windows (Panneau de configuration → Identifiants), puis relancer `init-oauth.bat`.
+- En cas de fuite suspectée : révoquer la clé sur [console.mistral.ai](https://console.mistral.ai), révoquer l'accès dans le compte Google (Sécurité → Gestion de l'accès tiers), vider les 3 lignes de `secrets.env`, puis relancer `init-oauth.bat`.
 
 ---
 
@@ -119,4 +133,4 @@ Cette partie se fait dans la [console Google Cloud](https://console.cloud.google
 4. **Créer les identifiants OAuth** : « Google Auth Platform » → « Clients » → « Créer un client » → type **« Application de bureau »** → nom → « Créer ». Copier le **`client_id`** et le **`client_secret`** affichés.
 5. **Scopes** : définis dans le code (`installation/init_oauth.py`) : `https://www.googleapis.com/auth/gmail.modify` uniquement (lecture, libellés, corbeille). `gmail.send` est volontairement **exclu** (moindre privilège).
 
-Côté utilisateur, le flux d'autorisation se termine par `init-oauth.bat` → `data\gmail_token.json` (permissions 600). En « En production », le refresh token n'a **pas d'expiration calendaire** ; il est invalidé en cas de révocation, 6 mois d'inactivité, changement de mot de passe Google (scopes Gmail) ou plafond d'environ 50 tokens actifs par compte/client. Dans ce cas : supprimer `data\gmail_token.json` (`init_oauth.py` refuse de se relancer sinon) et relancer `init-oauth.bat` - les identifiants Google proviennent alors du Credential Manager (saisis à l'installation) ou de l'ancien token encore présent (lus automatiquement par `lancer.ps1`).
+Côté utilisateur, le flux d'autorisation se termine par `init-oauth.bat` → `data\gmail_token.json` (permissions 600). En « En production », le refresh token n'a **pas d'expiration calendaire** ; il est invalidé en cas de révocation, 6 mois d'inactivité, changement de mot de passe Google (scopes Gmail) ou plafond d'environ 50 tokens actifs par compte/client. Dans ce cas : supprimer `data\gmail_token.json` (`init_oauth.py` refuse de se relancer sinon) et relancer `init-oauth.bat` - les identifiants Google proviennent alors de `secrets.env` (remplis à l'installation) ou de l'ancien token encore présent (lus automatiquement par `lancer.ps1`).
