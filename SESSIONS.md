@@ -96,6 +96,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 7) — incident encodage Windows (D75) : .ps1 en UTF-8 BOM+CRLF, .bat en ASCII+CRLF, .gitattributes -text | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 8) — fix install.ps1 (param en tête) + journalisation installation (console horodatée + logs\installation.log) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 9) — secrets via secrets.env éditable (D76), vault abandonné | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 10) — suppression-reel(.bat/-auto.bat) + section Désinstallation dans le guide v1.7 | ci-dessous |
 
 ---
 
@@ -1120,3 +1121,26 @@ Aucun.
 ### État en fin de séance
 
 - À retester : re-télécharger le ZIP de `main`, `install.bat` crée `secrets.env` vide, l'utilisateur le remplit au Bloc-notes, puis `init-oauth.bat` / `tri.bat`.
+
+---
+
+## Séance du 16/11/2026 (suite 10) — lanceurs suppression réelle/auto + section Désinstallation
+
+### Contexte
+L'utilisateur demande (1) une section « Désinstallation » dans le guide, (2) un script de suppression **réelle** (seul `suppression.bat` en dry-run existait), (3) confirme que pour planifier la suppression il faut aussi un script « auto » (sans `pause`) — oui, comme `tri-reel-auto.bat`.
+
+### Actions réalisées
+
+1. **`installation/Windows/suppression-reel.bat`** (nouveau, ASCII+CRLF) : `lancer.ps1 cli suppression --reel` + `pause` (manuel). **`suppression-reel-auto.bat`** (nouveau) : idem sans `pause`, pour la tâche planifiée.
+2. **`install.ps1`** v1.4 : copie aussi les deux nouveaux lanceurs à la racine.
+3. **Guide v1.7** : liste des lanceurs, §5 (`suppression-reel.bat`), §6 (deuxième tâche planifiée `suppression-reel-auto.bat`, ex. 1 h après le tri — le run T+24h ne traite que les notifications traitées de plus de 24 h), nouvelle **§11 Désinstallation** (supprimer le dossier projet = tout part, `.venv` inclus ; hors arborescence : tâches planifiées, entrées `gmailAgent` du Gestionnaire d'identifiants, cache pip optionnel, `winget uninstall Python.Python.3.14` pour retirer Python ; côté Gmail : libellés `Agent/*` et corbeille restent dans la boîte).
+4. Réponse confirmée : oui, sans `.venv` rien ne reste hors arborescence (chemins runtime sous `RACINE_PROJET`, `cd /d "%~dp0"` dans les `.bat`).
+5. 312 tests toujours verts. Commit + push `dev`, merge `dev` → `main`, push `main`.
+
+### Décisions clés
+
+Aucune nouvelle (D75/D76 actées).
+
+### Blocages
+
+Aucun.

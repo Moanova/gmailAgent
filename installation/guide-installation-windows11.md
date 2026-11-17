@@ -1,6 +1,6 @@
 # Guide d'installation — gmailAgent sur Windows 11
 
-- **Version** : 1.6 - **Date** : 16-11-2026 - **Branche cible** : `main`
+- **Version** : 1.7 - **Date** : 16-11-2026 - **Branche cible** : `main`
 - **Public** : utilisatrut final (non développeur). **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
 
 ## 0. Avant de commencer - ce qu'on vous a fourni
@@ -37,7 +37,7 @@ Double-clic sur **`installation\Windows\install.bat`** dans le dossier extrait. 
 
 1. **Python** : installation de la **3.14** via `winget` (natif Windows 11) s'il est absent. Si un Python est déjà présent : version ≥ 3.14 → on continue sans rien changer ; version antérieure à 3.14 → question « monter en 3.14 [M] ou annuler [A] » ; version < 3.11 → refus (incompatible avec `pyproject.toml`).
 2. **Environnement virtuel** `.venv` + `pip install -e .` (installation éditable obligatoire ; quelques minutes) + vérification `gmailagent --help`.
-3. **Copie des lanceurs** à la racine du dossier projet : `tri.bat`, `tri-reel.bat`, `tri-reel-auto.bat`, `suppression.bat`, `init-oauth.bat`, `recreer-venv.bat`, `lancer.ps1`.
+3. **Copie des lanceurs** à la racine du dossier projet : `tri.bat`, `tri-reel.bat`, `tri-reel-auto.bat`, `suppression.bat`, `suppression-reel.bat`, `suppression-reel-auto.bat`, `init-oauth.bat`, `recreer-venv.bat`, `lancer.ps1`.
 4. **Création du fichier `secrets.env`** (clés vides) à la racine du projet — à remplir ensuite avec le Bloc-notes, voir §2bis. Fichier local ignoré par git : aucun secret dans le dépôt.
 
 > Pourquoi des `.bat` et pas des `.ps1` en direct : la stratégie d'exécution de Windows bloque les scripts PowerShell lancés par double-clic (« exécution de scripts désactivée »). Les `.bat` passent toujours ; ils appellent PowerShell avec `-ExecutionPolicy Bypass` **pour ce seul processus**, sans modifier aucun réglage du poste.
@@ -74,6 +74,7 @@ Double-clic sur **`tri.bat`**. Par défaut, gmailAgent est en **dry-run** (règl
 
 - **`tri-reel.bat`** : écritures réelles (apposition des libellés `Agent/*`) - commencer sur un petit volume de messages non lus.
 - **`suppression.bat`** : run de suppression T+24h en dry-run ; corbeille uniquement, sur les notifications déjà traitées de plus de 24 h - jamais de suppression définitive.
+- **`suppression-reel.bat`** : idem en mode réel (`--reel`).
 
 ## 6. Automatisation quotidienne (optionnel)
 
@@ -84,6 +85,8 @@ Ouvrir le **Planificateur de tâches** (`Win + R` → `taskschd.msc`) → « Cr�
 - Action : « Démarrer un programme » → `...\gmailAgent\tri-reel-auto.bat` (chemin complet vers votre dossier d'installation)
 
 > `tri-reel-auto.bat` est la variante **sans `pause`**, prévue pour l'exécution automatique (un `pause` bloquerait la tâche planifiée).
+
+**Deuxième tâche planifiée (recommandée)** : créer une tâche « gmailAgent - suppression quotidienne » avec pour action `...\gmailAgent\suppression-reel-auto.bat`, par ex. 1 h après le tri (le run de suppression ne traite que les notifications traitées de plus de 24 h - corbeille uniquement).
 
 ## 7. Si vous déplacez le dossier du projet : `recreer-venv.bat`
 
@@ -118,6 +121,19 @@ Double-clic sur **`installation\Windows\bootstrap.bat`** : il retélécharge la 
 ---
 
 Les scripts d'installation sont dans **`installation\Windows\`** : `install.bat` (1ère installation), `bootstrap.bat` (mises à jour), `recreer-venv.bat` (après déplacement du dossier), `lancer.ps1` + `configurer-secrets.ps1` (secrets), et les lanceurs copiés à la racine du projet.
+
+## 11. Désinstallation
+
+En gardant l'interpréteur Python : supprimer simplement tout le dossier du projet (`...\gmailAgent`) - il contient tout : code, `.venv` (dépendances + commande `gmailagent`), `secrets.env`, `data/` (token OAuth), `logs/`.
+
+Hors arborescence, à nettoyer si besoin :
+
+- la ou les tâches planifiées « gmailAgent - ... » (Planificateur de tâches) ;
+- les entrées `gmailAgent` dans le Gestionnaire d'identifiants Windows (restes éventuels d'anciens tests) ;
+- le cache pip (`%LOCALAPPDATA%\pip\Cache`), optionnel ;
+- pour retirer aussi Python : `winget uninstall --id Python.Python.3.14`.
+
+Côté Gmail (hors poste, rien à faire sur le disque) : les libellés `Agent/*` posés en mode réel et les messages passés à la corbeille (récupérables 30 jours) restent dans la boîte.
 
 ---
 
