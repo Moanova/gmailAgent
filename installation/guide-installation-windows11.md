@@ -1,6 +1,6 @@
 # Guide d'installation — gmailAgent sur Windows 11
 
-- **Version** : 1.5 - **Date** : 16-11-2026 - **Branche cible** : `main`
+- **Version** : 1.6 - **Date** : 16-11-2026 - **Branche cible** : `main`
 - **Public** : utilisatrut final (non développeur). **Aucun prérequis** : ni git, ni Python installés. Tout se fait par téléchargements et double-clics.
 
 ## 0. Avant de commencer - ce qu'on vous a fourni
@@ -38,7 +38,7 @@ Double-clic sur **`installation\Windows\install.bat`** dans le dossier extrait. 
 1. **Python** : installation de la **3.14** via `winget` (natif Windows 11) s'il est absent. Si un Python est déjà présent : version ≥ 3.14 → on continue sans rien changer ; version antérieure à 3.14 → question « monter en 3.14 [M] ou annuler [A] » ; version < 3.11 → refus (incompatible avec `pyproject.toml`).
 2. **Environnement virtuel** `.venv` + `pip install -e .` (installation éditable obligatoire ; quelques minutes) + vérification `gmailagent --help`.
 3. **Copie des lanceurs** à la racine du dossier projet : `tri.bat`, `tri-reel.bat`, `tri-reel-auto.bat`, `suppression.bat`, `init-oauth.bat`, `recreer-venv.bat`, `lancer.ps1`.
-4. **Saisie des 3 secrets** (affichage masqué), stockés **chiffrés dans le Credential Manager Windows** et liés à votre compte. Aucun secret n'est écrit en clair dans un fichier du projet.
+4. **Création du fichier `secrets.env`** (clés vides) à la racine du projet — à remplir ensuite avec le Bloc-notes, voir §2bis. Fichier local ignoré par git : aucun secret dans le dépôt.
 
 > Pourquoi des `.bat` et pas des `.ps1` en direct : la stratégie d'exécution de Windows bloque les scripts PowerShell lancés par double-clic (« exécution de scripts désactivée »). Les `.bat` passent toujours ; ils appellent PowerShell avec `-ExecutionPolicy Bypass` **pour ce seul processus**, sans modifier aucun réglage du poste.
 
