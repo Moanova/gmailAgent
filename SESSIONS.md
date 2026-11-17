@@ -94,6 +94,7 @@ contexte (voir AGENTS.md, §1).
 | 16/11/2026 | Séance du 16/11/2026 (suite 5) — report dev → main (2e19506, commit abb630e poussé depuis le poste utilisateur) | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 6) — clôture v1 : T10.1 Terminé (D74, v2 = Mistral Studio), 312 tests verts, acceptation/README à jour | ci-dessous |
 | 16/11/2026 | Séance du 16/11/2026 (suite 7) — incident encodage Windows (D75) : .ps1 en UTF-8 BOM+CRLF, .bat en ASCII+CRLF, .gitattributes -text | ci-dessous |
+| 16/11/2026 | Séance du 16/11/2026 (suite 8) — fix install.ps1 (param en tête) + journalisation installation (console horodatée + logs\installation.log) | ci-dessous |
 
 ---
 
@@ -1058,3 +1059,31 @@ Aucun.
 ### État en fin de séance
 
 - `dev` et `main` à jour avec le correctif d'encodage ; à retester sur le poste Windows (re-télécharger le ZIP de `main`, double-clic `installation\Windows\install.bat`, plus de conversion LF→CRLF nécessaire).
+
+---
+
+## Séance du 16/11/2026 (suite 8) — fix `install.ps1` (param) + journalisation de l'installation
+
+### Contexte
+Deuxième test réel sur le poste Windows : `install.ps1` échoue avec « Le terme 'param' n'est pas reconnu » (ligne 15). Demande utilisateur : journaliser les actions de l'installation, au moins sur la console.
+
+### Diagnostic et correctifs
+
+1. **Cause** : dans `install.ps1`, `$ErrorActionPreference = "Stop"` précédait le bloc `param(...)` — or `param` doit être la **première instruction** d'un script PowerShell (seuls les commentaires peuvent précéder) ; sinon il est traité comme une commande. `lancer.ps1` était déjà correct.
+2. **Correctif** : `install.ps1` v1.2 — `param(...)` déplacé en tête, puis `$ErrorActionPreference`, puis le corps encapsulé dans `try/finally`.
+3. **Journalisation** (demande utilisateur) : fonction `Write-Etape` (étapes horodatées `HH:mm:ss` sur la console, capturées aussi par le transcript) + `Start-Transcript`/`Stop-Transcript` vers `logs\installation.log` (append ; `logs/` est ignoré par git et conservé par bootstrap/recreer-venv). Le fichier est aussi écrit en UTF-8 BOM + CRLF (D75), contenu passé en ASCII pour plus de robustesse.
+4. Guide v1.5 : ligne de dépannage « rejouer/diagnostiquer l'installation → logs\installation.log ».
+5. Vérification : `param` confirmé 1ère instruction non-commentaire ; BOM+CRLF présents ; 312 tests toujours verts (aucun `.py` modifié).
+6. Commit + push `dev`, merge `dev` → `main`, push `main` ; blob vérifié (BOM+CRLF servis par le ZIP).
+
+### Décisions clés
+
+Aucune nouvelle (correctif de robustesse ; D75 acté).
+
+### Blocages
+
+Aucun.
+
+### État en fin de séance
+
+- À retester sur le poste Windows : re-télécharger le ZIP de `main`, `installation\Windows\install.bat` — l'installation doit se dérouler avec étapes horodatées + `logs\installation.log`.
