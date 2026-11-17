@@ -1,7 +1,7 @@
 ﻿# -------------------------------------------------------------------
 # Application  : gmailAgent
 # Script       : install.ps1
-# Version      : 1.3
+# Version      : 1.4
 # Date         : 16-11-2026
 # Design       : TSC + Mistral Vibe
 # Build        : Mistral Vibe
@@ -97,7 +97,7 @@ try {
 
     # Lanceurs copies a la racine du projet, sans ecraser une version existante
     $dossier = Join-Path $Racine "installation\Windows"
-    foreach ($f in @("lancer.ps1","tri.bat","tri-reel.bat","tri-reel-auto.bat","suppression.bat","init-oauth.bat","recreer-venv.bat")) {
+    foreach ($f in @("lancer.ps1","tri.bat","tri-reel.bat","tri-reel-auto.bat","suppression.bat","suppression-reel.bat","suppression-reel-auto.bat","init-oauth.bat","recreer-venv.bat")) {
         $cible = Join-Path $Racine $f
         if (-not (Test-Path $cible)) { Copy-Item (Join-Path $dossier $f) $cible }
     }
